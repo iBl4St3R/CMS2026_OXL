@@ -164,8 +164,9 @@ namespace CMS2026_OXL
                 lbl.SetFontSize(68);
             }
 
+            _panel.AddSpace(8f);
             // ── Pole wyszukiwania — szersze niż logo, wyśrodkowane ─────────────
-            _panel.AddSpace(32f);
+
 
             // Używamy row z przestrzenią po bokach żeby wyśrodkować input
             float searchSide = (ContentW - CenterW) / 2f;
@@ -202,21 +203,19 @@ namespace CMS2026_OXL
             bSearch.SetTextColor(OXLGreen);
             _panel.WireHover(bSearch.GetRawPtr(), BtnDark, BtnDarkHi, SearchBdr);
 
-            //// Dropdown: Marka
-            //btnRow.AddDropdown("Marka", new[] {
-            //    "Wszystkie", "Audi", "BMW", "Ford", "Honda",
-            //    "Mercedes", "Toyota", "Volkswagen" },
-            //    selectedIndex: 0,
-            //    onChanged: i => OXLPlugin.Log.Msg($"[OXL] Make filter: {i}"),
-            //    width: 130f);
+            // Dropdown: Marka
+            btnRow.AddDropdown("Marka", new[] {"Wszystkie", "APlaceholder", "BPlaceholder", "FPlaceholder", "HPlaceholder", "MPlaceholder", "TPlaceholder", "VPlaceholder" },
+                selectedIndex: 0,
+                onChanged: i => OXLPlugin.Log.Msg($"[OXL] Make filter: {i}"),
+                width: 130f);
 
-            //// Dropdown: Rok
-            //var years = new List<string> { "Dowolny rok" };
-            //for (int y = 2020; y >= 1990; y--) years.Add(y.ToString());
-            //btnRow.AddDropdown("Rok od", years.ToArray(),
-            //    selectedIndex: 0,
-            //    onChanged: i => OXLPlugin.Log.Msg($"[OXL] Year filter: {i}"),
-            //    width: 110f);
+            // Dropdown: Rok
+            var years = new List<string> { "Dowolny rok" };
+            for (int y = 2020; y >= 1990; y--) years.Add(y.ToString());
+            btnRow.AddDropdown("Rok od", years.ToArray(),
+                selectedIndex: 0,
+                onChanged: i => OXLPlugin.Log.Msg($"[OXL] Year filter: {i}"),
+                width: 110f);
 
             // ── Kategorie ─────────────────────────────────────────────────────
             _panel.AddSpace(36f);
