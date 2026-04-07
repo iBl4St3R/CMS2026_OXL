@@ -32,6 +32,31 @@ namespace CMS2026_OXL
         private UIPanel _panel;
         private readonly ListingSystem _listings = new ListingSystem();
 
+        // ── Menu & pages ──────────────────────────────────────────────────────
+        private IntPtr _menuDropdownPtr;
+        private bool _menuOpen = false;
+        private IntPtr _pageOverlayPtr;
+        private UILabelHandle _pageTitleLbl;
+        private UILabelHandle _pageBodyLbl;
+
+        private static readonly string[] PageTitles = { "Help", "Settings", "About" };
+        private static readonly string[] PageBodies =
+        {
+            "OXL is an in-game car auction marketplace for Car Mechanic Simulator 2026.\n\n" +
+            "Browse active listings, buy cars, fix them up and sell for profit.\n\n" +
+            "Controls\n  F9  —  toggle the OXL panel\n  oxl_open  —  console command\n\n" +
+            "Tip: listings expire over time — check back often for new deals.",
+
+            "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
+
+            "OXL — Online eX-Owner Lies\nVersion: 0.1.0\nAuthor: Blaster\n\n" +
+            "Part of the CMS 2026 modding ecosystem.\n" +
+            "Built on _CMS2026_UITK_Framework.\n\n" +
+            "github.com/iBl4St3R/CMS2026-OXL"
+        };
+
+
+
         // Cache ikon
         private Texture2D _icoPrev, _icoNext, _icoRef, _icoSecured, _icoMenu;
 
@@ -110,34 +135,36 @@ namespace CMS2026_OXL
             row.AddSpace(6f);
 
             // Menu ikona
-            AddIconButton(row, _icoMenu, "\u22EE", 36f, () => { });
+            AddIconButton(row, _icoMenu, "\u22EE", 36f, () => ToggleMenu());
 
             _panel.AddSeparator(Border);
+
+            BuildMenuDropdown();    
+            BuildPageOverlay();    
         }
 
         // helper: ikona lub fallback tekstowy
-        private void AddIconButton(UIRowBuilder row, Texture2D icon, string fallbackChar,float width, Action onClick)
+        private IntPtr AddIconButton(UIRowBuilder row, Texture2D icon, string fallbackChar,float width, Action onClick)
         {
             if (icon != null)
             {
                 var ve = UIRuntime.NewVE();
                 var st = UIRuntime.GetStyle(ve);
-                S.Width(st, width);
-                S.Height(st, width); // kwadrat
+                S.Width(st, width); S.Height(st, width);
                 S.BorderRadius(st, 4f);
                 UIRuntime.SetBackgroundImage(ve, icon);
-
                 var ptr = UIRuntime.GetPtr(ve);
                 row.AddRaw(ve, width + 2f);
                 _panel.WireHover(ptr, Transp, BtnDark, BtnDarkHi);
-                // klik przez PointerDown — jeśli framework ma WireClick, użyj go
-                // (na razie ikony nawigacji nie potrzebują akcji)
+                if (onClick != null) _panel.WireClick(ptr, onClick);  // ← wire click
+                return ptr;
             }
             else
             {
                 var btn = row.AddButton(fallbackChar, width, onClick, Transp);
                 btn.SetTextColor(TextGray);
                 _panel.WireHover(btn.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
+                return btn.GetRawPtr();
             }
         }
 
@@ -174,9 +201,9 @@ namespace CMS2026_OXL
             // Wrapper — AddTextInput jest na UIPanel, więc po dodaniu
             // ustawiamy mu width i left przez UIRuntime
             var searchHandle = _panel.AddTextInput(
-                "Szukaj aut, marek, rocznik\u00f3w...",
-                onSubmit: q => OXLPlugin.Log.Msg($"[OXL] Search: {q}"),
-                height: 48f);
+                 "",          // no built-in placeholder — handled by SetFakePlaceholder
+                 onSubmit: q => { if (!string.IsNullOrEmpty(q)) OXLPlugin.Log.Msg($"[OXL] Search: {q}"); },
+                 height: 48f);
 
             // Zawęź i wyśrodkuj pole input przez styl
             var sVE = UIRuntime.WrapVE(searchHandle.GetRawPtr());
@@ -188,6 +215,10 @@ namespace CMS2026_OXL
             S.BorderWidth(sSt, 1f);
             S.BorderColor(sSt, SearchBdr);
             S.Padding(sSt, 10f);
+
+
+            // Fake placeholder — gray hint, clears on focus, restores on blur
+            searchHandle.SetFakePlaceholder("Search for vehicles, parts or tools", TextGray, Color.white);
 
             // ── Przyciski + filtry ─────────────────────────────────────────────
             _panel.AddSpace(14f);
@@ -236,6 +267,114 @@ namespace CMS2026_OXL
             var wip = _panel.AddLabel("\u2014 Reszta strony w budowie (WIP) \u2014", TextGray);
             wip.SetFontSize(11);
         }
+
+
+        // ── Menu dropdown ─────────────────────────────────────────────────────
+        private void ToggleMenu()
+        {
+            _menuOpen = !_menuOpen;
+            if (_menuDropdownPtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_menuDropdownPtr)), _menuOpen);
+        }
+
+        private void BuildMenuDropdown()
+        {
+            const float DropW = 140f;
+            const float ItemH = 36f;
+            // TitleH(24) + sep(~14) + row(44) + sep gap ≈ 88 in panel coords
+            float dropTop = 88f;
+            float dropLeft = PanelW - DropW - 8f;
+
+            var drop = UIRuntime.NewVE();
+            var ds = UIRuntime.GetStyle(drop);
+            S.Position(ds, "Absolute");
+            S.Left(ds, dropLeft); S.Top(ds, dropTop);
+            S.Width(ds, DropW); S.Height(ds, ItemH * PageTitles.Length + 6f);
+            S.BgColor(ds, new Color(0.07f, 0.10f, 0.16f, 0.98f));
+            S.BorderRadius(ds, 6f);
+            S.BorderColor(ds, Border); S.BorderWidth(ds, 1f);
+            S.Overflow(ds, "Hidden");
+            S.Display(ds, false);
+            _panel.AddOverlayToPanel(drop);
+            _menuDropdownPtr = UIRuntime.GetPtr(drop);
+
+            for (int i = 0; i < PageTitles.Length; i++)
+            {
+                int idx = i;
+                var ptr = _panel.AddButtonToContainer(drop,
+                    PageTitles[i], 0f, 3f + i * ItemH, DropW, ItemH,
+                    BtnDark, () => { ToggleMenu(); ShowPage(idx); });
+                _panel.WireHover(ptr, BtnDark, BtnDarkHi, SearchBdr);
+            }
+        }
+
+        // ── Page overlay ──────────────────────────────────────────────────────
+        private void BuildPageOverlay()
+        {
+            const float TopBarH = 44f;
+            const float Pad = 16f;
+
+            var overlay = UIRuntime.NewVE();
+            var os = UIRuntime.GetStyle(overlay);
+            S.Position(os, "Absolute");
+            S.Left(os, 0f); S.Top(os, 24f);          // below title bar
+            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.BgColor(os, PageBg);
+            S.Overflow(os, "Hidden");
+            S.Display(os, false);
+            _panel.AddOverlayToPanel(overlay);
+            _pageOverlayPtr = UIRuntime.GetPtr(overlay);
+
+            // ── Top bar ───────────────────────────────────────────────────────
+            var topBar = UIRuntime.NewVE();
+            var ts = UIRuntime.GetStyle(topBar);
+            S.Position(ts, "Absolute");
+            S.Left(ts, 0f); S.Top(ts, 0f);
+            S.Width(ts, PanelW); S.Height(ts, TopBarH);
+            S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
+            UIRuntime.AddChild(overlay, topBar);
+
+            var backPtr = _panel.AddButtonToContainer(topBar,
+                "\u2190  Back", Pad, 6f, 100f, TopBarH - 12f,
+                BtnDark, HidePage);
+            _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            _pageTitleLbl = _panel.AddLabelToContainer(topBar,
+                "", 130f, 0f, PanelW - 150f, TopBarH, OXLGreen);
+            _pageTitleLbl.SetFontSize(18);
+            //S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageTitleLbl.GetRawPtr())),
+            //            TextAnchor.MiddleLeft);
+
+            // Separator under top bar
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, TopBarH);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(overlay, sep);
+
+            // Body text
+            _pageBodyLbl = _panel.AddLabelToContainer(overlay,
+                "", Pad, TopBarH + Pad, PanelW - Pad * 2f, PanelH - TopBarH - 24f - Pad * 2f,
+                TextGray);
+            _pageBodyLbl.SetFontSize(13);
+        }
+
+        private void ShowPage(int index)
+        {
+            if (_pageOverlayPtr == IntPtr.Zero) return;
+            _pageTitleLbl?.SetText(PageTitles[index]);
+            _pageBodyLbl?.SetText(PageBodies[index]);
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageOverlayPtr)), true);
+        }
+
+        private void HidePage()
+        {
+            if (_pageOverlayPtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageOverlayPtr)), false);
+        }
+
 
         // ── Ładowanie ikon 64×64 z Resources/icons/ ──────────────────────────
         private void LoadIcons()
