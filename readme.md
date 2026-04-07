@@ -1,6 +1,8 @@
 # WORK IN PROGERS
 
-<img src="logo.png" align="center" width="400" alt="OXL">
+<p align="center">
+  <img src="logo.png" width="400" alt="OXL">
+</p>
 # OXL — Online eX-Owner Lies 🚗💸
 
 > *"One owner. Runs great. Selling only because I bought a new one."*
