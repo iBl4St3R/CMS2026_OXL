@@ -77,4 +77,64 @@ namespace CMS2026_OXL
             }
         }
     }
+
+
+
+
+    /// <summary>
+    /// Routes log messages to SimpleConsole if available, otherwise MelonLoader.
+    /// </summary>
+    internal static class OXLLog
+    {
+        private static readonly MelonLogger.Instance _log =
+            new MelonLogger.Instance("CMS2026_OXL");
+
+        private static System.Reflection.MethodInfo _consolePrint;
+        private static bool _resolved;
+
+        private static void TryResolve()
+        {
+            if (_resolved) return;
+            _resolved = true;
+            try
+            {
+                var t = System.AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a => {
+                        try { return a.GetTypes(); }
+                        catch { return System.Type.EmptyTypes; }
+                    })
+                    .FirstOrDefault(x => x.FullName == "CMS2026SimpleConsole.ConsoleAPI");
+
+                _consolePrint = t?.GetMethod("Print",
+                    new[] { typeof(string), typeof(string) });
+
+                if (_consolePrint == null)
+                    _consolePrint = t?.GetMethod("Print",
+                        new[] { typeof(string) });
+            }
+            catch { }
+        }
+
+        public static void Msg(string msg)
+        {
+            try
+            {
+                TryResolve();
+                if (_consolePrint != null)
+                {
+                    var pars = _consolePrint.GetParameters();
+                    if (pars.Length == 2)
+                        _consolePrint.Invoke(null, new object[] { msg, "OXL" });
+                    else
+                        _consolePrint.Invoke(null, new object[] { msg });
+                    return;
+                }
+            }
+            catch { }
+            _log.Msg(msg);
+        }
+
+        public static void Warn(string msg) => _log.Warning(msg);
+        public static void Error(string msg) => _log.Error(msg);
+    }
 }
