@@ -31,19 +31,19 @@ namespace CMS2026_OXL
 
         public void Build()
         {
-            _panel = FrameworkAPI.CreatePanel(
-                title: "  \U0001F4BB  OXL — Online eX-Owner Lies",
-                x: 100f, y: 40f,
-                width: 760f, height: 580f,
-                sortOrder: 8000);
+            _panel = FrameworkAPI.CreatePanel(title: "  \U0001F4BB  OXL — Online eX-Owner Lies",x: 100f, y: 40f,width: 1920f, height: 1080f);
+
 
             // Przyciski tytułu — przed Build() frameworka (tu używamy kolejności dodawania)
-            _panel.AddTitleButton("\u2715", Close,
-                new Color(0.65f, 0.12f, 0.12f, 1f));       // ✕ close
+
+            _panel.AddTitleButton("\u2014", () => { },
+               new Color(0.15f, 0.18f, 0.25f, 1f));       // — min
             _panel.AddTitleButton("\u25A1", () => { },
                 new Color(0.15f, 0.18f, 0.25f, 1f));       // □ max
-            _panel.AddTitleButton("\u2014", () => { },
-                new Color(0.15f, 0.18f, 0.25f, 1f));       // — min
+            _panel.AddTitleButton("\u2715", Close,
+                new Color(0.65f, 0.12f, 0.12f, 1f));       // ✕ close
+
+            _panel.Build(sortOrder: 9000);
 
             _panel.SetScrollbarVisible(false);
             _panel.SetDragWhenScrollable(true); // tytuł teraz jest chrome barem
@@ -119,7 +119,7 @@ namespace CMS2026_OXL
             Texture2D logo = TryLoadLogo();
             if (logo != null)
             {
-                _panel.AddImage(logo, 0f, 108f);  // 0 = pełna szerokość, 108px wys.
+                _panel.AddImage(logo, 0f, 480f);  // 0 = pełna szerokość,
             }
             else
             {
@@ -200,9 +200,9 @@ namespace CMS2026_OXL
         {
             try
             {
-                string dir = System.IO.Path.GetDirectoryName(
-                    System.Reflection.Assembly.GetExecutingAssembly().Location);
-                string path = System.IO.Path.Combine(dir, "logo.png");
+                // 1. Budowanie ścieżki do folderu Mods/CMS2026_OXL/logo.png
+                // Najbezpieczniej użyć ścieżki relatywnej do folderu głównego gry
+                string path = System.IO.Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "logo.png");
 
                 if (!System.IO.File.Exists(path))
                 {
@@ -210,23 +210,49 @@ namespace CMS2026_OXL
                     return null;
                 }
 
+                // 2. Odczyt bajtów
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
-                var tex = new Texture2D(2, 2);
 
-                var icAsm = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => a.GetName().Name == "UnityEngine.ImageConversionModule");
+                // 3. Przygotowanie tekstury (Format RGBA32 jest najbezpieczniejszy dla UI)
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
 
-                if (icAsm == null) { OXLPlugin.Log.Warning("[OXL] ImageConversionModule not found"); return null; }
+                // 4. Konwersja na format akceptowany przez IL2CPP
+                var il2Bytes = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<byte>(bytes.Length);
+                for (int i = 0; i < bytes.Length; i++) il2Bytes[i] = bytes[i];
 
-                var il2b = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<byte>(bytes.Length);
-                for (int i = 0; i < bytes.Length; i++) il2b[i] = bytes[i];
+                // 5. Znalezienie metody LoadImage przez refleksję (ImageConversionModule)
+                var icType = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a => {
+                        try { return a.GetTypes(); }
+                        catch { return Array.Empty<Type>(); }
+                    })
+                    .FirstOrDefault(t => t.FullName == "UnityEngine.ImageConversion");
 
-                icAsm.GetType("UnityEngine.ImageConversion")
-                     .GetMethod("LoadImage", new System.Type[] { typeof(Texture2D), il2b.GetType() })
-                     ?.Invoke(null, new object[] { tex, il2b });
+                if (icType == null)
+                {
+                    OXLPlugin.Log.Warning("[OXL] UnityEngine.ImageConversion not found");
+                    return null;
+                }
 
-                OXLPlugin.Log.Msg("[OXL] logo.png loaded OK");
-                return tex;
+                var loadImg = icType.GetMethods()
+                    .FirstOrDefault(m => m.Name == "LoadImage" && m.GetParameters().Length == 2);
+
+                if (loadImg == null)
+                {
+                    OXLPlugin.Log.Warning("[OXL] LoadImage method not found");
+                    return null;
+                }
+
+                // 6. Wywołanie i sprawdzenie wyniku
+                bool success = (bool)loadImg.Invoke(null, new object[] { tex, il2Bytes });
+
+                if (success)
+                {
+                    OXLPlugin.Log.Msg($"[OXL] logo.png loaded successfully from {path}");
+                    return tex;
+                }
+
+                return null;
             }
             catch (Exception ex)
             {
