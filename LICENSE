@@ -1,21 +1,42 @@
-MIT License
+## 📄 License
+© Blaster — All Rights Reserved (Custom License)
 
-Copyright (c) 2026 iBl4St3R
+---
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### ✅ What you MAY do
+- Download and use this mod for personal, non-commercial gameplay
+- Share a link to the original Nexus/GitHub page
+- Study the code and take inspiration from it
+- Use fragments of the code in your own project
+- All of the above **requires crediting iBlaster as the original author**
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+### ❌ What you MAY NOT do
+- Re-release this mod or any modified version of it
+- Rebrand it under a different name or for a different game/platform
+- Redistribute the compiled .dll or source code elsewhere
+- Use this code, in whole or in substantial part, to create a 
+  competing mod with the same or similar purpose
+- Use this for any commercial purpose
+
+---
+
+### 📝 Credit requirement
+Any use permitted above must include visible credit:
+> Based on / inspired by OXL by Blaster
+> github.com/iBl4St3R/CMS2026-OXL
+
+---
+
+### ⚠️ Third-Party Content
+GameMode/UI blocking pattern referenced from DemoCheats by mannly82 (GPL v3)
+— logic independently rewritten for this project.
+https://www.nexusmods.com/carmechanicsimulator2026/mods/6
+
+Game assets belong to their respective owners.
+
+---
+
+This license does not constitute a legal contract under any jurisdiction.
+It represents the author's stated intentions and community expectations.

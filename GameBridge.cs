@@ -2,7 +2,8 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using System.Linq;
+using System.Reflection;
 
 namespace CMS2026_OXL
 {
@@ -20,81 +21,81 @@ namespace CMS2026_OXL
             try
             {
                 Il2CppCMS.Shared.SharedGameDataManager.Instance.AddMoneyRpc(-amount);
-                OXLPlugin.Log.Msg($"[OXL] Deducted ${amount}");
             }
-            catch (Exception ex)
-            {
-                OXLPlugin.Log.Msg($"[OXL] DeductMoney failed: {ex.Message}");
-            }
+            catch { }
         }
 
         public static bool HasFreeSlot()
         {
-            foreach (var cl in GetLoaders())
-                if (string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded)
-                    return true;
-            return false;
+            return GetLoaders().Any(cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
         }
 
-        // ── Il2Cpp interop: CarLoader nie dziedziczy po UnityEngine.Object
-        //    w kontekście kompilatora — używamy niegenericowej wersji + cast
         private static Il2CppCMS.Core.Car.CarLoader[] GetLoaders()
         {
-            // Obejście CS0311 — używamy niegenericowej wersji FindObjectsOfType
             var type = Il2CppInterop.Runtime.Il2CppType.Of<Il2CppCMS.Core.Car.CarLoader>();
-            var objs = UnityEngine.Object.FindObjectsOfType(type, true);
-            var result = new Il2CppCMS.Core.Car.CarLoader[objs.Length];
-            for (int i = 0; i < objs.Length; i++)
-                result[i] = objs[i].TryCast<Il2CppCMS.Core.Car.CarLoader>();
-            return result;
+            return UnityEngine.Object.FindObjectsOfType(type, true) // true - tak jak w REPL
+                .Select(x => x.TryCast<Il2CppCMS.Core.Car.CarLoader>())
+                .ToArray();
         }
+
 
         private static IEnumerator DoSpawn(string gameCarId, Action<SpawnResult> onDone)
         {
-            Il2CppCMS.Core.Car.CarLoader free = null;
-            foreach (var cl in GetLoaders())
-            {
-                if (cl == null) continue;
-                if (string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded && free == null)
-                    free = cl;
-            }
+            var loaders = GetLoaders();
+            var free = loaders.FirstOrDefault(cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
 
             if (free == null) { onDone?.Invoke(SpawnResult.NoFreeSlot); yield break; }
 
-            Il2Cpp.CarDebug dbg = null;
-            try { dbg = free.gameObject.GetComponent<Il2Cpp.CarDebug>(); }
+            // 1. Czyścimy loader przez Reflection (jak w REPL)
+            try
+            {
+                var unload = free.GetIl2CppType().GetMethod("UnloadCar");
+                unload?.Invoke(free, null);
+            }
             catch { }
 
-            if (dbg == null) { onDone?.Invoke(SpawnResult.NoCarDebug); yield break; }
+            yield return new WaitForSeconds(0.2f);
+            yield return new WaitForFixedUpdate();
 
-            dbg.LoadCar(gameCarId, GetVariant(gameCarId));  // ← wariant zależy od auta
+            // 2. Ładujemy auto
+            var debugComp = free.gameObject.GetComponent<Il2Cpp.CarDebug>();
+            if (debugComp == null) { onDone?.Invoke(SpawnResult.NoCarDebug); yield break; }
 
+            debugComp.LoadCar(gameCarId, gameCarId == "car_mayenm5" ? 1 : 0);
+
+            // 3. Czekamy na model
             float timeout = 10f;
             while (!free.done && timeout > 0f)
             {
                 timeout -= 0.1f;
                 yield return new WaitForSeconds(0.1f);
             }
+
+            yield return new WaitForFixedUpdate();
+
+            // --- KLUCZOWY FIX DLA ForceStayObjectToMark ---
+            // Musimy przenieść auto do konkretnego slotu, inaczej SaveSystem go nie widzi i wywala NRE
+            try
+            {
+                // Entrance1 to bezpieczny slot startowy
+                free.ChangePosition(Il2Cpp.CarPlace.Entrance1, true);
+
+                // Wymuszamy finalizację przez Reflection (SetBonesDone)
+                free.GetIl2CppType().GetMethod("SetBonesDone")?.Invoke(free, null);
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL] Anchor failed: {ex.Message}");
+            }
+
             yield return new WaitForEndOfFrame();
 
-            // POPRAWKA: zapisz auto jeśli done=true LUB CarID jest ustawione,
-            // nie tylko gdy modelLoaded=true — niektóre auta demo mają błędy zasobów
-            // (np. rim_46) ale i tak stoją na parkingu
-            bool succeeded = free.modelLoaded || !string.IsNullOrWhiteSpace(free.CarID);
-
-            if (succeeded)
+            if (!string.IsNullOrWhiteSpace(free.CarID))
             {
-                free.ChangePosition(Il2Cpp.CarPlace.Entrance1, true);
-                OXLPlugin.Log.Msg($"[OXL] Spawned {gameCarId} OK (modelLoaded={free.modelLoaded})");
-
-                if (!OXLPlugin.PurchasedCarIds.Contains(gameCarId))
-                    OXLPlugin.PurchasedCarIds.Add(gameCarId);
-
                 onDone?.Invoke(SpawnResult.Success);
             }
             else
             {
-                OXLPlugin.Log.Msg($"[OXL] Spawn failed for {gameCarId} (timeout={timeout <= 0f})");
                 onDone?.Invoke(SpawnResult.SpawnFailed);
             }
         }
@@ -106,15 +107,7 @@ namespace CMS2026_OXL
             if (internalId.StartsWith("car_luxor_streamliner")) return "car_luxorstreamlinermk3";
             if (internalId.StartsWith("car_mayen_m5")) return "car_mayenm5";
             if (internalId.StartsWith("car_salem_aries")) return "car_salemariesmk3";
-            OXLPlugin.Log.Msg($"[OXL] Unknown internalId: {internalId}");
             return internalId;
-        }
-
-        private static int GetVariant(string gameCarId)
-        {
-            // Mayen M5 wymaga wariantu 1 — jedyny wyjątek w demo
-            if (gameCarId == "car_mayenm5") return 1;
-            return 0;
         }
     }
 }

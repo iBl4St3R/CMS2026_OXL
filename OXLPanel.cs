@@ -6,6 +6,9 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using Il2Cpp;
+using Il2CppCMS.Core;
+using Il2CppCMS.UI;
 
 namespace CMS2026_OXL
 {
@@ -100,10 +103,16 @@ namespace CMS2026_OXL
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
 
-            "OXL — Online eX-Owner Lies\nVersion: 0.1.0\nAuthor: Blaster\n\n" +
-            "Part of the CMS 2026 modding ecosystem.\n" +
+            "OXL — Online eX-Owner Lies\nVersion: 0.1.0\nAuthor: iBlaster\n\n" +
             "Built on _CMS2026_UITK_Framework.\n\n" +
-            "github.com/iBl4St3R/CMS2026-OXL"
+            "github.com/iBl4St3R/CMS2026-OXL\n\n" +
+             "— Icons —\n" +
+            "Hamburger icon by See Icons · Flaticon\n" +
+            "Lock icon by verry purnomo · Flaticon\n" +
+            "Next icon by Gajah Mada · Flaticon\n" +
+            "Refresh icon by riajulislam · Flaticon\n" +
+            "Previous icon by Slidicon · Flaticon\n" +
+            "flaticon.com"
         };
 
         // ── Icon cache ────────────────────────────────────────────────────────
@@ -111,8 +120,15 @@ namespace CMS2026_OXL
 
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
+        // Właściwość pomocnicza do sprawdzania stanu z zewnątrz
+        private bool _isVisible; // Zmienna śledząca stan
+
+        public bool IsVisible => _isVisible;
+
 
         //guards
+
+
 
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
@@ -222,7 +238,7 @@ namespace CMS2026_OXL
             const float MenuBtnW = 38f;
             float urlW = PanelW - cx - MenuBtnW - 10f;
             var urlLbl = _panel.AddLabelToContainer(
-                bar, "  oxl.pl/home",
+                bar, "  oxl.com/home",
                 cx, RowY + (RowH - 28f) * 0.5f, urlW, 28f, TextGray);
             var urlVE = UIRuntime.WrapVE(urlLbl.GetRawPtr());
             var urlSt = UIRuntime.GetStyle(urlVE);
@@ -303,6 +319,54 @@ namespace CMS2026_OXL
             // Address bar bottom in panel space = OverlayTop = 76.
             // Reserve = 76 - 30 = 46px.
             _panel.AddSpace(46f);
+
+
+            // ── Alpha Warning Banner (overlay tło + labele w flow) ────────────────
+
+            // 1. Overlay - tło czerwone, absolutne, przyklejone do góry content area
+            var warnOverlay = UIRuntime.NewVE();
+            var wos = UIRuntime.GetStyle(warnOverlay);
+            S.Position(wos, "Absolute");
+            S.Left(wos, 0f);
+            S.Top(wos, 46f + 24f + 6f); // TitleH + Pad + po AddSpace(46)
+            S.Width(wos, ContentW);
+            S.Height(wos, 78f);
+            S.BgColor(wos, new Color(0.22f, 0.04f, 0.03f, 1f));
+            S.BorderWidth(wos, 1f);
+            S.BorderColor(wos, new Color(0.80f, 0.18f, 0.08f, 0.70f));
+
+
+            // 2. Labele przez normalny flow (content)
+            _panel.AddSpace(4f);
+
+            var w1 = _panel.AddLabel(
+                "⚠  THIS MOD IS IN ALPHA — MANY BUGS EXIST AND NUMEROUS FEATURES ARE NOT YET FUNCTIONAL  ⚠",
+                new Color(1.0f, 0.52f, 0.12f, 1f), height: 36f);
+            w1.SetFontSize(24);
+            var w1ve = UIRuntime.WrapVE(w1.GetRawPtr());
+            S.TextAlign(UIRuntime.GetStyle(w1ve), TextAnchor.MiddleCenter);
+            S.BgColor(UIRuntime.GetStyle(w1ve), new Color(0.22f, 0.04f, 0.03f, 1f));
+
+            var w2 = _panel.AddLabel(
+                "THIS MOD WILL NOT BE AVAILABLE OR SUPPORTED ONCE THE FULL GAME IS RELEASED FOR PURCHASE",
+                new Color(1.0f, 0.35f, 0.25f, 1f), height: 36f);
+            w2.SetFontSize(24);
+            var w2ve = UIRuntime.WrapVE(w2.GetRawPtr());
+            S.TextAlign(UIRuntime.GetStyle(w2ve), TextAnchor.MiddleCenter);
+            S.BgColor(UIRuntime.GetStyle(w2ve), new Color(0.22f, 0.04f, 0.03f, 1f));
+
+            var w3 = _panel.AddLabel(
+                "SAVE YOUR GAME BEFORE USE  ·  USE AT YOUR OWN RISK  ·  REPORT BUGS ON NEXUSMODS OR GITHUB",
+                new Color(0.70f, 0.28f, 0.20f, 0.85f), height: 36f);
+            w3.SetFontSize(24);
+            var w3ve = UIRuntime.WrapVE(w3.GetRawPtr());
+            S.TextAlign(UIRuntime.GetStyle(w3ve), TextAnchor.MiddleCenter);
+            S.BgColor(UIRuntime.GetStyle(w3ve), new Color(0.22f, 0.04f, 0.03f, 1f));
+
+            _panel.AddSpace(6f);
+            
+
+
 
             // ── Logo ──────────────────────────────────────────────────────────
             Texture2D logo = TryLoadLogo();
@@ -1321,6 +1385,7 @@ namespace CMS2026_OXL
             S.BgColor(ss, new Color(0.15f, 0.42f, 0.24f, 0.45f));
             UIRuntime.AddChild(foot, sepTop);
 
+            // Main footer text
             var lbl = _panel.AddLabelToContainer(
                 foot,
                 "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.1.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
@@ -1329,6 +1394,16 @@ namespace CMS2026_OXL
             lbl.SetFontSize(10);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(lbl.GetRawPtr())),
                         TextAnchor.MiddleCenter);
+
+            // "powered by" — mniejszy, bardziej wyszarzony, przyklejony do prawej
+            var poweredLbl = _panel.AddLabelToContainer(
+                foot,
+                "powered by UITK Framework 0.2.0",
+                0f, 0f, PanelW - 10f, FootH,
+                new Color(0.18f, 0.32f, 0.22f, 0.45f));
+            poweredLbl.SetFontSize(9);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(poweredLbl.GetRawPtr())),
+                        TextAnchor.MiddleRight);
         }
 
         //old keep for a while
@@ -1505,8 +1580,44 @@ namespace CMS2026_OXL
         //  PUBLIC API
         // ══════════════════════════════════════════════════════════════════════
 
-        public void Open() => _panel?.SetVisible(true);
-        public void Close() => _panel?.SetVisible(false);
-        public void Toggle() => _panel?.Toggle();
+
+
+
+        public void Open()
+        {
+            if (_panel == null) return;
+
+            _panel.SetVisible(true);
+            _isVisible = true; // Aktualizacja stanu
+
+            if (GameMode.Get().currentMode != gameMode.UI)
+            {
+                GameMode.Get().SetCurrentMode(gameMode.UI);
+            }
+        }
+
+        public void Close()
+        {
+            if (_panel == null) return;
+
+            _panel.SetVisible(false);
+            _isVisible = false; // Aktualizacja stanu
+
+            if (GameMode.Get().currentMode == gameMode.UI)
+            {
+                // Tutaj błąd CS0012 zniknie po dodaniu referencji do Il2CppSystem
+                if (Singleton<WindowManager>.Instance.activeWindows.Count <= 0)
+                {
+                    GameMode.Get().SetCurrentMode(gameMode.Garage);
+                }
+            }
+        }
+
+        // Metoda do wygodnego przełączania (np. dla klawisza F10)
+        public void Toggle()
+        {
+            if (IsVisible) Close();
+            else Open();
+        }
     }
 }

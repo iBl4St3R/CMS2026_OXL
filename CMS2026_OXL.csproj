@@ -21,6 +21,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+  <Reference Include="Il2CppSystem">
+  <HintPath>$(InteropDir)\Il2CppSystem.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+  
+  
     <!-- MelonLoader -->
     <Reference Include="MelonLoader">
       <HintPath>$(Net6Dir)\MelonLoader.dll</HintPath>

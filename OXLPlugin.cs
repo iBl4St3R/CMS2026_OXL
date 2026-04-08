@@ -16,47 +16,26 @@ namespace CMS2026_OXL
 
         private OXLPanel _panel;
 
-        // Auta zakupione — przeżywają reload sceny
-        internal static readonly List<string> PurchasedCarIds = new();
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (!sceneName.ToLower().Contains("garage")) return;
-            if (!FrameworkAPI.IsReady)
-            {
-                Log.Warning("[OXL] UITK Framework not ready.");
-                return;
-            }
+            if (!FrameworkAPI.IsReady) return;
 
             _panel = new OXLPanel();
             _panel.Build();
             TryRegisterConsole();
 
-            // Re-spawn zakupionych aut po reload
-            if (PurchasedCarIds.Count > 0)
-                MelonLoader.MelonCoroutines.Start(RespawnAll());
+            // USUNIĘTO WSZYSTKO CO DOTYCZY PurchasedCarIds i RespawnAll
         }
 
-        private System.Collections.IEnumerator RespawnAll()
-        {
-            // Poczekaj chwilę aż scena się w pełni załaduje
-            yield return new UnityEngine.WaitForSeconds(2f);
-
-            foreach (var carId in PurchasedCarIds)
-            {
-                Log.Msg($"[OXL] Re-spawning {carId} after scene reload");
-                GameBridge.SpawnCar(carId, result =>
-                    Log.Msg($"[OXL] Re-spawn {carId}: {result}"));
-                yield return new UnityEngine.WaitForSeconds(0.5f);
-            }
-        }
 
         public override void OnUpdate()
         {
-            // FIX CS0656: operator ?. zastąpiony jawnym if — unika NullableAttribute
-            if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F10))
+            // Przykład obsługi klawisza - teraz używa tylko Toggle()
+            if (UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Home))
             {
-                if (_panel != null) _panel.Open();
+                _panel?.Toggle();
             }
         }
 

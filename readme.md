@@ -13,6 +13,8 @@
 Browse listings, spot a deal, buy a wreck — then fix it up and sell it for profit.
 
 
+"Controls\n  Home  —  toggle the OXL panel\n  oxl_open  —  console command\n\n" +
+
 ## ✨ Features
 
 - **Live Listings** — 4 to 10 active auctions at any time, refreshed dynamically as
@@ -71,7 +73,8 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 ## 📄 License
 
-MIT — part of the CMS 2026 modding ecosystem.
+© Blaster — [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+Free to use. No modifications. No redistribution without permission.
 
 ---
 
