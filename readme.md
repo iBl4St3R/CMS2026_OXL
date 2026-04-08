@@ -12,11 +12,9 @@
 Browse listings, spot a deal, buy a wreck — then fix it up and sell it for profit.
 
 
-"Controls\n  Home  —  toggle the OXL panel\n  oxl_open  —  console command\n\n" +
-
 ## ✨ Features
 
-- **Live Listings** — 4 to 10 active auctions at any time, refreshed dynamically as
+- **Live Listings** — 50 to 200 active auctions at any time, refreshed dynamically as
   in-game time passes. Miss the window and the deal is gone.
 - **Filters** — narrow down by make and year
 - **Seller Descriptions** — every listing comes with a suspiciously optimistic write-up
@@ -29,14 +27,14 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 **Required:**
 - [MelonLoader v0.7.2+](https://github.com/LavaGang/MelonLoader)
-- [_CMS2026_UITK_Framework](link)
+- [_CMS2026_UITK_Framework](https://github.com/iBl4St3R/_CMS2026_UITK_Framework/releases)
 
 **Optional:**
-- [CMS 2026 Simple Console](link) — enables the `oxl_open` command
+- [CMS 2026 Simple Console](https://github.com/iBl4St3R/CMS2026-Simple-Console/releases) — enables the `oxl_open` command
 
 **Steps:**
 1. Drop `_CMS2026_UITK_Framework.dll` into your `Mods/` folder
-2. Drop `OXL.dll` into your `Mods/` folder
+2. Drop `OXL.dll` and its folder into your `Mods/` 
 3. Launch the game
 
 ---
@@ -55,7 +53,7 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 ## 🗺️ Roadmap
 
 ### ✅ Done
-- [x] Browse and search listings with filters
+- [x] Browse and search listings
 - [x] Purchase a car — spawns on parking lot, deducts cash
 - [x] Dynamic auctions with time limits
 
@@ -98,8 +96,11 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 ## 📄 License
 
-© Blaster — [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)
-Free to use. No modifications. No redistribution without permission.
+## 📄 License
+
+© Blaster — Custom License
+Free to play with. Not free to copy, rebrand, or redistribute.
+See [LICENSE](https://github.com/iBl4St3R/CMS2026_OXL?tab=License-1-ov-file) for full details.
 
 ---
 
