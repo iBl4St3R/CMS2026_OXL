@@ -96,8 +96,6 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 ## 📄 License
 
-## 📄 License
-
 © Blaster — Custom License
 Free to play with. Not free to copy, rebrand, or redistribute.
 See [LICENSE](https://github.com/iBl4St3R/CMS2026_OXL?tab=License-1-ov-file) for full details.
