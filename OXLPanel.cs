@@ -2,6 +2,7 @@
 using MelonLoader;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -21,6 +22,9 @@ namespace CMS2026_OXL
         private static readonly Color SearchBdr = new Color(0.220f, 0.592f, 0.341f, 0.55f);
         private static readonly Color InputBg = new Color(0.030f, 0.055f, 0.095f, 1.00f);
         private static readonly Color Transp = new Color(0f, 0f, 0f, 0f);
+        private static readonly Color FooterBg = new Color(0.030f, 0.068f, 0.048f, 1.00f);
+        private static readonly Color TagBg = new Color(0.055f, 0.090f, 0.145f, 1.00f);
+        private static readonly Color TagBdr = new Color(0.150f, 0.280f, 0.200f, 0.55f);
 
         private const float PanelW = 1456f;
         private const float PanelH = 980f;
@@ -73,6 +77,11 @@ namespace CMS2026_OXL
         private IntPtr _detailBuyPtr;
         private CarListing _detailListing;
         private IntPtr _detailImgBoxPtr;
+        
+        private UILabelHandle _detailListedLbl;
+        private UILabelHandle _detailSellerNote;
+        private UILabelHandle _detailLocationLbl;
+        private IntPtr _detailSpecsContainerPtr;
 
 
         // ── Menu & static pages ───────────────────────────────────────────────
@@ -106,6 +115,8 @@ namespace CMS2026_OXL
         private Action<string> SpawnCar => id => OXLPlugin.Log.Msg($"[OXL] TODO spawn: {id}");
         private Action<int> DeductMoney => amt => OXLPlugin.Log.Msg($"[OXL] TODO deduct: {amt}");
 
+        //guards
+        private bool _detailSpecsBuilt = false;
 
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
@@ -141,10 +152,16 @@ namespace CMS2026_OXL
             BuildListingPage();     // car auction list
             BuildDetailOverlay();   // single listing detail
 
+            // Home page footer — always pinned to bottom
+            const float FootH = 32f;
+            BuildFooter(UIRuntime.WrapVE(_panel.GetPanelRawPtr()), PanelH - FootH);
+
             // ── Address bar LAST — renders on top of all overlays ───────────
             // BuildMenuDropdown is called from inside BuildAddressBar, also last,
             // so the dropdown itself renders on top of the address bar. ✓
             BuildAddressBar();
+
+
 
             _panel.SetUpdateCallback(dt =>
             {
@@ -381,6 +398,19 @@ namespace CMS2026_OXL
 
             var wip = _panel.AddLabel("\u2014 Rest of page under construction \u2014", TextGray);
             wip.SetFontSize(11);
+
+            _panel.AddSpace(20f);
+            _panel.AddSeparator(new Color(0.15f, 0.42f, 0.24f, 0.45f));
+
+            var footerLbl = _panel.AddLabel(
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.1.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                new Color(0.22f, 0.48f, 0.30f, 0.70f),
+                height: 32f);
+            footerLbl.SetFontSize(10);
+
+            var footVE = UIRuntime.WrapVE(footerLbl.GetRawPtr());
+            S.BgColor(UIRuntime.GetStyle(footVE), FooterBg);
+            S.TextAlign(UIRuntime.GetStyle(footVE), TextAnchor.MiddleCenter);
         }
 
 
@@ -552,6 +582,9 @@ namespace CMS2026_OXL
                 PanelW - Pad * 2f, PanelH - OverlayTop - TopBarH - Pad * 2f,
                 TextGray);
             _pageBodyLbl.SetFontSize(13);
+
+            const float FootH = 32f;
+            BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
 
         private void ShowPage(int index)
@@ -620,20 +653,26 @@ namespace CMS2026_OXL
 
             // Rows container
             const float PaginationH = 46f;
-            float rowsTop = 50f;
-            float rowsH = PanelH - OverlayTop - rowsTop - PaginationH;
+            const float FootH = 32f;
+            float rowsTop = 50f;   // below top bar + separator
+            float availH = PanelH - OverlayTop - rowsTop - PaginationH - FootH;
 
+            // ── Rows container ────────────────────────────────────────────────────
             var rowsVE = UIRuntime.NewVE();
             var rcs = UIRuntime.GetStyle(rowsVE);
             S.Position(rcs, "Absolute");
             S.Left(rcs, 0f); S.Top(rcs, rowsTop);
-            S.Width(rcs, PanelW); S.Height(rcs, rowsH);
+            S.Width(rcs, PanelW); S.Height(rcs, availH);
             S.Overflow(rcs, "Hidden");
             UIRuntime.AddChild(overlay, rowsVE);
             _listingRowsContainerPtr = UIRuntime.GetPtr(rowsVE);
 
-            // Pagination bar
-            BuildPaginationBar(overlay, PanelH - OverlayTop - PaginationH);
+            // ── Pagination (ABOVE footer line) ───────────────────────────────────
+            float paginationTop = PanelH - OverlayTop - FootH - PaginationH;
+            BuildPaginationBar(overlay, paginationTop);
+
+            // ── Footer ────────────────────────────────────────────────────────────
+            BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
 
         // ── Single auction row ────────────────────────────────────────────────
@@ -712,18 +751,32 @@ namespace CMS2026_OXL
             string note = listing.SellerNote.Length > 80
                 ? listing.SellerNote.Substring(0, 77) + "..."
                 : listing.SellerNote;
-            var noteLbl = _panel.AddLabelToContainer(
-                rowPtr, $"\"{note}\"",
-                contentX, 38f, contentW, 20f, TextGray);
-            noteLbl.SetFontSize(12);
+            var noteLbl = _panel.AddLabelToContainer(rowPtr, $"\"{note}\"",contentX, 34f, contentW, 18f, TextGray);
+            noteLbl.SetFontSize(11);
+
+            // ── Metadata row ──────────────────────────────────────────────────────
+            string mileageStr = listing.Mileage >= 1000
+                ? $"{listing.Mileage / 1000}k mi"
+                : $"{listing.Mileage} mi";
+            string meta = $"\U0001F4CD {listing.Location}  \u00B7  " +
+                          $"\U0001F6E3 {mileageStr}  \u00B7  " +
+                          $"\U0001F4C5 {listing.Year}  \u00B7  " +
+                          $"\u23F0 ~{listing.DeliveryHours}h delivery";
+
+            var metaLbl = _panel.AddLabelToContainer(
+                rowPtr, meta,
+                contentX, 54f, contentW, 18f,
+                new Color(0.35f, 0.55f, 0.72f, 1f));
+            metaLbl.SetFontSize(11);
+
+
+
 
             float remaining = listing.ExpiresAt - _listings.GameTime;
             Color timerColor = remaining < 120f
                 ? new Color(0.95f, 0.55f, 0.20f, 1f)
                 : new Color(0.45f, 0.65f, 0.85f, 1f);
-            var timerLbl = _panel.AddLabelToContainer(
-                rowPtr, FormatTimer(listing),
-                contentX, 62f, 240f, 20f, timerColor);
+            var timerLbl = _panel.AddLabelToContainer(rowPtr, FormatTimer(listing),contentX, 72f, 240f, 16f, timerColor);   // was 62f
             timerLbl.SetFontSize(12);
             _timerLabels[listing.InternalId] = timerLbl;
 
@@ -771,7 +824,7 @@ namespace CMS2026_OXL
             var sep = UIRuntime.NewVE();
             var ss = UIRuntime.GetStyle(sep);
             S.Position(ss, "Absolute");
-            S.Left(ss, 0f); S.Top(ss, 0f);
+            S.Left(ss, 0f); S.Top(ss, BarH - 1f);   // ← was 0f, now BarH-1
             S.Width(ss, PanelW); S.Height(ss, 1f);
             S.BgColor(ss, Border);
             UIRuntime.AddChild(bar, sep);
@@ -890,6 +943,7 @@ namespace CMS2026_OXL
 
         private void BuildDetailOverlay()
         {
+            // ── Root overlay ──────────────────────────────────────────────────
             var overlay = UIRuntime.NewVE();
             var os = UIRuntime.GetStyle(overlay);
             S.Position(os, "Absolute");
@@ -901,7 +955,7 @@ namespace CMS2026_OXL
             _panel.AddOverlayToPanel(overlay);
             _detailOverlayPtr = UIRuntime.GetPtr(overlay);
 
-            // Top bar
+            // ── Top bar ───────────────────────────────────────────────────────
             var topBar = UIRuntime.NewVE();
             var ts = UIRuntime.GetStyle(topBar);
             S.Position(ts, "Absolute");
@@ -916,70 +970,105 @@ namespace CMS2026_OXL
 
             _detailTitle = _panel.AddLabelToContainer(
                 topBar, "", 170f, 0f, PanelW - 200f, 44f, Color.white);
-            _detailTitle.SetFontSize(18);
+            _detailTitle.SetFontSize(17);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailTitle.GetRawPtr())),
+                        TextAnchor.MiddleLeft);
 
-            var sep = UIRuntime.NewVE();
-            var ss = UIRuntime.GetStyle(sep);
-            S.Position(ss, "Absolute");
-            S.Left(ss, 0f); S.Top(ss, 44f);
-            S.Width(ss, PanelW); S.Height(ss, 1f);
-            S.BgColor(ss, Border);
-            UIRuntime.AddChild(overlay, sep);
+            var topSep = UIRuntime.NewVE();
+            var tss = UIRuntime.GetStyle(topSep);
+            S.Position(tss, "Absolute");
+            S.Left(tss, 0f); S.Top(tss, 44f);
+            S.Width(tss, PanelW); S.Height(tss, 1f);
+            S.BgColor(tss, Border);
+            UIRuntime.AddChild(overlay, topSep);
 
-            // Large image placeholder
-            const float BigImgW = 471f;
-            const float BigImgH = 230f;
-            float imgLeft = 48f;
-            float imgTop = 70f;
+            // ════════════════════════════════════════════════════════════════
+            //  TWO-COLUMN LAYOUT
+            //  Left  : large image          x=24   w=820
+            //  Right : info panel           x=868  w=560
+            // ════════════════════════════════════════════════════════════════
+            const float ContentTop = 56f;
+            const float ImgX = 24f;
+            const float ImgW = 820f;
+            const float ImgH = 462f;
+            const float RightX = ImgX + ImgW + 24f;
+            const float RightW = PanelW - RightX - 24f;   // ~588
 
+            // ── Large image box ───────────────────────────────────────────────
             var imgBox = UIRuntime.NewVE();
             var ibs = UIRuntime.GetStyle(imgBox);
             S.Position(ibs, "Absolute");
-            S.Left(ibs, imgLeft); S.Top(ibs, imgTop);
-            S.Width(ibs, BigImgW); S.Height(ibs, BigImgH);
+            S.Left(ibs, ImgX); S.Top(ibs, ContentTop);
+            S.Width(ibs, ImgW); S.Height(ibs, ImgH);
             S.BgColor(ibs, new Color(0.07f, 0.11f, 0.18f, 1f));
             S.BorderRadius(ibs, 10f);
             S.BorderWidth(ibs, 1f);
-            S.BorderColor(ibs, new Color(0.18f, 0.28f, 0.42f, 0.8f));
+            S.BorderColor(ibs, new Color(0.18f, 0.28f, 0.42f, 0.7f));
             UIRuntime.AddChild(overlay, imgBox);
             _detailImgBoxPtr = UIRuntime.GetPtr(imgBox);
 
+            // Fallback emoji
             var imgIcon = Activator.CreateInstance(UIRuntime.LabelType);
             var iils = UIRuntime.GetStyle(imgIcon);
             S.Position(iils, "Absolute");
             S.Left(iils, 0f); S.Top(iils, 0f);
-            S.Width(iils, BigImgW); S.Height(iils, BigImgH);
+            S.Width(iils, ImgW); S.Height(iils, ImgH);
             S.Color(iils, new Color(0.20f, 0.30f, 0.40f, 1f));
-            S.Font(iils);
-            S.TextAlign(iils, TextAnchor.MiddleCenter);
-            S.FontSize(iils, 64);
+            S.Font(iils); S.TextAlign(iils, TextAnchor.MiddleCenter);
+            S.FontSize(iils, 72);
             UIRuntime.LabelType.GetProperty("text").SetValue(imgIcon, "\U0001F697");
             UIRuntime.AddChild(imgBox, imgIcon);
 
-            // Info panel (right of image)
-            float infoX = imgLeft + BigImgW + 40f;
-            float infoW = PanelW - infoX - 48f;
+            // ── RIGHT COLUMN ──────────────────────────────────────────────────
+            float ry = ContentTop;
 
-            _detailYear = _panel.AddLabelToContainer(
-                overlay, "", infoX, imgTop, infoW, 28f, TextGray);
-            _detailYear.SetFontSize(14);
+            // "Listed X hours ago"
+            _detailListedLbl = _panel.AddLabelToContainer(
+                overlay, "", RightX, ry, RightW, 20f,
+                new Color(0.38f, 0.45f, 0.50f, 1f));
+            _detailListedLbl.SetFontSize(11);
+            ry += 24f;
 
-            _detailNote = _panel.AddLabelToContainer(
-                overlay, "", infoX, imgTop + 50f, infoW, 160f, TextGray);
-            _detailNote.SetFontSize(14);
+            // Make + Model (big title)
+            _detailTitle = _panel.AddLabelToContainer(
+                overlay, "", RightX, ry, RightW, 36f, Color.white);
+            _detailTitle.SetFontSize(22);
+            ry += 40f;
 
-            _detailTimer = _panel.AddLabelToContainer(
-                overlay, "", infoX, imgTop + 220f, infoW, 28f,
-                new Color(0.45f, 0.65f, 0.85f, 1f));
-            _detailTimer.SetFontSize(14);
-
+            // Price
             _detailPrice = _panel.AddLabelToContainer(
-                overlay, "", infoX, imgTop + 258f, infoW, 48f, OXLGreen);
-            _detailPrice.SetFontSize(32);
+                overlay, "", RightX, ry, RightW, 44f, OXLGreen);
+            _detailPrice.SetFontSize(30);
+            ry += 52f;
 
+            // Seller note box
+            var noteBox = UIRuntime.NewVE();
+            var nbs = UIRuntime.GetStyle(noteBox);
+            S.Position(nbs, "Absolute");
+            S.Left(nbs, RightX); S.Top(nbs, ry);
+            S.Width(nbs, RightW); S.Height(nbs, 72f);
+            S.BgColor(nbs, new Color(0.045f, 0.080f, 0.130f, 1f));
+            S.BorderRadius(nbs, 6f);
+            S.BorderWidth(nbs, 1f);
+            S.BorderColor(nbs, new Color(0.15f, 0.28f, 0.20f, 0.5f));
+            UIRuntime.AddChild(overlay, noteBox);
+
+            _detailSellerNote = _panel.AddLabelToContainer(
+                noteBox, "", 12f, 8f, RightW - 24f, 56f, TextGray);
+            _detailSellerNote.SetFontSize(12);
+            ry += 80f;
+
+            // Timer
+            _detailTimer = _panel.AddLabelToContainer(
+                overlay, "", RightX, ry, RightW, 24f,
+                new Color(0.45f, 0.65f, 0.85f, 1f));
+            _detailTimer.SetFontSize(12);
+            ry += 32f;
+
+            // BUY NOW button — full width
             _detailBuyPtr = _panel.AddButtonToContainer(
                 overlay, "BUY NOW  \u25BA",
-                infoX, imgTop + 316f, 220f, 52f,
+                RightX, ry, RightW, 52f,
                 OXLGreen,
                 () =>
                 {
@@ -995,30 +1084,131 @@ namespace CMS2026_OXL
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
                 new Color(0.16f, 0.48f, 0.28f, 1f));
+            ry += 60f;
+
+            // ── Seller card ───────────────────────────────────────────────────
+            var sellerCard = UIRuntime.NewVE();
+            var scs = UIRuntime.GetStyle(sellerCard);
+            S.Position(scs, "Absolute");
+            S.Left(scs, RightX); S.Top(scs, ry);
+            S.Width(scs, RightW); S.Height(scs, 72f);
+            S.BgColor(scs, new Color(0.042f, 0.072f, 0.115f, 1f));
+            S.BorderRadius(scs, 6f);
+            S.BorderWidth(scs, 1f);
+            S.BorderColor(scs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
+            UIRuntime.AddChild(overlay, sellerCard);
+
+            var sellerTypeLbl = _panel.AddLabelToContainer(
+                sellerCard, "PRIVATE SELLER",
+                12f, 8f, 200f, 16f,
+                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+            sellerTypeLbl.SetFontSize(9);
+
+            var sellerNameLbl = _panel.AddLabelToContainer(
+                sellerCard, "Anonymous",
+                12f, 26f, 300f, 24f, Color.white);
+            sellerNameLbl.SetFontSize(15);
+
+            var sellerYearLbl = _panel.AddLabelToContainer(
+                sellerCard, "Member since 2024",
+                12f, 50f, 300f, 16f, TextGray);
+            sellerYearLbl.SetFontSize(10);
+            ry += 80f;
+
+            // ── Location card ─────────────────────────────────────────────────
+            var locCard = UIRuntime.NewVE();
+            var lcs = UIRuntime.GetStyle(locCard);
+            S.Position(lcs, "Absolute");
+            S.Left(lcs, RightX); S.Top(lcs, ry);
+            S.Width(lcs, RightW); S.Height(lcs, 56f);
+            S.BgColor(lcs, new Color(0.042f, 0.072f, 0.115f, 1f));
+            S.BorderRadius(lcs, 6f);
+            S.BorderWidth(lcs, 1f);
+            S.BorderColor(lcs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
+            UIRuntime.AddChild(overlay, locCard);
+
+            var locHeader = _panel.AddLabelToContainer(
+                locCard, "LOCATION",
+                12f, 6f, 200f, 14f,
+                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+            locHeader.SetFontSize(9);
+
+            _detailLocationLbl = _panel.AddLabelToContainer(
+                locCard, "", 12f, 22f, RightW - 24f, 24f, Color.white);
+            _detailLocationLbl.SetFontSize(14);
+
+            // ════════════════════════════════════════════════════════════════
+            //  SPECS SECTION — below image, full width
+            // ════════════════════════════════════════════════════════════════
+            float specsTop = ContentTop + ImgH + 18f;
+
+            var specsSep = UIRuntime.NewVE();
+            var spss = UIRuntime.GetStyle(specsSep);
+            S.Position(spss, "Absolute");
+            S.Left(spss, ImgX); S.Top(spss, specsTop - 4f);
+            S.Width(spss, PanelW - ImgX * 2f); S.Height(spss, 1f);
+            S.BgColor(spss, new Color(0.15f, 0.42f, 0.24f, 0.35f));
+            UIRuntime.AddChild(overlay, specsSep);
+
+            var specsHeader = _panel.AddLabelToContainer(
+                overlay, "VEHICLE DETAILS",
+                ImgX, specsTop + 2f, 300f, 16f,
+                new Color(0.22f, 0.48f, 0.30f, 0.65f));
+            specsHeader.SetFontSize(10);
+
+            // Specs container (tags rebuilt on each ShowDetail)
+            var specsVE = UIRuntime.NewVE();
+            var svs = UIRuntime.GetStyle(specsVE);
+            S.Position(svs, "Absolute");
+            S.Left(svs, ImgX); S.Top(svs, specsTop + 22f);
+            S.Width(svs, PanelW - ImgX * 2f);
+            S.Height(svs, PanelH - OverlayTop - specsTop - 22f - 34f);
+            S.Overflow(svs, "Hidden");
+            UIRuntime.AddChild(overlay, specsVE);
+            _detailSpecsContainerPtr = UIRuntime.GetPtr(specsVE);
+
+            // Footer
+            const float FootH = 32f;
+            BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
 
+
+        // Because ShowDetail is called repeatedly, the tags will stack on each open.Cleanest fix: add a bool _detailSpecsBuilt = false flag and only call BuildDetailSpecs once, or clear a dedicated specs container before rebuilding — same pattern as RefreshListings() uses Clear().
         private void ShowDetail(CarListing listing)
         {
             if (_detailOverlayPtr == IntPtr.Zero) return;
             _detailListing = listing;
-            _detailTitle?.SetText($"{listing.Make} {listing.Model}");
-            _detailYear?.SetText($"Year: {listing.Year}");
-            _detailNote?.SetText($"\"{listing.SellerNote}\"");
-            _detailTimer?.SetText(FormatTimer(listing));
-            _detailPrice?.SetText($"${listing.Price:N0}");
 
-            
+            _detailTitle?.SetText($"{listing.Make} {listing.Model}");
+            _detailPrice?.SetText($"${listing.Price:N0}");
+            _detailTimer?.SetText(FormatTimer(listing));
+            _detailListedLbl?.SetText($"Listed \u2022 {listing.DeliveryHours}h delivery estimate");
+            _detailSellerNote?.SetText($"\"{listing.SellerNote}\"");
+            _detailLocationLbl?.SetText($"\U0001F4CD  {listing.Location}");
+            _detailYear?.SetText($"Year: {listing.Year}");
+
+            // Swap image
             if (_detailImgBoxPtr != IntPtr.Zero)
             {
                 var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
                 if (_carImages.TryGetValue(listing.ImageFolder, out var tex))
                     UIRuntime.SetBackgroundImage(imgVE, tex);
                 else
-                    UIRuntime.SetBackgroundImage(imgVE, null); // pokaże tło bez obrazka
+                    UIRuntime.SetBackgroundImage(imgVE, null);
+            }
+
+            // Rebuild specs tags
+            if (_detailSpecsContainerPtr != IntPtr.Zero)
+            {
+                var specsVE = UIRuntime.WrapVE(_detailSpecsContainerPtr);
+                UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(specsVE, null);
+                BuildDetailSpecsTags(specsVE, listing);
             }
 
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), true);
         }
+
+
 
         private void HideDetail()
         {
@@ -1121,6 +1311,175 @@ namespace CMS2026_OXL
             {
                 OXLPlugin.Log.Msg($"[OXL] Texture load error ({Path.GetFileName(path)}): {ex.Message}");
                 return null;
+            }
+        }
+
+        //footer builder
+        private void BuildFooter(object container, float yTop)
+        {
+            const float FootH = 32f;
+
+            var foot = UIRuntime.NewVE();
+            var fs = UIRuntime.GetStyle(foot);
+            S.Position(fs, "Absolute");
+            S.Left(fs, 0f); S.Top(fs, yTop);
+            S.Width(fs, PanelW); S.Height(fs, FootH);
+            S.BgColor(fs, FooterBg);
+            UIRuntime.AddChild(container, foot);
+
+            var sepTop = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sepTop);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, 0f);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, new Color(0.15f, 0.42f, 0.24f, 0.45f));
+            UIRuntime.AddChild(foot, sepTop);
+
+            var lbl = _panel.AddLabelToContainer(
+                foot,
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.1.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                0f, 0f, PanelW, FootH,
+                new Color(0.22f, 0.48f, 0.30f, 0.70f));
+            lbl.SetFontSize(10);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(lbl.GetRawPtr())),
+                        TextAnchor.MiddleCenter);
+        }
+
+        //old keep for a while
+
+        //    private void BuildDetailSpecs(object overlay, CarListing listing)
+        //    {
+        //        const float StartX = 48f;
+        //        const float StartY = 320f;   // below the image+buy block
+        //        const float TagH = 28f;
+        //        const float TagGapX = 8f;
+        //        const float TagGapY = 6f;
+        //        const float PadX = 10f;
+        //        const float RowMaxW = PanelW - StartX * 2f;
+
+        //        // Fixed placeholder specs — replace with real data later
+        //        var specs = new[]
+        //        {
+        //    $"\U0001F4CB  Reg: {listing.Registration}",
+        //    $"\u26FD  Fuel: Petrol",
+        //    $"\U0001F697  Body: Sedan",
+        //    $"\U0001F3A8  Color: White",
+        //    $"\u2699  Engine: 2.0L",
+        //    $"\U0001F4AA  Power: 150 hp",
+        //    $"\U0001F6E3  Gearbox: Automatic",
+        //    $"\U0001F6A6  Condition: Used",
+        //    $"\U0001F30D  Origin: Unknown",
+        //    $"\u2B05  Drive: FWD",
+        //    $"\U0001F511  Doors: 4",
+        //    $"\U0001F4CD  Steering: Left",
+        //};
+
+        //        float cx = StartX;
+        //        float cy = StartY;
+
+        //        foreach (var spec in specs)
+        //        {
+        //            // Estimate tag width from text length
+        //            float tagW = Mathf.Clamp(spec.Length * 7.2f + PadX * 2f, 100f, 320f);
+
+        //            if (cx + tagW > StartX + RowMaxW)
+        //            {
+        //                cx = StartX;
+        //                cy += TagH + TagGapY;
+        //            }
+
+        //            var tag = UIRuntime.NewVE();
+        //            var ts = UIRuntime.GetStyle(tag);
+        //            S.Position(ts, "Absolute");
+        //            S.Left(ts, cx); S.Top(ts, cy);
+        //            S.Width(ts, tagW); S.Height(ts, TagH);
+        //            S.BgColor(ts, TagBg);
+        //            S.BorderRadius(ts, 5f);
+        //            S.BorderWidth(ts, 1f);
+        //            S.BorderColor(ts, TagBdr);
+        //            UIRuntime.AddChild(overlay, tag);
+
+        //            var lbl = _panel.AddLabelToContainer(
+        //                tag, spec,
+        //                PadX, 0f, tagW - PadX, TagH,
+        //                new Color(0.55f, 0.78f, 0.62f, 1f));
+        //            lbl.SetFontSize(11);
+
+        //            cx += tagW + TagGapX;
+        //        }
+
+        //        // Section header above the tags
+        //        var header = _panel.AddLabelToContainer(
+        //            overlay, "VEHICLE DETAILS",
+        //            StartX, StartY - 22f, 300f, 18f,
+        //            new Color(0.22f, 0.48f, 0.30f, 0.65f));
+        //        header.SetFontSize(10);
+
+        //        // Separator above header
+        //        var sep = UIRuntime.NewVE();
+        //        var ss = UIRuntime.GetStyle(sep);
+        //        S.Position(ss, "Absolute");
+        //        S.Left(ss, StartX); S.Top(ss, StartY - 26f);
+        //        S.Width(ss, PanelW - StartX * 2f); S.Height(ss, 1f);
+        //        S.BgColor(ss, TagBdr);
+        //        UIRuntime.AddChild(overlay, sep);
+        //    }
+
+        private void BuildDetailSpecsTags(object container, CarListing listing)
+        {
+            const float TagH = 28f;
+            const float TagGapX = 8f;
+            const float TagGapY = 7f;
+            const float PadX = 12f;
+            const float MaxW = PanelW - 48f * 2f;
+
+            string mileageStr = listing.Mileage >= 1000
+                ? $"{listing.Mileage / 1000}k mi"
+                : $"{listing.Mileage} mi";
+
+            var specs = new[]
+            {
+        $"\U0001F4CB  Reg: {listing.Registration}",
+        $"\U0001F4C5  Year: {listing.Year}",
+        $"\U0001F6E3  Mileage: {mileageStr}",
+        $"\u26FD  Fuel: Petrol",
+        $"\U0001F697  Body: Sedan",
+        $"\U0001F3A8  Color: White",
+        $"\u2699  Engine: 2.0L",
+        $"\U0001F4AA  Power: 150 hp",
+        $"\U0001F527  Gearbox: Automatic",
+        $"\U0001F6A6  Condition: Used",
+        $"\U0001F30D  Origin: Unknown",
+        $"\u2B05  Drive: FWD",
+        $"\U0001F511  Doors: 4",
+        $"\U0001F4CD  Steering: Left",
+    };
+
+            float cx = 0f, cy = 0f;
+
+            foreach (var spec in specs)
+            {
+                float tagW = Mathf.Clamp(spec.Length * 7.0f + PadX * 2f, 110f, 300f);
+
+                if (cx + tagW > MaxW) { cx = 0f; cy += TagH + TagGapY; }
+
+                var tag = UIRuntime.NewVE();
+                var ts = UIRuntime.GetStyle(tag);
+                S.Position(ts, "Absolute");
+                S.Left(ts, cx); S.Top(ts, cy);
+                S.Width(ts, tagW); S.Height(ts, TagH);
+                S.BgColor(ts, new Color(0.055f, 0.090f, 0.145f, 1f));
+                S.BorderRadius(ts, 5f);
+                S.BorderWidth(ts, 1f);
+                S.BorderColor(ts, new Color(0.150f, 0.280f, 0.200f, 0.55f));
+                UIRuntime.AddChild(container, tag);
+
+                var lbl = _panel.AddLabelToContainer(
+                    tag, spec, PadX, 0f, tagW - PadX, TagH,
+                    new Color(0.55f, 0.78f, 0.62f, 1f));
+                lbl.SetFontSize(11);
+
+                cx += tagW + TagGapX;
             }
         }
 

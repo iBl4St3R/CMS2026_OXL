@@ -72,11 +72,11 @@ namespace CMS2026_OXL
 
             return new CarListing
             {
+                Registration = GenReg(rng),
                 Make = def.Make,
                 Model = def.Model,
                 ImageFolder = def.ImageFolder,
                 Year = year,
-                Registration = GenReg(rng)//last
                 Price = price,
                 SellerNote = note,
                 ExpiresAt = _gameTime + ttl,
@@ -99,6 +99,15 @@ namespace CMS2026_OXL
             return true;
         }
 
+        private static string GenReg(System.Random rng)
+        {
+            const string L = "ABCDEFGHJKLMNPRSTVWXYZ";
+            return $"{L[rng.Next(L.Length)]}{L[rng.Next(L.Length)]}" +
+                   $"{rng.Next(100, 999)}" +
+                   $"{L[rng.Next(L.Length)]}{rng.Next(10, 99)}";
+        }
+
+
 
         private static readonly string[] Locations =
 {
@@ -110,13 +119,7 @@ namespace CMS2026_OXL
 };
 
 
-        private static string GenReg(System.Random rng)
-        {
-            const string L = "ABCDEFGHJKLMNPRSTVWXYZ";
-            return $"{L[rng.Next(L.Length)]}{L[rng.Next(L.Length)]}" +
-                   $"{rng.Next(100, 999)}" +
-                   $"{L[rng.Next(L.Length)]}{rng.Next(10, 99)}";
-        }
+        
 
 
 
