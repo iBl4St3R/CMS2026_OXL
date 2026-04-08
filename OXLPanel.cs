@@ -14,7 +14,7 @@ namespace CMS2026_OXL
         private static readonly Color PageBg = new Color(0.035f, 0.059f, 0.106f, 1.00f);
         private static readonly Color Border = new Color(0.220f, 0.592f, 0.341f, 0.40f);
         private static readonly Color TextGray = new Color(0.420f, 0.480f, 0.500f, 1.00f);
-        private static readonly Color TextDim = new Color(0.180f, 0.230f, 0.280f, 1.00f); // ciemny placeholder
+        private static readonly Color TextDim = new Color(0.180f, 0.230f, 0.280f, 1.00f);
         private static readonly Color OXLGreen = new Color(0.220f, 0.592f, 0.341f, 1.00f);
         private static readonly Color BtnDark = new Color(0.075f, 0.110f, 0.180f, 1.00f);
         private static readonly Color BtnDarkHi = new Color(0.110f, 0.170f, 0.260f, 1.00f);
@@ -24,28 +24,46 @@ namespace CMS2026_OXL
 
         private const float PanelW = 1456f;
         private const float PanelH = 980f;
-        private const float ContentW = PanelW - 24f; // PanelW - Pad*3 - SbW
-
-        // Szerokość sekcji centralnej — trochę szersza niż logo (logo ~580)
+        private const float ContentW = PanelW - 24f;
         private const float CenterW = 680f;
+
+        // ── Address bar overlay layout ─────────────────────────────────────────
+        // UIPanel title bar = 24px. Address bar overlay sits right below it.
+        // AddrBarH: 1px sep + 4px gap + 44px row + 3px gap = 52px.
+        // All page overlays start at OverlayTop = 24 + 52 = 76px in panel space.
+        private const float TitleBarH = 24f;
+        private const float AddrBarH = 52f;
+        private const float OverlayTop = TitleBarH + AddrBarH; // 76f
 
         private UIPanel _panel;
         private readonly ListingSystem _listings = new ListingSystem();
 
+        // ── Search & filter state ─────────────────────────────────────────────
+        private UITextInputHandle _searchInput;
+        private UIDropdownHandle _makeDropdown;
+        private UIDropdownHandle _yearDropdown;
+        private List<CarListing> _filteredListings; // null = no filter, show all
 
-        // ── Listing page ──────────────────────────────────────────────────────────
+        private const string PlaceholderText = "Search for vehicles, parts or tools";
+        private static readonly string[] MakeOptions =
+        {
+            "All", "APlaceholder", "BPlaceholder", "FPlaceholder",
+            "HPlaceholder", "MPlaceholder", "TPlaceholder", "VPlaceholder"
+        };
+
+        // ── Listing page ──────────────────────────────────────────────────────
         private IntPtr _listingPagePtr;
         private IntPtr _listingRowsContainerPtr;
         private UILabelHandle _pageCountLabel;
         private int _currentPage = 0;
-        private const int RowsPerPage = 7;
+        private const int RowsPerPage = 8;
         private const float RowH = 90f;
         private const float RowGap = 1f;
 
         private readonly Dictionary<string, UILabelHandle> _timerLabels = new();
         private bool _buyClickConsumed = false;
 
-        // ── Detail overlay ────────────────────────────────────────────────────────
+        // ── Detail overlay ────────────────────────────────────────────────────
         private IntPtr _detailOverlayPtr;
         private UILabelHandle _detailTitle;
         private UILabelHandle _detailYear;
@@ -54,10 +72,10 @@ namespace CMS2026_OXL
         private UILabelHandle _detailPrice;
         private IntPtr _detailBuyPtr;
         private CarListing _detailListing;
+        private IntPtr _detailImgBoxPtr;
 
 
-
-        // ── Menu & pages ──────────────────────────────────────────────────────
+        // ── Menu & static pages ───────────────────────────────────────────────
         private IntPtr _menuDropdownPtr;
         private bool _menuOpen = false;
         private IntPtr _pageOverlayPtr;
@@ -69,7 +87,7 @@ namespace CMS2026_OXL
         {
             "OXL is an in-game car auction marketplace for Car Mechanic Simulator 2026.\n\n" +
             "Browse active listings, buy cars, fix them up and sell for profit.\n\n" +
-            "Controls\n  F9  —  toggle the OXL panel\n  oxl_open  —  console command\n\n" +
+            "Controls\n  F10  —  toggle the OXL panel\n  oxl_open  —  console command\n\n" +
             "Tip: listings expire over time — check back often for new deals.",
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
@@ -80,15 +98,19 @@ namespace CMS2026_OXL
             "github.com/iBl4St3R/CMS2026-OXL"
         };
 
-
-
-        // Cache ikon
+        // ── Icon cache ────────────────────────────────────────────────────────
         private Texture2D _icoPrev, _icoNext, _icoRef, _icoSecured, _icoMenu;
+
+        private readonly Dictionary<string, Texture2D> _carImages = new();
 
         private Action<string> SpawnCar => id => OXLPlugin.Log.Msg($"[OXL] TODO spawn: {id}");
         private Action<int> DeductMoney => amt => OXLPlugin.Log.Msg($"[OXL] TODO deduct: {amt}");
 
-        // ── Build ─────────────────────────────────────────────────────────────
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  BUILD
+        // ══════════════════════════════════════════════════════════════════════
+
         public void Build()
         {
             LoadIcons();
@@ -96,13 +118,11 @@ namespace CMS2026_OXL
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
             float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
 
-            _panel = FrameworkAPI.CreatePanel(title: "OXL", x: x, y: y, width: PanelW, height: PanelH);
-
+            _panel = FrameworkAPI.CreatePanel("OXL", x, y, PanelW, PanelH);
             _panel.AddTitleButton("\u2014", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
             _panel.AddTitleButton("\u25A1", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
             _panel.AddTitleButton("\u2715", Close, new Color(0.55f, 0.10f, 0.10f, 1f));
             _panel.Build(sortOrder: 9000);
-
             _panel.SetDraggable(false);
             _panel.SetScrollbarVisible(false);
 
@@ -113,101 +133,163 @@ namespace CMS2026_OXL
             S.BorderWidth(pst, 1f);
             S.BorderColor(pst, Border);
 
-            BuildAddressBar();
+            // ── Content first (home page scrollable area) ───────────────────
             BuildContent();
+
+            // ── Page overlays — added BEFORE address bar so they render under it ──
+            BuildPageOverlay();     // Help / Settings / About
+            BuildListingPage();     // car auction list
+            BuildDetailOverlay();   // single listing detail
+
+            // ── Address bar LAST — renders on top of all overlays ───────────
+            // BuildMenuDropdown is called from inside BuildAddressBar, also last,
+            // so the dropdown itself renders on top of the address bar. ✓
+            BuildAddressBar();
 
             _panel.SetUpdateCallback(dt =>
             {
                 int before = _listings.ActiveListings.Count;
                 _listings.Tick(dt);
                 if (_listings.ActiveListings.Count != before)
+                {
+                    // Re-apply filter so expired listings are removed from results
+                    if (_filteredListings != null) ApplyFilters();
                     RefreshListings();
+                }
                 UpdateTimers();
             });
-
-            BuildListingPage();
-            BuildDetailOverlay();
 
             _panel.SetVisible(false);
         }
 
-        // ── Pasek adresu z ikonami ────────────────────────────────────────────
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  ADDRESS BAR  (overlay — always visible on every page)
+        // ══════════════════════════════════════════════════════════════════════
+
         private void BuildAddressBar()
         {
-            _panel.AddSeparator(Border);
+            // Fixed-position overlay: Top = TitleBarH, Height = AddrBarH.
+            // Added last → UIToolkit renders it above all other overlays.
+            var bar = UIRuntime.NewVE();
+            var bs = UIRuntime.GetStyle(bar);
+            S.Position(bs, "Absolute");
+            S.Left(bs, 0f); S.Top(bs, TitleBarH);
+            S.Width(bs, PanelW); S.Height(bs, AddrBarH);
+            S.BgColor(bs, PageBg);
+            S.Overflow(bs, "Hidden");
 
-            var row = _panel.AddRow(height: 44f, gap: 4f);
-            row.AddSpace(8f);
+            // Top separator
+            AddSepToContainer(bar, 0f);
 
-            // Ikony nawigacji — używamy UIRuntime.NewVE z teksturą lub fallback tekst
-            AddIconButton(row, _icoPrev, "\u2190", 36f, () => { });
-            AddIconButton(row, _icoNext, "\u2192", 36f, () => { });
-            AddIconButton(row, _icoRef, "\u21BB", 36f, () => { });
+            const float RowY = 5f;
+            const float RowH = 44f;
+            float cx = 8f;
 
-            row.AddSpace(8f);
+            // Nav buttons
+            cx = AddIconBtnToBar(bar, cx, RowY, RowH, _icoPrev, "\u2190", 36f, () => { });
+            cx = AddIconBtnToBar(bar, cx, RowY, RowH, _icoNext, "\u2192", 36f, () => { });
+            cx = AddIconBtnToBar(bar, cx, RowY, RowH, _icoRef, "\u21BB", 36f, () => { });
+            cx += 8f;
 
-            // Ikona kłódki przed URL
+            // Lock icon
             if (_icoSecured != null)
             {
                 var lockVE = UIRuntime.NewVE();
-                var lockSt = UIRuntime.GetStyle(lockVE);
-                S.Width(lockSt, 24f);
-                S.Height(lockSt, 24f);
+                var ls = UIRuntime.GetStyle(lockVE);
+                S.Position(ls, "Absolute");
+                S.Left(ls, cx); S.Top(ls, RowY + (RowH - 24f) * 0.5f);
+                S.Width(ls, 24f); S.Height(ls, 24f);
                 UIRuntime.SetBackgroundImage(lockVE, _icoSecured);
-                row.AddRaw(lockVE, 28f);
+                UIRuntime.AddChild(bar, lockVE);
+                cx += 28f;
             }
 
-            // Pasek URL
-            float urlW = row.RemainingWidth - 48f;
-            var urlLabel = row.AddLabel("  oxl.pl/home", width: urlW, color: TextGray);
-            var urlVE = UIRuntime.WrapVE(urlLabel.GetRawPtr());
+            // URL bar — stretches to fill space, leaves room for menu button
+            const float MenuBtnW = 38f;
+            float urlW = PanelW - cx - MenuBtnW - 10f;
+            var urlLbl = _panel.AddLabelToContainer(
+                bar, "  oxl.pl/home",
+                cx, RowY + (RowH - 28f) * 0.5f, urlW, 28f, TextGray);
+            var urlVE = UIRuntime.WrapVE(urlLbl.GetRawPtr());
             var urlSt = UIRuntime.GetStyle(urlVE);
             S.BgColor(urlSt, new Color(0.05f, 0.08f, 0.14f, 1f));
-            S.BorderRadius(urlSt, 20f);
+            S.BorderRadius(urlSt, 14f);
             S.BorderWidth(urlSt, 1f);
             S.BorderColor(urlSt, SearchBdr);
             S.Padding(urlSt, 6f);
+            cx += urlW + 6f;
 
-            row.AddSpace(6f);
+            // Menu button
+            AddIconBtnToBar(bar, cx, RowY, RowH, _icoMenu, "\u22EE", MenuBtnW, () => ToggleMenu());
 
-            // Menu ikona
-            AddIconButton(row, _icoMenu, "\u22EE", 36f, () => ToggleMenu());
+            // Bottom separator
+            AddSepToContainer(bar, AddrBarH - 1f);
 
-            _panel.AddSeparator(Border);
+            // Register with panel — LAST so it renders above page overlays
+            _panel.AddOverlayToPanel(bar);
 
-            BuildMenuDropdown();    
-            BuildPageOverlay();    
+            // Menu dropdown added after bar → renders above bar ✓
+            BuildMenuDropdown();
         }
 
-        // helper: ikona lub fallback tekstowy
-        private IntPtr AddIconButton(UIRowBuilder row, Texture2D icon, string fallbackChar,float width, Action onClick)
+        /// <summary>Adds a 1px horizontal separator to an arbitrary container VE.</summary>
+        private void AddSepToContainer(object container, float y)
         {
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, y);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(container, sep);
+        }
+
+        /// <summary>
+        /// Adds a single icon/text button to the address-bar container.
+        /// Returns the next X cursor position.
+        /// </summary>
+        private float AddIconBtnToBar(object container, float x, float rowY, float rowH,
+                                      Texture2D icon, string fallback, float width, Action onClick)
+        {
+            float topOffset = rowY + (rowH - width) * 0.5f;
+
             if (icon != null)
             {
                 var ve = UIRuntime.NewVE();
                 var st = UIRuntime.GetStyle(ve);
+                S.Position(st, "Absolute");
+                S.Left(st, x); S.Top(st, topOffset);
                 S.Width(st, width); S.Height(st, width);
                 S.BorderRadius(st, 4f);
                 UIRuntime.SetBackgroundImage(ve, icon);
+                UIRuntime.AddChild(container, ve);
                 var ptr = UIRuntime.GetPtr(ve);
-                row.AddRaw(ve, width + 2f);
                 _panel.WireHover(ptr, Transp, BtnDark, BtnDarkHi);
-                if (onClick != null) _panel.WireClick(ptr, onClick);  // ← wire click
-                return ptr;
+                if (onClick != null) _panel.WireClick(ptr, onClick);
             }
             else
             {
-                var btn = row.AddButton(fallbackChar, width, onClick, Transp);
-                btn.SetTextColor(TextGray);
-                _panel.WireHover(btn.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
-                return btn.GetRawPtr();
+                var ptr = _panel.AddButtonToContainer(
+                    container, fallback, x, rowY, width, rowH, Transp, onClick);
+                _panel.WireHover(ptr, Transp, BtnDark, BtnDarkHi);
             }
+
+            return x + width + 2f;
         }
 
-        // ── Treść strony ──────────────────────────────────────────────────────
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  HOME PAGE CONTENT
+        // ══════════════════════════════════════════════════════════════════════
+
         private void BuildContent()
         {
-            _panel.AddSpace(40f);
+            // Reserve space so the fixed address-bar overlay doesn't cover content.
+            // Viewport top in panel space = TitleH(24) + Pad(6) = 30.
+            // Address bar bottom in panel space = OverlayTop = 76.
+            // Reserve = 76 - 30 = 46px.
+            _panel.AddSpace(46f);
 
             // ── Logo ──────────────────────────────────────────────────────────
             Texture2D logo = TryLoadLogo();
@@ -216,10 +298,8 @@ namespace CMS2026_OXL
                 const float ImgW = 580f;
                 const float ImgH = 286f;
                 var logoImg = _panel.AddImage(logo, ImgW, ImgH);
-                // FIX #1: wyśrodkowanie obrazu — przestaw Left po dodaniu
                 float imgLeft = (ContentW - ImgW) / 2f;
-                var imgVE = UIRuntime.WrapVE(logoImg.GetRawPtr());
-                S.Left(UIRuntime.GetStyle(imgVE), imgLeft);
+                S.Left(UIRuntime.GetStyle(UIRuntime.WrapVE(logoImg.GetRawPtr())), imgLeft);
             }
             else
             {
@@ -228,21 +308,16 @@ namespace CMS2026_OXL
             }
 
             _panel.AddSpace(8f);
-            // ── Pole wyszukiwania — szersze niż logo, wyśrodkowane ─────────────
 
-
-            // Używamy row z przestrzenią po bokach żeby wyśrodkować input
+            // ── Search field ──────────────────────────────────────────────────
             float searchSide = (ContentW - CenterW) / 2f;
 
-            // Wrapper — AddTextInput jest na UIPanel, więc po dodaniu
-            // ustawiamy mu width i left przez UIRuntime
-            var searchHandle = _panel.AddTextInput(
-                 "",          // no built-in placeholder — handled by SetFakePlaceholder
-                 onSubmit: q => { if (!string.IsNullOrEmpty(q)) OXLPlugin.Log.Msg($"[OXL] Search: {q}"); },
-                 height: 48f);
+            _searchInput = _panel.AddTextInput(
+                placeholder: "",
+                onSubmit: _ => ExecuteSearch(),
+                height: 48f);
 
-            // Zawęź i wyśrodkuj pole input przez styl
-            var sVE = UIRuntime.WrapVE(searchHandle.GetRawPtr());
+            var sVE = UIRuntime.WrapVE(_searchInput.GetRawPtr());
             var sSt = UIRuntime.GetStyle(sVE);
             S.Width(sSt, CenterW);
             S.Left(sSt, searchSide);
@@ -252,39 +327,38 @@ namespace CMS2026_OXL
             S.BorderColor(sSt, SearchBdr);
             S.Padding(sSt, 10f);
 
+            _searchInput.SetFakePlaceholder(PlaceholderText, TextGray, Color.white);
 
-            // Fake placeholder — gray hint, clears on focus, restores on blur
-            searchHandle.SetFakePlaceholder("Search for vehicles, parts or tools", TextGray, Color.white);
-
-            // ── Przyciski + filtry ─────────────────────────────────────────────
+            // ── Action / filter row ───────────────────────────────────────────
             _panel.AddSpace(14f);
-
-            // Rząd: [Szukaj w OXL]  [Marka ▾]  [Rok ▾]  wyśrodkowany
             var btnRow = _panel.AddRow(height: 36f, gap: 10f);
-            float totalBtns = 140f + 130f + 110f + 10f * 2; // szukaj + 2 filtry + gapy
+
+            float totalBtns = 140f + 130f + 110f + 10f * 2;
             float bside = (btnRow.RemainingWidth - totalBtns) / 2f;
             btnRow.AddSpace(bside);
 
-            var bSearch = btnRow.AddButton("Szukaj w OXL", width: 140f,
-                onClick: () => OXLPlugin.Log.Msg("[OXL] Search"), bgColor: BtnDark);
+            var bSearch = btnRow.AddButton("Search OXL", 140f,
+                onClick: ExecuteSearch, bgColor: BtnDark);
             bSearch.SetTextColor(OXLGreen);
             _panel.WireHover(bSearch.GetRawPtr(), BtnDark, BtnDarkHi, SearchBdr);
 
-            // Dropdown: Marka
-            btnRow.AddDropdown("Marka", new[] {"Wszystkie", "APlaceholder", "BPlaceholder", "FPlaceholder", "HPlaceholder", "MPlaceholder", "TPlaceholder", "VPlaceholder" },
+            // Make dropdown — store handle for filter reads
+            _makeDropdown = btnRow.AddDropdown(
+                "Make", MakeOptions,
                 selectedIndex: 0,
-                onChanged: i => OXLPlugin.Log.Msg($"[OXL] Make filter: {i}"),
+                onChanged: _ => { /* filter applied on search */ },
                 width: 130f);
 
-            // Dropdown: Rok
-            var years = new List<string> { "Dowolny rok" };
-            for (int y = 2020; y >= 1990; y--) years.Add(y.ToString());
-            btnRow.AddDropdown("Rok od", years.ToArray(),
+            // Year dropdown — store handle
+            var years = new List<string> { "Any year" };
+            for (int yr = 2020; yr >= 1990; yr--) years.Add(yr.ToString());
+            _yearDropdown = btnRow.AddDropdown(
+                "Year from", years.ToArray(),
                 selectedIndex: 0,
-                onChanged: i => OXLPlugin.Log.Msg($"[OXL] Year filter: {i}"),
+                onChanged: _ => { /* filter applied on search */ },
                 width: 110f);
 
-            // ── Kategorie ─────────────────────────────────────────────────────
+            // ── Categories ────────────────────────────────────────────────────
             _panel.AddSpace(36f);
             _panel.AddSeparator(Border);
             _panel.AddSpace(10f);
@@ -293,23 +367,94 @@ namespace CMS2026_OXL
             float cSide = (catRow.RemainingWidth - 490f) / 2f;
             catRow.AddSpace(cSide);
 
-            var carCatLbl = catRow.AddLabel("\U0001F697  Samochody osobowe", width: 190f, color: OXLGreen);
+            var carCatLbl = catRow.AddLabel(
+                "\U0001F697  Passenger Cars", width: 190f, color: OXLGreen);
             _panel.WireHover(carCatLbl.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
-            _panel.WireClick(carCatLbl.GetRawPtr(), ShowListingPage);
+            _panel.WireClick(carCatLbl.GetRawPtr(), ShowAllListings);
 
-            catRow.AddLabel("\U0001F527  Cz\u0119\u015Bci (WIP)", width: 150f, color: TextGray);
-            catRow.AddLabel("\U0001F690  Dostawcze (WIP)", width: 150f, color: TextGray);
+            catRow.AddLabel("\U0001F527  Parts (WIP)", width: 150f, color: TextGray);
+            catRow.AddLabel("\U0001F690  Vans (WIP)", width: 150f, color: TextGray);
 
             _panel.AddSpace(10f);
             _panel.AddSeparator(Border);
             _panel.AddSpace(20f);
 
-            var wip = _panel.AddLabel("\u2014 Reszta strony w budowie (WIP) \u2014", TextGray);
+            var wip = _panel.AddLabel("\u2014 Rest of page under construction \u2014", TextGray);
             wip.SetFontSize(11);
         }
 
 
-        // ── Menu dropdown ─────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        //  SEARCH / FILTER
+        // ══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Reads search field + dropdown state, builds _filteredListings,
+        /// then opens the listing page to show results.
+        /// </summary>
+        private void ExecuteSearch()
+        {
+            ApplyFilters();
+            ShowListingPage();
+        }
+
+        /// <summary>
+        /// Filters _listings.ActiveListings into _filteredListings.
+        /// If no filter criteria are active, _filteredListings is set to null
+        /// (meaning "show all" — avoids copying the list when not needed).
+        /// </summary>
+        private void ApplyFilters()
+        {
+            string query = (_searchInput?.GetValue() ?? "").Trim();
+            if (query == PlaceholderText) query = "";
+            query = query.ToLower();
+
+            int makeIdx = _makeDropdown?.SelectedIndex ?? 0;
+            string makeFilter = makeIdx == 0 ? "" : MakeOptions[makeIdx];
+
+            // Year dropdown: index 0 = any, 1 = 2020, 2 = 2019, …
+            int yearIdx = _yearDropdown?.SelectedIndex ?? 0;
+            int minYear = yearIdx == 0 ? 0 : (2021 - yearIdx); // 2020 - (yearIdx-1)
+
+            bool noFilter = string.IsNullOrEmpty(query)
+                         && string.IsNullOrEmpty(makeFilter)
+                         && minYear == 0;
+
+            if (noFilter)
+            {
+                _filteredListings = null;
+                return;
+            }
+
+            _filteredListings = _listings.ActiveListings.Where(l =>
+            {
+                bool textOk = string.IsNullOrEmpty(query)
+                    || l.Make.ToLower().Contains(query)
+                    || l.Model.ToLower().Contains(query)
+                    || l.Year.ToString().Contains(query);
+
+                bool makeOk = string.IsNullOrEmpty(makeFilter)
+                    || l.Make.Equals(makeFilter, StringComparison.OrdinalIgnoreCase);
+
+                bool yearOk = minYear == 0 || l.Year >= minYear;
+
+                return textOk && makeOk && yearOk;
+            }).ToList();
+        }
+
+        /// <summary>Clears filter and shows all listings.</summary>
+        private void ShowAllListings()
+        {
+            _filteredListings = null;
+            _currentPage = 0;
+            ShowListingPage();
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  MENU DROPDOWN
+        // ══════════════════════════════════════════════════════════════════════
+
         private void ToggleMenu()
         {
             _menuOpen = !_menuOpen;
@@ -321,8 +466,8 @@ namespace CMS2026_OXL
         {
             const float DropW = 140f;
             const float ItemH = 36f;
-            // TitleH(24) + sep(~14) + row(44) + sep gap ≈ 88 in panel coords
-            float dropTop = 88f;
+            // Position just below the address bar, right-aligned
+            float dropTop = OverlayTop + 4f;
             float dropLeft = PanelW - DropW - 8f;
 
             var drop = UIRuntime.NewVE();
@@ -341,14 +486,19 @@ namespace CMS2026_OXL
             for (int i = 0; i < PageTitles.Length; i++)
             {
                 int idx = i;
-                var ptr = _panel.AddButtonToContainer(drop,
-                    PageTitles[i], 0f, 3f + i * ItemH, DropW, ItemH,
+                var ptr = _panel.AddButtonToContainer(
+                    drop, PageTitles[i],
+                    0f, 3f + i * ItemH, DropW, ItemH,
                     BtnDark, () => { ToggleMenu(); ShowPage(idx); });
                 _panel.WireHover(ptr, BtnDark, BtnDarkHi, SearchBdr);
             }
         }
 
-        // ── Page overlay ──────────────────────────────────────────────────────
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  STATIC PAGE OVERLAY  (Help / Settings / About)
+        // ══════════════════════════════════════════════════════════════════════
+
         private void BuildPageOverlay()
         {
             const float TopBarH = 44f;
@@ -357,15 +507,15 @@ namespace CMS2026_OXL
             var overlay = UIRuntime.NewVE();
             var os = UIRuntime.GetStyle(overlay);
             S.Position(os, "Absolute");
-            S.Left(os, 0f); S.Top(os, 24f);          // below title bar
-            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.Left(os, 0f); S.Top(os, OverlayTop);
+            S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
             _panel.AddOverlayToPanel(overlay);
             _pageOverlayPtr = UIRuntime.GetPtr(overlay);
 
-            // ── Top bar ───────────────────────────────────────────────────────
+            // Top bar
             var topBar = UIRuntime.NewVE();
             var ts = UIRuntime.GetStyle(topBar);
             S.Position(ts, "Absolute");
@@ -374,18 +524,19 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(overlay, topBar);
 
-            var backPtr = _panel.AddButtonToContainer(topBar,
-                "\u2190  Back", Pad, 6f, 100f, TopBarH - 12f,
+            var backPtr = _panel.AddButtonToContainer(
+                topBar, "\u2190  Back",
+                Pad, 6f, 100f, TopBarH - 12f,
                 BtnDark, HidePage);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            _pageTitleLbl = _panel.AddLabelToContainer(topBar,
-                "", 130f, 0f, PanelW - 150f, TopBarH, OXLGreen);
+            _pageTitleLbl = _panel.AddLabelToContainer(
+                topBar, "", 130f, 0f, PanelW - 150f, TopBarH, OXLGreen);
             _pageTitleLbl.SetFontSize(18);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageTitleLbl.GetRawPtr())),
                         TextAnchor.MiddleLeft);
 
-            // Separator under top bar
+            // Separator
             var sep = UIRuntime.NewVE();
             var ss = UIRuntime.GetStyle(sep);
             S.Position(ss, "Absolute");
@@ -394,9 +545,11 @@ namespace CMS2026_OXL
             S.BgColor(ss, Border);
             UIRuntime.AddChild(overlay, sep);
 
-            // Body text
-            _pageBodyLbl = _panel.AddLabelToContainer(overlay,
-                "", Pad, TopBarH + Pad, PanelW - Pad * 2f, PanelH - TopBarH - 24f - Pad * 2f,
+            // Body
+            _pageBodyLbl = _panel.AddLabelToContainer(
+                overlay, "",
+                Pad, TopBarH + Pad,
+                PanelW - Pad * 2f, PanelH - OverlayTop - TopBarH - Pad * 2f,
                 TextGray);
             _pageBodyLbl.SetFontSize(13);
         }
@@ -404,6 +557,11 @@ namespace CMS2026_OXL
         private void ShowPage(int index)
         {
             if (_pageOverlayPtr == IntPtr.Zero) return;
+
+            // Chowamy overlaye aukcji, żeby page overlay był na wierzchu
+            HideListingPage();
+            HideDetail();
+
             _pageTitleLbl?.SetText(PageTitles[index]);
             _pageBodyLbl?.SetText(PageBodies[index]);
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageOverlayPtr)), true);
@@ -416,86 +574,24 @@ namespace CMS2026_OXL
         }
 
 
-        // ── Ładowanie ikon 64×64 z Resources/icons/ ──────────────────────────
-        private void LoadIcons()
-        {
-            // Budujemy ścieżkę w ten sam sprawdzony sposób co przy logo
-            string iconDir = System.IO.Path.Combine(
-                UnityEngine.Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "icons");
-
-            _icoPrev = TryLoadTexture(System.IO.Path.Combine(iconDir, "previous.png"));
-            _icoNext = TryLoadTexture(System.IO.Path.Combine(iconDir, "next.png"));
-            _icoRef = TryLoadTexture(System.IO.Path.Combine(iconDir, "ref.png"));
-            _icoSecured = TryLoadTexture(System.IO.Path.Combine(iconDir, "secured.png"));
-            _icoMenu = TryLoadTexture(System.IO.Path.Combine(iconDir, "ModMenu.png"));
-        }
-
-        private Texture2D TryLoadLogo()
-        {
-            // Budujemy ścieżkę od folderu Data gry, cofamy się o jeden (..) do folderu głównego gry,
-            // a potem wchodzimy w strukturę folderów Twojego moda.
-            string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "Images", "logo.png");
-
-            return TryLoadTexture(path);
-        }
-
-        private Texture2D TryLoadTexture(string path)
-        {
-            try
-            {
-                if (!File.Exists(path))
-                {
-                    OXLPlugin.Log.Msg($"[OXL] Not found: {path}");
-                    return null;
-                }
-
-                byte[] bytes = File.ReadAllBytes(path);
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-
-                var il2b = new Il2CppInterop.Runtime.InteropTypes
-                    .Arrays.Il2CppStructArray<byte>(bytes.Length);
-                for (int i = 0; i < bytes.Length; i++) il2b[i] = bytes[i];
-
-                var icType = AppDomain.CurrentDomain.GetAssemblies()
-                    .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-                    .FirstOrDefault(t => t.FullName == "UnityEngine.ImageConversion");
-
-                if (icType == null) return null;
-
-                var loadImg = icType.GetMethods()
-                    .FirstOrDefault(m => m.Name == "LoadImage"
-                                     && m.GetParameters().Length == 2);
-                if (loadImg == null) return null;
-
-                bool ok = (bool)loadImg.Invoke(null, new object[] { tex, il2b });
-                return ok ? tex : null;
-            }
-            catch (Exception ex)
-            {
-                OXLPlugin.Log.Msg($"[OXL] Texture load error ({Path.GetFileName(path)}): {ex.Message}");
-                return null;
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════
-        //  LISTING PAGE
-        // ═══════════════════════════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════════════
+        //  LISTING PAGE OVERLAY
+        // ══════════════════════════════════════════════════════════════════════
 
         private void BuildListingPage()
         {
-            // ── Overlay ──────────────────────────────────────────────────────────
             var overlay = UIRuntime.NewVE();
             var os = UIRuntime.GetStyle(overlay);
             S.Position(os, "Absolute");
-            S.Left(os, 0f); S.Top(os, 24f);
-            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.Left(os, 0f); S.Top(os, OverlayTop);
+            S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
             _panel.AddOverlayToPanel(overlay);
             _listingPagePtr = UIRuntime.GetPtr(overlay);
 
-            // ── Top bar ───────────────────────────────────────────────────────────
+            // Top bar
             var topBar = UIRuntime.NewVE();
             var ts = UIRuntime.GetStyle(topBar);
             S.Position(ts, "Absolute");
@@ -505,12 +601,12 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, topBar);
 
             var backPtr = _panel.AddButtonToContainer(
-                topBar, "\u2190  Powrót", 12f, 6f, 110f, 32f, BtnDark, HideListingPage);
+                topBar, "\u2190  Back", 12f, 6f, 110f, 32f, BtnDark, HideListingPage);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             var titleLbl = _panel.AddLabelToContainer(
-                topBar, "\U0001F697  Samochody osobowe — aktywne aukcje",
-                140f, 0f, 600f, 44f, OXLGreen);
+                topBar, "\U0001F697  Passenger Cars — active listings",
+                140f, 0f, 700f, 44f, OXLGreen);
             titleLbl.SetFontSize(15);
 
             // Sep
@@ -522,10 +618,10 @@ namespace CMS2026_OXL
             S.BgColor(ss, Border);
             UIRuntime.AddChild(overlay, sep);
 
-            // ── Rows container ────────────────────────────────────────────────────
+            // Rows container
             const float PaginationH = 46f;
             float rowsTop = 50f;
-            float rowsH = PanelH - 24f - rowsTop - PaginationH;
+            float rowsH = PanelH - OverlayTop - rowsTop - PaginationH;
 
             var rowsVE = UIRuntime.NewVE();
             var rcs = UIRuntime.GetStyle(rowsVE);
@@ -536,19 +632,19 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, rowsVE);
             _listingRowsContainerPtr = UIRuntime.GetPtr(rowsVE);
 
-            // ── Pagination bar ────────────────────────────────────────────────────
-            BuildPaginationBar(overlay, PanelH - 24f - PaginationH);
+            // Pagination bar
+            BuildPaginationBar(overlay, PanelH - OverlayTop - PaginationH);
         }
 
-        // ── Single auction row ────────────────────────────────────────────────────
+        // ── Single auction row ────────────────────────────────────────────────
         private void BuildListingRow(object container, CarListing listing, float yOffset)
         {
             const float Pad = 16f;
-            const float ImgW = 80f;
+            const float ImgW = 125f;
             const float ImgH = 62f;
             const float RightW = 180f;
 
-            // ── Row background ───────────────────────────────────────────────────
+            // Row background
             var rowBg = UIRuntime.NewVE();
             var rbs = UIRuntime.GetStyle(rowBg);
             S.Position(rbs, "Absolute");
@@ -556,29 +652,28 @@ namespace CMS2026_OXL
             S.Width(rbs, PanelW); S.Height(rbs, RowH);
             S.BgColor(rbs, new Color(0.042f, 0.066f, 0.114f, 1f));
             UIRuntime.AddChild(container, rowBg);
-
             var rowPtr = UIRuntime.GetPtr(rowBg);
+
             _panel.WireHover(rowPtr,
                 new Color(0.042f, 0.066f, 0.114f, 1f),
                 new Color(0.070f, 0.110f, 0.180f, 1f),
                 new Color(0.090f, 0.140f, 0.220f, 1f));
-
             _panel.WireClick(rowPtr, () =>
             {
                 if (_buyClickConsumed) { _buyClickConsumed = false; return; }
                 ShowDetail(listing);
             });
 
-            // ── Bottom separator ─────────────────────────────────────────────────
-            var rowSepVE = UIRuntime.NewVE();
-            var rss = UIRuntime.GetStyle(rowSepVE);
+            // Bottom separator
+            var rowSep = UIRuntime.NewVE();
+            var rss = UIRuntime.GetStyle(rowSep);
             S.Position(rss, "Absolute");
             S.Left(rss, Pad); S.Top(rss, RowH - 1f);
             S.Width(rss, PanelW - Pad * 2f); S.Height(rss, 1f);
             S.BgColor(rss, new Color(0.15f, 0.22f, 0.32f, 0.5f));
-            UIRuntime.AddChild(container, rowSepVE);
+            UIRuntime.AddChild(container, rowSep);
 
-            // ── Thumbnail placeholder ─────────────────────────────────────────────
+            // Thumbnail
             var imgBox = UIRuntime.NewVE();
             var ibs = UIRuntime.GetStyle(imgBox);
             S.Position(ibs, "Absolute");
@@ -590,61 +685,68 @@ namespace CMS2026_OXL
             S.BorderColor(ibs, new Color(0.15f, 0.25f, 0.38f, 0.7f));
             UIRuntime.AddChild(rowBg, imgBox);
 
-            // Ikona w thumbnailu — jedyne miejsce gdzie zostaje AddLabelToContainer z object
-            var iconLbl = _panel.AddLabelToContainer(imgBox,
-                "\U0001F697", 0f, 0f, ImgW, ImgH,
-                new Color(0.28f, 0.40f, 0.52f, 1f));
-            iconLbl.SetFontSize(24);
+            if (_carImages.TryGetValue(listing.ImageFolder, out var carTex))
+            {
+                UIRuntime.SetBackgroundImage(imgBox, carTex);
+                // ScaleMode.ScaleToFit przez styl
+                var imsVE = UIRuntime.WrapVE(UIRuntime.GetPtr(imgBox));
+                // backgroundSize nie jest w S{} — pomijamy, domyślnie stretch jest ok
+            }
+            else
+            {
+                var iconLbl = _panel.AddLabelToContainer(
+                    imgBox, "\U0001F697", 0f, 0f, ImgW, ImgH,
+                    new Color(0.28f, 0.40f, 0.52f, 1f));
+                iconLbl.SetFontSize(24);
+            }
 
-            // ── Content ───────────────────────────────────────────────────────────
+            // Content area
             float contentX = Pad + ImgW + 14f;
             float contentW = PanelW - contentX - RightW - Pad * 2f;
 
-            // Title
-            var titleLbl = _panel.AddLabelToContainer(rowPtr,
-                $"{listing.Make} {listing.Model}  •  {listing.Year}",
+            var titleLbl = _panel.AddLabelToContainer(
+                rowPtr, $"{listing.Make} {listing.Model}  \u2022  {listing.Year}",
                 contentX, 10f, contentW, 24f, Color.white);
             titleLbl.SetFontSize(16);
 
-            // Seller note
             string note = listing.SellerNote.Length > 80
                 ? listing.SellerNote.Substring(0, 77) + "..."
                 : listing.SellerNote;
-            var noteLbl = _panel.AddLabelToContainer(rowPtr,
-                $"\"{note}\"",
+            var noteLbl = _panel.AddLabelToContainer(
+                rowPtr, $"\"{note}\"",
                 contentX, 38f, contentW, 20f, TextGray);
             noteLbl.SetFontSize(12);
 
-            // Timer
             float remaining = listing.ExpiresAt - _listings.GameTime;
             Color timerColor = remaining < 120f
                 ? new Color(0.95f, 0.55f, 0.20f, 1f)
                 : new Color(0.45f, 0.65f, 0.85f, 1f);
-            var timerLbl = _panel.AddLabelToContainer(rowPtr,
-                FormatTimer(listing),
+            var timerLbl = _panel.AddLabelToContainer(
+                rowPtr, FormatTimer(listing),
                 contentX, 62f, 240f, 20f, timerColor);
             timerLbl.SetFontSize(12);
             _timerLabels[listing.InternalId] = timerLbl;
 
-            // ── Right side ────────────────────────────────────────────────────────
+            // Right side
             float rightX = PanelW - RightW - Pad;
 
-            // Price
-            var priceLbl = _panel.AddLabelToContainer(rowPtr,
-                $"${listing.Price:N0}",
+            var priceLbl = _panel.AddLabelToContainer(
+                rowPtr, $"${listing.Price:N0}",
                 rightX, 10f, RightW, 30f, OXLGreen);
             priceLbl.SetFontSize(20);
 
-            // BUY button
-            var buyPtr = _panel.AddButtonToContainer(rowPtr,
-                "KUP ▶",
+            var buyPtr = _panel.AddButtonToContainer(
+                rowPtr, "BUY \u25BA",
                 rightX + RightW - 130f, 46f, 130f, 34f,
                 OXLGreen,
                 () =>
                 {
                     _buyClickConsumed = true;
                     if (_listings.TryPurchase(listing, SpawnCar, DeductMoney))
+                    {
+                        if (_filteredListings != null) ApplyFilters();
                         RefreshListings();
+                    }
                 });
             _panel.WireHover(buyPtr,
                 OXLGreen,
@@ -652,7 +754,7 @@ namespace CMS2026_OXL
                 new Color(0.16f, 0.48f, 0.28f, 1f));
         }
 
-        // ── Pagination bar ────────────────────────────────────────────────────────
+        // ── Pagination bar ────────────────────────────────────────────────────
         private void BuildPaginationBar(object overlay, float yTop)
         {
             const float BarH = 46f;
@@ -677,7 +779,7 @@ namespace CMS2026_OXL
             float cx = PanelW / 2f;
 
             var prevPtr = _panel.AddButtonToContainer(
-                bar, "◀  Poprzednia", cx - BtnW - 70f, 7f, BtnW, 32f, BtnDark,
+                bar, "\u25C4  Previous", cx - BtnW - 70f, 7f, BtnW, 32f, BtnDark,
                 () => { if (_currentPage > 0) { _currentPage--; RefreshListings(); } });
             _panel.WireHover(prevPtr, BtnDark, BtnDarkHi, SearchBdr);
 
@@ -686,16 +788,15 @@ namespace CMS2026_OXL
             _pageCountLabel.SetFontSize(13);
 
             var nextPtr = _panel.AddButtonToContainer(
-                bar, "Następna  ▶", cx + 70f, 7f, BtnW, 32f, BtnDark,
+                bar, "Next  \u25BA", cx + 70f, 7f, BtnW, 32f, BtnDark,
                 () =>
                 {
-                    int total = TotalPages();
-                    if (_currentPage < total - 1) { _currentPage++; RefreshListings(); }
+                    if (_currentPage < TotalPages() - 1) { _currentPage++; RefreshListings(); }
                 });
             _panel.WireHover(nextPtr, BtnDark, BtnDarkHi, SearchBdr);
         }
 
-        // ── Rebuild current page ──────────────────────────────────────────────────
+        // ── Rebuild current page ──────────────────────────────────────────────
         private void RefreshListings()
         {
             if (_listingRowsContainerPtr == IntPtr.Zero) return;
@@ -704,38 +805,43 @@ namespace CMS2026_OXL
             UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(container, null);
             _timerLabels.Clear();
 
-            var all = _listings.ActiveListings;
+            // Use filtered list if a search is active, otherwise show everything
+            var all = _filteredListings ?? _listings.ActiveListings;
+
             _currentPage = Mathf.Clamp(_currentPage, 0, Mathf.Max(0, TotalPages() - 1));
             _pageCountLabel?.SetText($"{_currentPage + 1} / {TotalPages()}");
 
-            int start = _currentPage * RowsPerPage;
-            int end = Mathf.Min(start + RowsPerPage, all.Count);
-
             if (all.Count == 0)
             {
+                string emptyMsg = _filteredListings != null
+                    ? "\u2014  No results for selected criteria  \u2014"
+                    : "\u2014  No active listings  \u2014";
+
                 var lbl = Activator.CreateInstance(UIRuntime.LabelType);
                 var s = UIRuntime.GetStyle(lbl);
                 S.Position(s, "Absolute");
                 S.Left(s, 0f); S.Top(s, 260f);
                 S.Width(s, PanelW); S.Height(s, 40f);
-                S.Color(s, TextDim);
-                S.Font(s);
+                S.Color(s, TextDim); S.Font(s);
                 S.TextAlign(s, TextAnchor.MiddleCenter);
-                UIRuntime.LabelType.GetProperty("text")
-                    .SetValue(lbl, "\u2014  Brak aktywnych aukcji  \u2014");
+                UIRuntime.LabelType.GetProperty("text").SetValue(lbl, emptyMsg);
                 UIRuntime.AddChild(container, lbl);
                 return;
             }
 
+            int start = _currentPage * RowsPerPage;
+            int end = Mathf.Min(start + RowsPerPage, all.Count);
             for (int i = start; i < end; i++)
                 BuildListingRow(container, all[i], (i - start) * (RowH + RowGap));
         }
 
         private int TotalPages()
-            => Mathf.Max(1, Mathf.CeilToInt(
-                   _listings.ActiveListings.Count / (float)RowsPerPage));
+        {
+            int count = (_filteredListings ?? _listings.ActiveListings).Count;
+            return Mathf.Max(1, Mathf.CeilToInt(count / (float)RowsPerPage));
+        }
 
-        // ── Live timer updates ────────────────────────────────────────────────────
+        // ── Timer refresh ─────────────────────────────────────────────────────
         private void UpdateTimers()
         {
             if (_timerLabels.Count == 0) return;
@@ -748,22 +854,21 @@ namespace CMS2026_OXL
                     ? new Color(0.95f, 0.55f, 0.20f, 1f)
                     : new Color(0.45f, 0.65f, 0.85f, 1f));
             }
-            // also update detail overlay timer if open
-            if (_detailListing != null && _detailTimer != null)
-                _detailTimer.SetText(FormatTimer(_detailListing));
+            if (_detailListing != null)
+                _detailTimer?.SetText(FormatTimer(_detailListing));
         }
 
         private string FormatTimer(CarListing listing)
         {
             float rem = listing.ExpiresAt - _listings.GameTime;
-            if (rem <= 0f) return "Aukcja zakończona";
+            if (rem <= 0f) return "Auction ended";
             int m = (int)(rem / 60f);
             int s = (int)(rem % 60f);
-            string icon = rem < 60f ? "\u26a0 " : "\u23f1 ";
-            return $"{icon}Wygasa za {m}:{s:D2}";
+            string icon = rem < 60f ? "\u26A0 " : "\u23F1 ";
+            return $"Expires in {m}:{s:D2}";
         }
 
-        // ── Visibility ────────────────────────────────────────────────────────────
+        // ── Listing page visibility ───────────────────────────────────────────
         private void ShowListingPage()
         {
             if (_listingPagePtr == IntPtr.Zero) return;
@@ -778,17 +883,18 @@ namespace CMS2026_OXL
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), false);
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+
+        // ══════════════════════════════════════════════════════════════════════
         //  DETAIL OVERLAY
-        // ═══════════════════════════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════════════
 
         private void BuildDetailOverlay()
         {
             var overlay = UIRuntime.NewVE();
             var os = UIRuntime.GetStyle(overlay);
             S.Position(os, "Absolute");
-            S.Left(os, 0f); S.Top(os, 24f);
-            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.Left(os, 0f); S.Top(os, OverlayTop);
+            S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
@@ -805,7 +911,7 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, topBar);
 
             var backPtr = _panel.AddButtonToContainer(
-                topBar, "\u2190  Lista aukcji", 12f, 6f, 140f, 32f, BtnDark, HideDetail);
+                topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, HideDetail);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             _detailTitle = _panel.AddLabelToContainer(
@@ -821,8 +927,8 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, sep);
 
             // Large image placeholder
-            const float BigImgW = 480f;
-            const float BigImgH = 320f;
+            const float BigImgW = 471f;
+            const float BigImgH = 230f;
             float imgLeft = 48f;
             float imgTop = 70f;
 
@@ -836,6 +942,7 @@ namespace CMS2026_OXL
             S.BorderWidth(ibs, 1f);
             S.BorderColor(ibs, new Color(0.18f, 0.28f, 0.42f, 0.8f));
             UIRuntime.AddChild(overlay, imgBox);
+            _detailImgBoxPtr = UIRuntime.GetPtr(imgBox);
 
             var imgIcon = Activator.CreateInstance(UIRuntime.LabelType);
             var iils = UIRuntime.GetStyle(imgIcon);
@@ -871,14 +978,16 @@ namespace CMS2026_OXL
             _detailPrice.SetFontSize(32);
 
             _detailBuyPtr = _panel.AddButtonToContainer(
-                overlay, "KUP TERAZ  ▶",
+                overlay, "BUY NOW  \u25BA",
                 infoX, imgTop + 316f, 220f, 52f,
-                OXLGreen, () =>
+                OXLGreen,
+                () =>
                 {
                     if (_detailListing == null) return;
                     if (_listings.TryPurchase(_detailListing, SpawnCar, DeductMoney))
                     {
                         HideDetail();
+                        if (_filteredListings != null) ApplyFilters();
                         RefreshListings();
                     }
                 });
@@ -892,12 +1001,21 @@ namespace CMS2026_OXL
         {
             if (_detailOverlayPtr == IntPtr.Zero) return;
             _detailListing = listing;
-
             _detailTitle?.SetText($"{listing.Make} {listing.Model}");
-            _detailYear?.SetText($"Rok produkcji: {listing.Year}");
+            _detailYear?.SetText($"Year: {listing.Year}");
             _detailNote?.SetText($"\"{listing.SellerNote}\"");
             _detailTimer?.SetText(FormatTimer(listing));
             _detailPrice?.SetText($"${listing.Price:N0}");
+
+            
+            if (_detailImgBoxPtr != IntPtr.Zero)
+            {
+                var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
+                if (_carImages.TryGetValue(listing.ImageFolder, out var tex))
+                    UIRuntime.SetBackgroundImage(imgVE, tex);
+                else
+                    UIRuntime.SetBackgroundImage(imgVE, null); // pokaże tło bez obrazka
+            }
 
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), true);
         }
@@ -910,9 +1028,109 @@ namespace CMS2026_OXL
         }
 
 
-        // ── Widoczność ────────────────────────────────────────────────────────
-        public void Open() { _panel?.SetVisible(true); }
-        public void Close() { _panel?.SetVisible(false); }
-        public void Toggle() { _panel?.Toggle(); }
+        // ══════════════════════════════════════════════════════════════════════
+        //  TEXTURE LOADING
+        // ══════════════════════════════════════════════════════════════════════
+
+        private void LoadIcons()
+        {
+            string iconDir = Path.Combine(
+                Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "icons");
+
+            _icoPrev = TryLoadTexture(Path.Combine(iconDir, "previous.png"));
+            _icoNext = TryLoadTexture(Path.Combine(iconDir, "next.png"));
+            _icoRef = TryLoadTexture(Path.Combine(iconDir, "ref.png"));
+            _icoSecured = TryLoadTexture(Path.Combine(iconDir, "secured.png"));
+            _icoMenu = TryLoadTexture(Path.Combine(iconDir, "ModMenu.png"));
+
+            string carImgRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "CarImages");
+            foreach (var folder in new[]{"DNB Censor", "Katagiri Tamago BP","Luxor Streamliner Mk3", "Mayen M5", "Salem Aries MK3"})
+            {
+                string dir = Path.Combine(carImgRoot, folder);
+                if (!Directory.Exists(dir)) continue;
+                var files = Directory.GetFiles(dir, "*.png");
+                if (files.Length == 0) continue;
+                var tex = TryLoadTexture(files[0]); // zawsze pierwsza .png
+                if (tex != null) _carImages[folder] = tex;
+            }
+        }
+
+        private Texture2D TryLoadLogo()
+        {
+            string path = Path.Combine(
+                Application.dataPath, "..", "Mods", "CMS2026_OXL",
+                "Resources", "Images", "logo.png");
+            return TryLoadTexture(path);
+        }
+
+        private Texture2D TryLoadTexture(string path)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    OXLPlugin.Log.Msg($"[OXL] Not found: {path}");
+                    return null;
+                }
+
+                // Wczytywanie surowych bajtów z pliku
+                byte[] bytes = File.ReadAllBytes(path);
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+
+                // Konwersja na format akceptowany przez Il2Cpp
+                var il2b = new Il2CppInterop.Runtime.InteropTypes
+                               .Arrays.Il2CppStructArray<byte>(bytes.Length);
+                for (int i = 0; i < bytes.Length; i++) il2b[i] = bytes[i];
+
+                // Szukanie klasy ImageConversion w dostępnych paczkach (Reflection)
+                var icType = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a => {
+                        try { return a.GetTypes(); }
+                        catch { return Array.Empty<Type>(); }
+                    })
+                    .FirstOrDefault(t => t.FullName == "UnityEngine.ImageConversion");
+
+                if (icType == null) return null;
+
+                // Szukanie odpowiedniej metody LoadImage
+                var loadImg = icType.GetMethods()
+                    .FirstOrDefault(m => m.Name == "LoadImage"
+                                      && m.GetParameters().Length == 2);
+
+                if (loadImg == null) return null;
+
+                // --- TUTAJ ZASTOSOWANE ZMIANY ---
+
+                // Wykonujemy metodę i zapisujemy wynik do zmiennej bool
+                bool result = (bool)loadImg.Invoke(null, new object[] { tex, il2b });
+
+                if (result)
+                {
+                    // Zapobiegamy usunięciu tekstury przez silnik Unity podczas czyszczenia pamięci
+                    tex.hideFlags = UnityEngine.HideFlags.DontUnloadUnusedAsset;
+                }
+
+                // Informacja w konsoli o tym, czy ładowanie się udało
+                OXLPlugin.Log.Msg($"[OXL] LoadImage result={result}");
+
+                // Zwracamy gotową teksturę lub null
+                return result ? tex : null;
+
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL] Texture load error ({Path.GetFileName(path)}): {ex.Message}");
+                return null;
+            }
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  PUBLIC API
+        // ══════════════════════════════════════════════════════════════════════
+
+        public void Open() => _panel?.SetVisible(true);
+        public void Close() => _panel?.SetVisible(false);
+        public void Toggle() => _panel?.Toggle();
     }
 }
