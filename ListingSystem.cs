@@ -26,6 +26,7 @@ namespace CMS2026_OXL
         public List<CarListing> ActiveListings { get; private set; } = new();
 
         private float _gameTime = 0f;
+        public float GameTime => _gameTime;
 
         public void Tick(float deltaTime)
         {

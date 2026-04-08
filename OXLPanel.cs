@@ -32,6 +32,31 @@ namespace CMS2026_OXL
         private UIPanel _panel;
         private readonly ListingSystem _listings = new ListingSystem();
 
+
+        // ── Listing page ──────────────────────────────────────────────────────────
+        private IntPtr _listingPagePtr;
+        private IntPtr _listingRowsContainerPtr;
+        private UILabelHandle _pageCountLabel;
+        private int _currentPage = 0;
+        private const int RowsPerPage = 7;
+        private const float RowH = 90f;
+        private const float RowGap = 1f;
+
+        private readonly Dictionary<string, UILabelHandle> _timerLabels = new();
+        private bool _buyClickConsumed = false;
+
+        // ── Detail overlay ────────────────────────────────────────────────────────
+        private IntPtr _detailOverlayPtr;
+        private UILabelHandle _detailTitle;
+        private UILabelHandle _detailYear;
+        private UILabelHandle _detailNote;
+        private UILabelHandle _detailTimer;
+        private UILabelHandle _detailPrice;
+        private IntPtr _detailBuyPtr;
+        private CarListing _detailListing;
+
+
+
         // ── Menu & pages ──────────────────────────────────────────────────────
         private IntPtr _menuDropdownPtr;
         private bool _menuOpen = false;
@@ -91,7 +116,18 @@ namespace CMS2026_OXL
             BuildAddressBar();
             BuildContent();
 
-            _panel.SetUpdateCallback(dt => _listings.Tick(dt));
+            _panel.SetUpdateCallback(dt =>
+            {
+                int before = _listings.ActiveListings.Count;
+                _listings.Tick(dt);
+                if (_listings.ActiveListings.Count != before)
+                    RefreshListings();
+                UpdateTimers();
+            });
+
+            BuildListingPage();
+            BuildDetailOverlay();
+
             _panel.SetVisible(false);
         }
 
@@ -256,7 +292,11 @@ namespace CMS2026_OXL
             var catRow = _panel.AddRow(height: 28f, gap: 0f);
             float cSide = (catRow.RemainingWidth - 490f) / 2f;
             catRow.AddSpace(cSide);
-            catRow.AddLabel("\U0001F697  Samochody osobowe", width: 190f, color: OXLGreen);
+
+            var carCatLbl = catRow.AddLabel("\U0001F697  Samochody osobowe", width: 190f, color: OXLGreen);
+            _panel.WireHover(carCatLbl.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
+            _panel.WireClick(carCatLbl.GetRawPtr(), ShowListingPage);
+
             catRow.AddLabel("\U0001F527  Cz\u0119\u015Bci (WIP)", width: 150f, color: TextGray);
             catRow.AddLabel("\U0001F690  Dostawcze (WIP)", width: 150f, color: TextGray);
 
@@ -342,8 +382,8 @@ namespace CMS2026_OXL
             _pageTitleLbl = _panel.AddLabelToContainer(topBar,
                 "", 130f, 0f, PanelW - 150f, TopBarH, OXLGreen);
             _pageTitleLbl.SetFontSize(18);
-            //S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageTitleLbl.GetRawPtr())),
-            //            TextAnchor.MiddleLeft);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageTitleLbl.GetRawPtr())),
+                        TextAnchor.MiddleLeft);
 
             // Separator under top bar
             var sep = UIRuntime.NewVE();
@@ -436,6 +476,439 @@ namespace CMS2026_OXL
                 return null;
             }
         }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  LISTING PAGE
+        // ═══════════════════════════════════════════════════════════════════════
+
+        private void BuildListingPage()
+        {
+            // ── Overlay ──────────────────────────────────────────────────────────
+            var overlay = UIRuntime.NewVE();
+            var os = UIRuntime.GetStyle(overlay);
+            S.Position(os, "Absolute");
+            S.Left(os, 0f); S.Top(os, 24f);
+            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.BgColor(os, PageBg);
+            S.Overflow(os, "Hidden");
+            S.Display(os, false);
+            _panel.AddOverlayToPanel(overlay);
+            _listingPagePtr = UIRuntime.GetPtr(overlay);
+
+            // ── Top bar ───────────────────────────────────────────────────────────
+            var topBar = UIRuntime.NewVE();
+            var ts = UIRuntime.GetStyle(topBar);
+            S.Position(ts, "Absolute");
+            S.Left(ts, 0f); S.Top(ts, 0f);
+            S.Width(ts, PanelW); S.Height(ts, 44f);
+            S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
+            UIRuntime.AddChild(overlay, topBar);
+
+            var backPtr = _panel.AddButtonToContainer(
+                topBar, "\u2190  Powrót", 12f, 6f, 110f, 32f, BtnDark, HideListingPage);
+            _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            var titleLbl = _panel.AddLabelToContainer(
+                topBar, "\U0001F697  Samochody osobowe — aktywne aukcje",
+                140f, 0f, 600f, 44f, OXLGreen);
+            titleLbl.SetFontSize(15);
+
+            // Sep
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, 44f);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(overlay, sep);
+
+            // ── Rows container ────────────────────────────────────────────────────
+            const float PaginationH = 46f;
+            float rowsTop = 50f;
+            float rowsH = PanelH - 24f - rowsTop - PaginationH;
+
+            var rowsVE = UIRuntime.NewVE();
+            var rcs = UIRuntime.GetStyle(rowsVE);
+            S.Position(rcs, "Absolute");
+            S.Left(rcs, 0f); S.Top(rcs, rowsTop);
+            S.Width(rcs, PanelW); S.Height(rcs, rowsH);
+            S.Overflow(rcs, "Hidden");
+            UIRuntime.AddChild(overlay, rowsVE);
+            _listingRowsContainerPtr = UIRuntime.GetPtr(rowsVE);
+
+            // ── Pagination bar ────────────────────────────────────────────────────
+            BuildPaginationBar(overlay, PanelH - 24f - PaginationH);
+        }
+
+        // ── Single auction row ────────────────────────────────────────────────────
+        private void BuildListingRow(object container, CarListing listing, float yOffset)
+        {
+            const float Pad = 16f;
+            const float ImgW = 80f;
+            const float ImgH = 62f;
+            const float RightW = 180f;
+
+            // ── Row background ───────────────────────────────────────────────────
+            var rowBg = UIRuntime.NewVE();
+            var rbs = UIRuntime.GetStyle(rowBg);
+            S.Position(rbs, "Absolute");
+            S.Left(rbs, 0f); S.Top(rbs, yOffset);
+            S.Width(rbs, PanelW); S.Height(rbs, RowH);
+            S.BgColor(rbs, new Color(0.042f, 0.066f, 0.114f, 1f));
+            UIRuntime.AddChild(container, rowBg);
+
+            var rowPtr = UIRuntime.GetPtr(rowBg);
+            _panel.WireHover(rowPtr,
+                new Color(0.042f, 0.066f, 0.114f, 1f),
+                new Color(0.070f, 0.110f, 0.180f, 1f),
+                new Color(0.090f, 0.140f, 0.220f, 1f));
+
+            _panel.WireClick(rowPtr, () =>
+            {
+                if (_buyClickConsumed) { _buyClickConsumed = false; return; }
+                ShowDetail(listing);
+            });
+
+            // ── Bottom separator ─────────────────────────────────────────────────
+            var rowSepVE = UIRuntime.NewVE();
+            var rss = UIRuntime.GetStyle(rowSepVE);
+            S.Position(rss, "Absolute");
+            S.Left(rss, Pad); S.Top(rss, RowH - 1f);
+            S.Width(rss, PanelW - Pad * 2f); S.Height(rss, 1f);
+            S.BgColor(rss, new Color(0.15f, 0.22f, 0.32f, 0.5f));
+            UIRuntime.AddChild(container, rowSepVE);
+
+            // ── Thumbnail placeholder ─────────────────────────────────────────────
+            var imgBox = UIRuntime.NewVE();
+            var ibs = UIRuntime.GetStyle(imgBox);
+            S.Position(ibs, "Absolute");
+            S.Left(ibs, Pad); S.Top(ibs, (RowH - ImgH) / 2f);
+            S.Width(ibs, ImgW); S.Height(ibs, ImgH);
+            S.BgColor(ibs, new Color(0.08f, 0.13f, 0.20f, 1f));
+            S.BorderRadius(ibs, 6f);
+            S.BorderWidth(ibs, 1f);
+            S.BorderColor(ibs, new Color(0.15f, 0.25f, 0.38f, 0.7f));
+            UIRuntime.AddChild(rowBg, imgBox);
+
+            // Ikona w thumbnailu — jedyne miejsce gdzie zostaje AddLabelToContainer z object
+            var iconLbl = _panel.AddLabelToContainer(imgBox,
+                "\U0001F697", 0f, 0f, ImgW, ImgH,
+                new Color(0.28f, 0.40f, 0.52f, 1f));
+            iconLbl.SetFontSize(24);
+
+            // ── Content ───────────────────────────────────────────────────────────
+            float contentX = Pad + ImgW + 14f;
+            float contentW = PanelW - contentX - RightW - Pad * 2f;
+
+            // Title
+            var titleLbl = _panel.AddLabelToContainer(rowPtr,
+                $"{listing.Make} {listing.Model}  •  {listing.Year}",
+                contentX, 10f, contentW, 24f, Color.white);
+            titleLbl.SetFontSize(16);
+
+            // Seller note
+            string note = listing.SellerNote.Length > 80
+                ? listing.SellerNote.Substring(0, 77) + "..."
+                : listing.SellerNote;
+            var noteLbl = _panel.AddLabelToContainer(rowPtr,
+                $"\"{note}\"",
+                contentX, 38f, contentW, 20f, TextGray);
+            noteLbl.SetFontSize(12);
+
+            // Timer
+            float remaining = listing.ExpiresAt - _listings.GameTime;
+            Color timerColor = remaining < 120f
+                ? new Color(0.95f, 0.55f, 0.20f, 1f)
+                : new Color(0.45f, 0.65f, 0.85f, 1f);
+            var timerLbl = _panel.AddLabelToContainer(rowPtr,
+                FormatTimer(listing),
+                contentX, 62f, 240f, 20f, timerColor);
+            timerLbl.SetFontSize(12);
+            _timerLabels[listing.InternalId] = timerLbl;
+
+            // ── Right side ────────────────────────────────────────────────────────
+            float rightX = PanelW - RightW - Pad;
+
+            // Price
+            var priceLbl = _panel.AddLabelToContainer(rowPtr,
+                $"${listing.Price:N0}",
+                rightX, 10f, RightW, 30f, OXLGreen);
+            priceLbl.SetFontSize(20);
+
+            // BUY button
+            var buyPtr = _panel.AddButtonToContainer(rowPtr,
+                "KUP ▶",
+                rightX + RightW - 130f, 46f, 130f, 34f,
+                OXLGreen,
+                () =>
+                {
+                    _buyClickConsumed = true;
+                    if (_listings.TryPurchase(listing, SpawnCar, DeductMoney))
+                        RefreshListings();
+                });
+            _panel.WireHover(buyPtr,
+                OXLGreen,
+                new Color(0.28f, 0.70f, 0.42f, 1f),
+                new Color(0.16f, 0.48f, 0.28f, 1f));
+        }
+
+        // ── Pagination bar ────────────────────────────────────────────────────────
+        private void BuildPaginationBar(object overlay, float yTop)
+        {
+            const float BarH = 46f;
+            const float BtnW = 150f;
+
+            var bar = UIRuntime.NewVE();
+            var bs = UIRuntime.GetStyle(bar);
+            S.Position(bs, "Absolute");
+            S.Left(bs, 0f); S.Top(bs, yTop);
+            S.Width(bs, PanelW); S.Height(bs, BarH);
+            S.BgColor(bs, new Color(0.035f, 0.055f, 0.090f, 1f));
+            UIRuntime.AddChild(overlay, bar);
+
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, 0f);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(bar, sep);
+
+            float cx = PanelW / 2f;
+
+            var prevPtr = _panel.AddButtonToContainer(
+                bar, "◀  Poprzednia", cx - BtnW - 70f, 7f, BtnW, 32f, BtnDark,
+                () => { if (_currentPage > 0) { _currentPage--; RefreshListings(); } });
+            _panel.WireHover(prevPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            _pageCountLabel = _panel.AddLabelToContainer(
+                bar, "1 / 1", cx - 30f, 0f, 60f, BarH, TextGray);
+            _pageCountLabel.SetFontSize(13);
+
+            var nextPtr = _panel.AddButtonToContainer(
+                bar, "Następna  ▶", cx + 70f, 7f, BtnW, 32f, BtnDark,
+                () =>
+                {
+                    int total = TotalPages();
+                    if (_currentPage < total - 1) { _currentPage++; RefreshListings(); }
+                });
+            _panel.WireHover(nextPtr, BtnDark, BtnDarkHi, SearchBdr);
+        }
+
+        // ── Rebuild current page ──────────────────────────────────────────────────
+        private void RefreshListings()
+        {
+            if (_listingRowsContainerPtr == IntPtr.Zero) return;
+
+            var container = UIRuntime.WrapVE(_listingRowsContainerPtr);
+            UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(container, null);
+            _timerLabels.Clear();
+
+            var all = _listings.ActiveListings;
+            _currentPage = Mathf.Clamp(_currentPage, 0, Mathf.Max(0, TotalPages() - 1));
+            _pageCountLabel?.SetText($"{_currentPage + 1} / {TotalPages()}");
+
+            int start = _currentPage * RowsPerPage;
+            int end = Mathf.Min(start + RowsPerPage, all.Count);
+
+            if (all.Count == 0)
+            {
+                var lbl = Activator.CreateInstance(UIRuntime.LabelType);
+                var s = UIRuntime.GetStyle(lbl);
+                S.Position(s, "Absolute");
+                S.Left(s, 0f); S.Top(s, 260f);
+                S.Width(s, PanelW); S.Height(s, 40f);
+                S.Color(s, TextDim);
+                S.Font(s);
+                S.TextAlign(s, TextAnchor.MiddleCenter);
+                UIRuntime.LabelType.GetProperty("text")
+                    .SetValue(lbl, "\u2014  Brak aktywnych aukcji  \u2014");
+                UIRuntime.AddChild(container, lbl);
+                return;
+            }
+
+            for (int i = start; i < end; i++)
+                BuildListingRow(container, all[i], (i - start) * (RowH + RowGap));
+        }
+
+        private int TotalPages()
+            => Mathf.Max(1, Mathf.CeilToInt(
+                   _listings.ActiveListings.Count / (float)RowsPerPage));
+
+        // ── Live timer updates ────────────────────────────────────────────────────
+        private void UpdateTimers()
+        {
+            if (_timerLabels.Count == 0) return;
+            foreach (var listing in _listings.ActiveListings)
+            {
+                if (!_timerLabels.TryGetValue(listing.InternalId, out var lbl)) continue;
+                float rem = listing.ExpiresAt - _listings.GameTime;
+                lbl.SetText(FormatTimer(listing));
+                lbl.SetColor(rem < 120f
+                    ? new Color(0.95f, 0.55f, 0.20f, 1f)
+                    : new Color(0.45f, 0.65f, 0.85f, 1f));
+            }
+            // also update detail overlay timer if open
+            if (_detailListing != null && _detailTimer != null)
+                _detailTimer.SetText(FormatTimer(_detailListing));
+        }
+
+        private string FormatTimer(CarListing listing)
+        {
+            float rem = listing.ExpiresAt - _listings.GameTime;
+            if (rem <= 0f) return "Aukcja zakończona";
+            int m = (int)(rem / 60f);
+            int s = (int)(rem % 60f);
+            string icon = rem < 60f ? "\u26a0 " : "\u23f1 ";
+            return $"{icon}Wygasa za {m}:{s:D2}";
+        }
+
+        // ── Visibility ────────────────────────────────────────────────────────────
+        private void ShowListingPage()
+        {
+            if (_listingPagePtr == IntPtr.Zero) return;
+            _currentPage = 0;
+            RefreshListings();
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), true);
+        }
+
+        private void HideListingPage()
+        {
+            if (_listingPagePtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), false);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  DETAIL OVERLAY
+        // ═══════════════════════════════════════════════════════════════════════
+
+        private void BuildDetailOverlay()
+        {
+            var overlay = UIRuntime.NewVE();
+            var os = UIRuntime.GetStyle(overlay);
+            S.Position(os, "Absolute");
+            S.Left(os, 0f); S.Top(os, 24f);
+            S.Width(os, PanelW); S.Height(os, PanelH - 24f);
+            S.BgColor(os, PageBg);
+            S.Overflow(os, "Hidden");
+            S.Display(os, false);
+            _panel.AddOverlayToPanel(overlay);
+            _detailOverlayPtr = UIRuntime.GetPtr(overlay);
+
+            // Top bar
+            var topBar = UIRuntime.NewVE();
+            var ts = UIRuntime.GetStyle(topBar);
+            S.Position(ts, "Absolute");
+            S.Left(ts, 0f); S.Top(ts, 0f);
+            S.Width(ts, PanelW); S.Height(ts, 44f);
+            S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
+            UIRuntime.AddChild(overlay, topBar);
+
+            var backPtr = _panel.AddButtonToContainer(
+                topBar, "\u2190  Lista aukcji", 12f, 6f, 140f, 32f, BtnDark, HideDetail);
+            _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            _detailTitle = _panel.AddLabelToContainer(
+                topBar, "", 170f, 0f, PanelW - 200f, 44f, Color.white);
+            _detailTitle.SetFontSize(18);
+
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, 44f);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(overlay, sep);
+
+            // Large image placeholder
+            const float BigImgW = 480f;
+            const float BigImgH = 320f;
+            float imgLeft = 48f;
+            float imgTop = 70f;
+
+            var imgBox = UIRuntime.NewVE();
+            var ibs = UIRuntime.GetStyle(imgBox);
+            S.Position(ibs, "Absolute");
+            S.Left(ibs, imgLeft); S.Top(ibs, imgTop);
+            S.Width(ibs, BigImgW); S.Height(ibs, BigImgH);
+            S.BgColor(ibs, new Color(0.07f, 0.11f, 0.18f, 1f));
+            S.BorderRadius(ibs, 10f);
+            S.BorderWidth(ibs, 1f);
+            S.BorderColor(ibs, new Color(0.18f, 0.28f, 0.42f, 0.8f));
+            UIRuntime.AddChild(overlay, imgBox);
+
+            var imgIcon = Activator.CreateInstance(UIRuntime.LabelType);
+            var iils = UIRuntime.GetStyle(imgIcon);
+            S.Position(iils, "Absolute");
+            S.Left(iils, 0f); S.Top(iils, 0f);
+            S.Width(iils, BigImgW); S.Height(iils, BigImgH);
+            S.Color(iils, new Color(0.20f, 0.30f, 0.40f, 1f));
+            S.Font(iils);
+            S.TextAlign(iils, TextAnchor.MiddleCenter);
+            S.FontSize(iils, 64);
+            UIRuntime.LabelType.GetProperty("text").SetValue(imgIcon, "\U0001F697");
+            UIRuntime.AddChild(imgBox, imgIcon);
+
+            // Info panel (right of image)
+            float infoX = imgLeft + BigImgW + 40f;
+            float infoW = PanelW - infoX - 48f;
+
+            _detailYear = _panel.AddLabelToContainer(
+                overlay, "", infoX, imgTop, infoW, 28f, TextGray);
+            _detailYear.SetFontSize(14);
+
+            _detailNote = _panel.AddLabelToContainer(
+                overlay, "", infoX, imgTop + 50f, infoW, 160f, TextGray);
+            _detailNote.SetFontSize(14);
+
+            _detailTimer = _panel.AddLabelToContainer(
+                overlay, "", infoX, imgTop + 220f, infoW, 28f,
+                new Color(0.45f, 0.65f, 0.85f, 1f));
+            _detailTimer.SetFontSize(14);
+
+            _detailPrice = _panel.AddLabelToContainer(
+                overlay, "", infoX, imgTop + 258f, infoW, 48f, OXLGreen);
+            _detailPrice.SetFontSize(32);
+
+            _detailBuyPtr = _panel.AddButtonToContainer(
+                overlay, "KUP TERAZ  ▶",
+                infoX, imgTop + 316f, 220f, 52f,
+                OXLGreen, () =>
+                {
+                    if (_detailListing == null) return;
+                    if (_listings.TryPurchase(_detailListing, SpawnCar, DeductMoney))
+                    {
+                        HideDetail();
+                        RefreshListings();
+                    }
+                });
+            _panel.WireHover(_detailBuyPtr,
+                OXLGreen,
+                new Color(0.28f, 0.70f, 0.42f, 1f),
+                new Color(0.16f, 0.48f, 0.28f, 1f));
+        }
+
+        private void ShowDetail(CarListing listing)
+        {
+            if (_detailOverlayPtr == IntPtr.Zero) return;
+            _detailListing = listing;
+
+            _detailTitle?.SetText($"{listing.Make} {listing.Model}");
+            _detailYear?.SetText($"Rok produkcji: {listing.Year}");
+            _detailNote?.SetText($"\"{listing.SellerNote}\"");
+            _detailTimer?.SetText(FormatTimer(listing));
+            _detailPrice?.SetText($"${listing.Price:N0}");
+
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), true);
+        }
+
+        private void HideDetail()
+        {
+            if (_detailOverlayPtr == IntPtr.Zero) return;
+            _detailListing = null;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), false);
+        }
+
 
         // ── Widoczność ────────────────────────────────────────────────────────
         public void Open() { _panel?.SetVisible(true); }
