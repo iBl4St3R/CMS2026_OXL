@@ -102,4 +102,4 @@ See [LICENSE](https://github.com/iBl4St3R/CMS2026_OXL?tab=License-1-ov-file) for
 
 ---
 
-*Built on [CMS2026 UITK Framework](link) — the community UI library for CMS 2026 mods.*
+*Built on [CMS2026 UITK Framework](https://github.com/iBl4St3R/_CMS2026_UITK_Framework) — the community UI library for CMS 2026 mods.*
