@@ -46,7 +46,7 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 | Action | How |
 |---|---|
-| Open / close panel | **F9** |
+| Open / close panel | **HOME** |
 | Filter listings | Dropdowns at the top of the panel |
 | Buy a car | *Buy* button on any listing |
 | Console command | `oxl_open` *(requires Simple Console)* |
@@ -55,12 +55,38 @@ Browse listings, spot a deal, buy a wreck — then fix it up and sell it for pro
 
 ## 🗺️ Roadmap
 
-- [x] Browse listings with filters
+### ✅ Done
+- [x] Browse and search listings with filters
 - [x] Purchase a car — spawns on parking lot, deducts cash
 - [x] Dynamic auctions with time limits
+
+### 🔧 In Progress / Planned — Core
+- [] Randomised seller descriptions
+- [ ] Delivery delay system — cars arrive after a set time, not instantly
+- [ ] Randomised vehicle damage — cars spawn with realistic wear and faults
+- [ ] Full listing detail page — registration, color, real specs (currently placeholder)
 - [ ] Seller personalities and backstories
-- [ ] Chat with seller and price negotiation
-- [ ] List your own cars for sale through OXL
+- [ ] Scam listings — learn to spot fraud from descriptions and seller profiles
+
+### 🔧 Planned — Content
+- [ ] Used parts listings
+- [ ] Workshop tools and decoration items listings
+- [ ] Expanded vehicle photo library — more cars, more authentic listings
+
+### 🔧 Planned — Seller Interaction
+- [ ] Chat window with seller — avatars, dialogue UI
+- [ ] Dialogue options — probe the seller, negotiate price
+- [ ] Price negotiation system
+
+### 🔧 Planned — Player Side
+- [ ] List your own cars, parts, and tools for sale through OXL
+- [ ] Seller profile for the player
+
+### ⚙️ Planned — Settings
+- [ ] Options panel — customise listing generation, economy, delivery times
+
+### 🔮 Future
+- [ ] *Part of something bigger — details coming later*
 
 ---
 
