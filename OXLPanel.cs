@@ -214,7 +214,7 @@ namespace CMS2026_OXL
             if (logo != null)
             {
                 const float ImgW = 580f;
-                const float ImgH = 200f;
+                const float ImgH = 286f;
                 var logoImg = _panel.AddImage(logo, ImgW, ImgH);
                 // FIX #1: wyśrodkowanie obrazu — przestaw Left po dodaniu
                 float imgLeft = (ContentW - ImgW) / 2f;
