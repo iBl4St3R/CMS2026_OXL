@@ -71,13 +71,12 @@ namespace CMS2026_OXL
         private IntPtr _detailOverlayPtr;
         private UILabelHandle _detailTitle;
         private UILabelHandle _detailYear;
-        private UILabelHandle _detailNote;
         private UILabelHandle _detailTimer;
         private UILabelHandle _detailPrice;
         private IntPtr _detailBuyPtr;
         private CarListing _detailListing;
         private IntPtr _detailImgBoxPtr;
-        
+
         private UILabelHandle _detailListedLbl;
         private UILabelHandle _detailSellerNote;
         private UILabelHandle _detailLocationLbl;
@@ -112,11 +111,8 @@ namespace CMS2026_OXL
 
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
-        private Action<string> SpawnCar => id => OXLPlugin.Log.Msg($"[OXL] TODO spawn: {id}");
-        private Action<int> DeductMoney => amt => OXLPlugin.Log.Msg($"[OXL] TODO deduct: {amt}");
 
         //guards
-        private bool _detailSpecsBuilt = false;
 
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
@@ -129,11 +125,14 @@ namespace CMS2026_OXL
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
             float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
 
-            _panel = FrameworkAPI.CreatePanel("OXL", x, y, PanelW, PanelH);
+            // ZMIANA: UIPanel.Create zamiast FrameworkAPI.CreatePanel
+            // CreatePanel teraz auto-wywołuje Build() wewnętrznie — tu chcemy
+            // dodać przyciski tytułu PRZED Build(), więc wywołujemy je ręcznie.
+            _panel = UIPanel.Create("OXL", x, y, PanelW, PanelH);
             _panel.AddTitleButton("\u2014", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
             _panel.AddTitleButton("\u25A1", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
             _panel.AddTitleButton("\u2715", Close, new Color(0.55f, 0.10f, 0.10f, 1f));
-            _panel.Build(sortOrder: 9000);
+            _panel.Build(sortOrder: 9000);   // ← jeden Build, z przyciskami już w liście
             _panel.SetDraggable(false);
             _panel.SetScrollbarVisible(false);
 
@@ -152,9 +151,6 @@ namespace CMS2026_OXL
             BuildListingPage();     // car auction list
             BuildDetailOverlay();   // single listing detail
 
-            // Home page footer — always pinned to bottom
-            const float FootH = 32f;
-            BuildFooter(UIRuntime.WrapVE(_panel.GetPanelRawPtr()), PanelH - FootH);
 
             // ── Address bar LAST — renders on top of all overlays ───────────
             // BuildMenuDropdown is called from inside BuildAddressBar, also last,
@@ -700,8 +696,9 @@ namespace CMS2026_OXL
             _panel.WireClick(rowPtr, () =>
             {
                 if (_buyClickConsumed) { _buyClickConsumed = false; return; }
-                ShowDetail(listing);
+                ShowDetail(listing);   // ← listing z closure, nie _detailListing
             });
+
 
             // Bottom separator
             var rowSep = UIRuntime.NewVE();
@@ -751,7 +748,7 @@ namespace CMS2026_OXL
             string note = listing.SellerNote.Length > 80
                 ? listing.SellerNote.Substring(0, 77) + "..."
                 : listing.SellerNote;
-            var noteLbl = _panel.AddLabelToContainer(rowPtr, $"\"{note}\"",contentX, 34f, contentW, 18f, TextGray);
+            var noteLbl = _panel.AddLabelToContainer(rowPtr, $"\"{note}\"", contentX, 34f, contentW, 18f, TextGray);
             noteLbl.SetFontSize(11);
 
             // ── Metadata row ──────────────────────────────────────────────────────
@@ -776,7 +773,7 @@ namespace CMS2026_OXL
             Color timerColor = remaining < 120f
                 ? new Color(0.95f, 0.55f, 0.20f, 1f)
                 : new Color(0.45f, 0.65f, 0.85f, 1f);
-            var timerLbl = _panel.AddLabelToContainer(rowPtr, FormatTimer(listing),contentX, 72f, 240f, 16f, timerColor);   // was 62f
+            var timerLbl = _panel.AddLabelToContainer(rowPtr, FormatTimer(listing), contentX, 72f, 240f, 16f, timerColor);   // was 62f
             timerLbl.SetFontSize(12);
             _timerLabels[listing.InternalId] = timerLbl;
 
@@ -788,23 +785,14 @@ namespace CMS2026_OXL
                 rightX, 10f, RightW, 30f, OXLGreen);
             priceLbl.SetFontSize(20);
 
-            var buyPtr = _panel.AddButtonToContainer(
-                rowPtr, "BUY \u25BA",
-                rightX + RightW - 130f, 46f, 130f, 34f,
-                OXLGreen,
-                () =>
-                {
-                    _buyClickConsumed = true;
-                    if (_listings.TryPurchase(listing, SpawnCar, DeductMoney))
-                    {
-                        if (_filteredListings != null) ApplyFilters();
-                        RefreshListings();
-                    }
-                });
-            _panel.WireHover(buyPtr,
-                OXLGreen,
-                new Color(0.28f, 0.70f, 0.42f, 1f),
-                new Color(0.16f, 0.48f, 0.28f, 1f));
+            var buyPtr = _panel.AddButtonToContainer(rowPtr, "BUY \u25BA", rightX + RightW - 130f, 46f, 130f, 34f, OXLGreen,
+            () =>
+            {
+                _buyClickConsumed = true;
+                ExecutePurchase(listing);
+            }
+            );
+            _panel.WireHover(buyPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
         }
 
         // ── Pagination bar ────────────────────────────────────────────────────
@@ -1073,13 +1061,10 @@ namespace CMS2026_OXL
                 () =>
                 {
                     if (_detailListing == null) return;
-                    if (_listings.TryPurchase(_detailListing, SpawnCar, DeductMoney))
-                    {
-                        HideDetail();
-                        if (_filteredListings != null) ApplyFilters();
-                        RefreshListings();
-                    }
-                });
+                    ExecutePurchase(_detailListing);
+                    HideDetail();
+                }
+                );
             _panel.WireHover(_detailBuyPtr,
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
@@ -1234,7 +1219,7 @@ namespace CMS2026_OXL
             _icoMenu = TryLoadTexture(Path.Combine(iconDir, "ModMenu.png"));
 
             string carImgRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "CarImages");
-            foreach (var folder in new[]{"DNB Censor", "Katagiri Tamago BP","Luxor Streamliner Mk3", "Mayen M5", "Salem Aries MK3"})
+            foreach (var folder in new[] { "DNB Censor", "Katagiri Tamago BP", "Luxor Streamliner Mk3", "Mayen M5", "Salem Aries MK3" })
             {
                 string dir = Path.Combine(carImgRoot, folder);
                 if (!Directory.Exists(dir)) continue;
@@ -1274,7 +1259,8 @@ namespace CMS2026_OXL
 
                 // Szukanie klasy ImageConversion w dostępnych paczkach (Reflection)
                 var icType = AppDomain.CurrentDomain.GetAssemblies()
-                    .SelectMany(a => {
+                    .SelectMany(a =>
+                    {
                         try { return a.GetTypes(); }
                         catch { return Array.Empty<Type>(); }
                     })
@@ -1481,6 +1467,37 @@ namespace CMS2026_OXL
 
                 cx += tagW + TagGapX;
             }
+        }
+
+
+
+        //carspawn
+        private void ExecutePurchase(CarListing listing)
+        {
+            if (!GameBridge.HasFreeSlot())
+            {
+                OXLPlugin.Log.Msg("[OXL] Purchase blocked — no free parking slot.");
+                // TODO: toast "Parking full!"
+                return;
+            }
+
+            if (!_listings.ActiveListings.Contains(listing)) return;
+
+            // Remove from listings first
+            _listings.ActiveListings.Remove(listing);
+            OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} for ${listing.Price}");
+
+            // Spawn async, deduct on success
+            GameBridge.SpawnCar(listing.InternalId, result =>
+            {
+                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
+                if (result == GameBridge.SpawnResult.Success)
+                    GameBridge.DeductMoney(listing.Price);
+                // TODO: toast based on result
+            });
+
+            if (_filteredListings != null) ApplyFilters();
+            RefreshListings();
         }
 
 

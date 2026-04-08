@@ -21,6 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- MelonLoader -->
     <Reference Include="MelonLoader">
       <HintPath>$(Net6Dir)\MelonLoader.dll</HintPath>
       <Private>false</Private>
@@ -29,6 +30,8 @@
       <HintPath>$(Net6Dir)\Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <!-- Unity -->
     <Reference Include="Il2Cppmscorlib">
       <HintPath>$(InteropDir)\Il2Cppmscorlib.dll</HintPath>
       <Private>false</Private>
@@ -41,13 +44,34 @@
       <HintPath>$(InteropDir)\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-
-    <!-- ← FIX: TextAnchor żyje tutaj -->
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>$(InteropDir)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>$(InteropDir)\UnityEngine.UIElementsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
 
+    <!-- ── GAME ASSEMBLIES ── -->
+	<Reference Include="Assembly-CSharp">
+  <HintPath>$(InteropDir)\Assembly-CSharp.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+<Reference Include="Assembly-CSharp-firstpass">
+  <HintPath>$(InteropDir)\Assembly-CSharp-firstpass.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+<Reference Include="Il2CppFusion.Runtime">
+  <HintPath>$(InteropDir)\Il2CppFusion.Runtime.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+<Reference Include="Il2CppFusion.Addons.SimpleKCC">
+  <HintPath>$(InteropDir)\Il2CppFusion.Addons.SimpleKCC.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+
+    <!-- OXL Framework -->
     <Reference Include="_CMS2026_UITK_Framework">
       <HintPath>$(GameDir)\Mods\_CMS2026_UITK_Framework.dll</HintPath>
       <Private>false</Private>
