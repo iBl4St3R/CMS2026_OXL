@@ -179,6 +179,8 @@ namespace CMS2026_OXL
             // ── Address bar LAST — renders on top of all overlays ───────────
             // BuildMenuDropdown is called from inside BuildAddressBar, also last,
             // so the dropdown itself renders on top of the address bar. ✓
+
+            BuildAlertOverlay();
             BuildAddressBar();
 
 
@@ -843,12 +845,12 @@ namespace CMS2026_OXL
             titleLbl.SetFontSize(16);
 
             var starsRowLbl = _panel.AddLabelToContainer(
-            rowPtr,
-            FormatStars(listing.SellerRating),
-            contentX, 34f,          // ta sama wysokość co noteLbl
-            80f, 18f,
-            StarColor(listing.SellerRating));
-            starsRowLbl.SetFontSize(11);
+                rowPtr,
+                FormatStars(listing.SellerRating),
+                contentX + contentW - 90f, 10f,   // prawa strona, ta sama linia co tytuł
+                90f, 22f,
+                StarColor(listing.SellerRating));
+            starsRowLbl.SetFontSize(12);
 
             string note = listing.SellerNote.Length > 80
                 ? listing.SellerNote.Substring(0, 77) + "..."
@@ -1632,18 +1634,25 @@ namespace CMS2026_OXL
         {
             if (!GameBridge.HasFreeSlot())
             {
-                OXLPlugin.Log.Msg("[OXL] Purchase blocked — no free parking slot.");
-                // TODO: toast "Parking full!"
+                ShowAlert("Parking lot is full.\nMake room before purchasing.");
+                return;
+            }
+
+            int balance = 0;
+            try { balance = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money; }
+            catch { }
+
+            if (balance < listing.Price)
+            {
+                ShowAlert($"Not enough funds.\n\nRequired:  ${listing.Price:N0}\nAvailable: ${balance:N0}");
                 return;
             }
 
             if (!_listings.ActiveListings.Contains(listing)) return;
 
-            // Remove from listings first
             _listings.ActiveListings.Remove(listing);
             OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} for ${listing.Price}");
 
-            // Spawn async, deduct on success
             GameBridge.SpawnCar(listing, result =>
             {
                 OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
@@ -1655,6 +1664,58 @@ namespace CMS2026_OXL
             RefreshListings();
         }
 
+        // ── Alert overlay ─────────────────────────────────────────────────────────
+        private IntPtr _alertOverlayPtr;
+        private UILabelHandle _alertMessageLbl;
+
+        private void BuildAlertOverlay()
+        {
+            const float W = 400f;
+            const float H = 160f;
+            float ax = (PanelW - W) / 2f;
+            float ay = (PanelH - H) / 2f;
+
+            var overlay = UIRuntime.NewVE();
+            var os = UIRuntime.GetStyle(overlay);
+            S.Position(os, "Absolute");
+            S.Left(os, ax); S.Top(os, ay);
+            S.Width(os, W); S.Height(os, H);
+            S.BgColor(os, new Color(0.06f, 0.09f, 0.15f, 1f));
+            S.BorderRadius(os, 10f);
+            S.BorderWidth(os, 1f);
+            S.BorderColor(os, new Color(0.80f, 0.25f, 0.15f, 0.80f));
+            S.Display(os, false);
+            _panel.AddOverlayToPanel(overlay);
+            _alertOverlayPtr = UIRuntime.GetPtr(overlay);
+
+            _alertMessageLbl = _panel.AddLabelToContainer(
+                overlay, "",
+                16f, 20f, W - 32f, 72f,
+                new Color(0.95f, 0.85f, 0.75f, 1f));
+            _alertMessageLbl.SetFontSize(15);
+            S.TextAlign(UIRuntime.GetStyle(
+                UIRuntime.WrapVE(_alertMessageLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            var okPtr = _panel.AddButtonToContainer(
+                overlay, "OK",
+                W / 2f - 50f, H - 50f, 100f, 34f,
+                new Color(0.15f, 0.22f, 0.35f, 1f),
+                () => S.Display(UIRuntime.GetStyle(
+                    UIRuntime.WrapVE(_alertOverlayPtr)), false));
+            _panel.WireHover(okPtr,
+                new Color(0.15f, 0.22f, 0.35f, 1f),
+                new Color(0.22f, 0.32f, 0.50f, 1f),
+                SearchBdr);
+        }
+
+        private void ShowAlert(string message)
+        {
+            if (_alertOverlayPtr == IntPtr.Zero) return;
+            _alertMessageLbl?.SetText(message);
+            S.Display(UIRuntime.GetStyle(
+                UIRuntime.WrapVE(_alertOverlayPtr)), true);
+        }
 
         // ══════════════════════════════════════════════════════════════════════
         //  PUBLIC API
