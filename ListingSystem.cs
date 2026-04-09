@@ -1,4 +1,5 @@
 ﻿using MelonLoader;
+using UnityEngine;
 
 namespace CMS2026_OXL
 {
@@ -61,14 +62,28 @@ namespace CMS2026_OXL
 
         private CarListing GenerateListing()
         {
-
-
             var rng = new System.Random();
             var def = CarDefs[rng.Next(CarDefs.Length)];
             var note = SellerNotes[rng.Next(SellerNotes.Length)];
             var ttl = UnityEngine.Random.Range(120f, 600f);
             int year = rng.Next(def.MinYear, def.MaxYear + 1);
-            int price = rng.Next(def.MinPrice, def.MaxPrice + 1);
+
+            // ── Kondycja → cena ───────────────────────────────────────────────
+            // Losujemy kondycję (0.05–0.95), potem liczymy cenę z niej.
+            // Rozkład: dużo aut w złym/średnim stanie, mało prawie nowych.
+            float t = (float)BetaSample(rng, alpha: 1.8, beta: 3.5); // skośny w lewo
+            float condition = Mathf.Clamp(t, 0.05f, 0.95f);
+
+            // cena = lerp(MinPrice, MaxPrice, condition) + szum ±10%
+            float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, condition);
+            float noise = 1f + (float)(rng.NextDouble() * 0.20 - 0.10);
+            int price = Mathf.RoundToInt(basePricef * noise / 50f) * 50; // zaokrągl do 50
+            price = Mathf.Clamp(price, def.MinPrice, def.MaxPrice);
+
+            // Przebieg odwrotnie proporcjonalny do kondycji
+            int mileage = Mathf.RoundToInt(Mathf.Lerp(180000, 4000, condition)
+                          * (1f + (float)(rng.NextDouble() * 0.30 - 0.15)));
+            mileage = Mathf.Max(500, mileage);
 
             return new CarListing
             {
@@ -78,14 +93,49 @@ namespace CMS2026_OXL
                 ImageFolder = def.ImageFolder,
                 Year = year,
                 Price = price,
+                Condition = condition,
                 SellerNote = note,
                 ExpiresAt = _gameTime + ttl,
                 InternalId = def.InternalId + "_" + rng.Next(1000, 9999),
-                Mileage = rng.Next(4000, 195000),
+                Mileage = mileage,
                 Location = Locations[rng.Next(Locations.Length)],
                 DeliveryHours = rng.Next(1, 37),
             };
         }
+
+        // Beta distribution sample — daje ładny skośny rozkład kondycji
+        private static double BetaSample(System.Random rng, double alpha, double beta)
+        {
+            double x = GammaSample(rng, alpha);
+            double y = GammaSample(rng, beta);
+            return x / (x + y);
+        }
+
+        private static double GammaSample(System.Random rng, double shape)
+        {
+            // Marsaglia–Tsang
+            if (shape < 1.0) return GammaSample(rng, shape + 1.0) * Math.Pow(rng.NextDouble(), 1.0 / shape);
+            double d = shape - 1.0 / 3.0, c = 1.0 / Math.Sqrt(9.0 * d);
+            while (true)
+            {
+                double x, v;
+                do { x = NextGaussian(rng); v = 1.0 + c * x; } while (v <= 0);
+                v = v * v * v;
+                double u = rng.NextDouble();
+                if (u < 1.0 - 0.0331 * (x * x) * (x * x)) return d * v;
+                if (Math.Log(u) < 0.5 * x * x + d * (1.0 - v + Math.Log(v))) return d * v;
+            }
+        }
+
+
+        private static double NextGaussian(System.Random rng)
+        {
+            double u1 = 1.0 - rng.NextDouble();
+            double u2 = 1.0 - rng.NextDouble();
+            return Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+        }
+
+
 
         public bool TryPurchase(CarListing listing, Action<string> spawnCar, Action<int> deductMoney)
         {

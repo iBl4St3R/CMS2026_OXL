@@ -1,9 +1,10 @@
-﻿using MelonLoader;
+﻿using Il2CppCMS.UI.Logic;
+using MelonLoader;
 using System;
 using System.Collections;
-using UnityEngine;
 using System.Linq;
 using System.Reflection;
+using UnityEngine;
 
 namespace CMS2026_OXL
 {
@@ -11,10 +12,14 @@ namespace CMS2026_OXL
     {
         public enum SpawnResult { Success, NoFreeSlot, NoCarDebug, SpawnFailed }
 
-        public static void SpawnCar(string internalId, Action<SpawnResult> onDone)
+        public static void SpawnCar(string internalId, float condition, Action<SpawnResult> onDone)
         {
-            MelonCoroutines.Start(DoSpawn(ToGameId(internalId), onDone));
+            MelonCoroutines.Start(DoSpawn(ToGameId(internalId), condition, onDone));
         }
+
+        // ── stare przeciażenie dla kompatybilności ─────────────────────────────
+        public static void SpawnCar(string internalId, Action<SpawnResult> onDone)
+            => SpawnCar(internalId, 1.0f, onDone);
 
         public static void DeductMoney(int amount)
         {
@@ -39,7 +44,7 @@ namespace CMS2026_OXL
         }
 
 
-        private static IEnumerator DoSpawn(string gameCarId, Action<SpawnResult> onDone)
+        private static IEnumerator DoSpawn(string gameCarId, float condition, Action<SpawnResult> onDone)
         {
             var loaders = GetLoaders();
             var free = loaders.FirstOrDefault(cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
@@ -92,6 +97,8 @@ namespace CMS2026_OXL
 
             if (!string.IsNullOrWhiteSpace(free.CarID))
             {
+                // ── Aplikuj zużycie ───────────────────────────────────────────
+                yield return ApplyWear(free, condition);
                 onDone?.Invoke(SpawnResult.Success);
             }
             else
@@ -99,6 +106,75 @@ namespace CMS2026_OXL
                 onDone?.Invoke(SpawnResult.SpawnFailed);
             }
         }
+
+
+        private static IEnumerator ApplyWear(Il2CppCMS.Core.Car.CarLoader cl, float condition)
+        {
+            condition = Mathf.Clamp(condition, 0.02f, 1.0f);
+
+            // Mechanika jest trochę gorsza niż karoseria (ukryte usterki)
+            float mechWear = Mathf.Clamp(condition * UnityEngine.Random.Range(0.80f, 1.00f), 0.02f, 1.0f);
+            float bodyWear = Mathf.Clamp(condition * UnityEngine.Random.Range(0.90f, 1.05f), 0.02f, 1.0f);
+
+            // ── indexedParts (silnik + podwozie + elektryka) ──────────────────
+            var ip = cl.indexedParts;
+            if (ip != null)
+            {
+                for (int i = 0; i < ip.Count; i++)
+                {
+                    if (ip[i] == null) continue;
+                    // Krytyczne części silnika zużywają się bardziej
+                    string id = ip[i].id.ToLower();
+                    float w = mechWear;
+                    if (id.Contains("tarcza") || id.Contains("sprzeg") || id.Contains("swieca")
+                        || id.Contains("filtr") || id.Contains("pasek") || id.Contains("lancuch"))
+                        w = Mathf.Clamp(mechWear * UnityEngine.Random.Range(0.60f, 1.10f), 0.02f, 1.0f);
+                    ip[i].condition = w;
+                }
+            }
+            cl.ClearEnginePartsConditionCache();
+
+            // ── carParts (karoseria) ──────────────────────────────────────────
+            cl.Dev_RepairAllBody();
+            yield return new UnityEngine.WaitForEndOfFrame();
+
+            var cp = cl.carParts;
+            if (cp != null)
+            {
+                for (int i = 0; i < cp.Count; i++)
+                {
+                    if (cp[i] == null) continue;
+                    // Szyby i lusterka psują się losowo niezależnie
+                    string name = cp[i].name.ToLower();
+                    float w = bodyWear;
+                    if (name.Contains("window") || name.Contains("mirror"))
+                        w = UnityEngine.Random.value < 0.15f ? UnityEngine.Random.Range(0.0f, 0.3f) : bodyWear;
+                    cl.SetCondition(cp[i], w);
+                }
+            }
+            cl.SetConditionOnBody(bodyWear);
+            cl.SetConditionOnDetails(bodyWear);
+            if (bodyWear < 0.5f) cl.SwitchRusted(bodyWear);
+
+            // ── Historia ──────────────────────────────────────────────────────
+            var cid = cl.CarInfoData;
+            if (cid != null)
+            {
+                // Przebieg wyliczamy z kondycji — im gorszy stan tym więcej km
+                uint mileage = (uint)Mathf.RoundToInt(Mathf.Lerp(220000, 3000, condition)
+                               * UnityEngine.Random.Range(0.85f, 1.15f));
+                cid.Mileage = mileage;
+
+                // Rok — starsze auto przy gorszej kondycji
+                int currentYear = 2026;
+                int age = Mathf.RoundToInt(Mathf.Lerp(25, 1, condition) * UnityEngine.Random.Range(0.8f, 1.2f));
+                cid.Year = (ushort)Mathf.Clamp(currentYear - age, 1980, 2025);
+            }
+
+            yield return new UnityEngine.WaitForFixedUpdate();
+        }
+
+
 
         private static string ToGameId(string internalId)
         {

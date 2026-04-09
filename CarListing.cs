@@ -16,5 +16,8 @@
         public int Mileage { get; set; }
         public string Location { get; set; } = "";
         public int DeliveryHours { get; set; }
+
+
+        public float Condition { get; set; } = 1.0f;
     }
 }

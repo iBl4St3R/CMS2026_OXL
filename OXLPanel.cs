@@ -1605,12 +1605,11 @@ namespace CMS2026_OXL
             OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} for ${listing.Price}");
 
             // Spawn async, deduct on success
-            GameBridge.SpawnCar(listing.InternalId, result =>
+            GameBridge.SpawnCar(listing.InternalId, listing.Condition, result =>
             {
-                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
+                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}  condition={listing.Condition:P0}");
                 if (result == GameBridge.SpawnResult.Success)
                     GameBridge.DeductMoney(listing.Price);
-                // TODO: toast based on result
             });
 
             if (_filteredListings != null) ApplyFilters();
