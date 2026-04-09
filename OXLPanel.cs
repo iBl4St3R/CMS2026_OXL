@@ -1,4 +1,8 @@
 ﻿using CMS2026UITKFramework;
+using Il2Cpp;
+using Il2CppCMS.Core;
+using Il2CppCMS.Core.Car.Containers;
+using Il2CppCMS.UI;
 using MelonLoader;
 using System;
 using System.Collections.Generic;
@@ -6,9 +10,8 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using Il2Cpp;
-using Il2CppCMS.Core;
-using Il2CppCMS.UI;
+using static Il2CppCMS.Platforms.Steam.SteamWorkshopUploader;
+using static Il2CppCMS.UI.Logic.TopMenu;
 
 namespace CMS2026_OXL
 {
@@ -117,6 +120,10 @@ namespace CMS2026_OXL
 
         // ── Icon cache ────────────────────────────────────────────────────────
         private Texture2D _icoPrev, _icoNext, _icoRef, _icoSecured, _icoMenu;
+
+        // ── button cache ────────────────────────────────────────────────────────
+        private Texture2D _passengerCars, _carParts, _workshopItems, _decorations;
+
 
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
@@ -440,17 +447,42 @@ namespace CMS2026_OXL
             _panel.AddSeparator(Border);
             _panel.AddSpace(10f);
 
-            var catRow = _panel.AddRow(height: 28f, gap: 0f);
-            float cSide = (catRow.RemainingWidth - 490f) / 2f;
-            catRow.AddSpace(cSide);
 
-            var carCatLbl = catRow.AddLabel(
-                "\U0001F697  Passenger Cars", width: 190f, color: OXLGreen);
+            // 1. Parametry dopasowane do szerokości 1456f
+            float itemWidth = 360f;   // Szerokość kafelka (możesz zmienić na mniejszą, np. 300f)
+            float itemHeight = 46f;
+            float gap = 0f;          // Nieco większy odstęp dla lepszej czytelności
+            int itemCount = 4;
+
+            // 2. Obliczamy całkowitą szerokość zawartości
+            float totalContentWidth = (itemCount * itemWidth) + ((itemCount - 1) * gap);
+
+            
+            
+
+            // 4. Budowa wiersza
+            var catRow = _panel.AddRow(height: itemHeight, gap: gap);
+            catRow.AddSpace(8); // Lewy margines
+
+            // Passenger Cars
+            var carCatLbl = catRow.AddLabel("\U0001F697  Passenger Cars", width: itemWidth,  color: OXLGreen);
+            UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(carCatLbl.GetRawPtr()), _passengerCars);
             _panel.WireHover(carCatLbl.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
             _panel.WireClick(carCatLbl.GetRawPtr(), ShowAllListings);
 
-            catRow.AddLabel("\U0001F527  Parts (WIP)", width: 150f, color: TextGray);
-            catRow.AddLabel("\U0001F690  Vans (WIP)", width: 150f, color: TextGray);
+            // Parts
+            var partsCatLbl = catRow.AddLabel("\U0001F527  Parts", width: itemWidth, color: TextGray);
+            UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(partsCatLbl.GetRawPtr()), _carParts);
+
+            // Workshop Items
+            var itemsCatLbl = catRow.AddLabel("\U0001F690  Workshop Items", width: itemWidth,  color: TextGray);
+            UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(itemsCatLbl.GetRawPtr()), _workshopItems);
+
+            // Decorations
+            var decorCatLbl = catRow.AddLabel("\U0001F4E6  Decorations", width: itemWidth,  color: TextGray);
+            UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(decorCatLbl.GetRawPtr()), _decorations);
+
+            catRow.AddSpace(8); // Prawy margines
 
             _panel.AddSpace(10f);
             _panel.AddSeparator(Border);
@@ -1273,8 +1305,16 @@ namespace CMS2026_OXL
 
         private void LoadIcons()
         {
-            string iconDir = Path.Combine(
-                Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "icons");
+            string buttonDir = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "buttons");
+
+            _passengerCars = TryLoadTexture(Path.Combine(buttonDir, "PassengerCars.png"));
+            _carParts = TryLoadTexture(Path.Combine(buttonDir, "CarParts.png"));
+            _workshopItems = TryLoadTexture(Path.Combine(buttonDir, "WorkshopItems.png"));
+            _decorations = TryLoadTexture(Path.Combine(buttonDir, "Decorations.png"));
+
+
+
+            string iconDir = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "icons");
 
             _icoPrev = TryLoadTexture(Path.Combine(iconDir, "previous.png"));
             _icoNext = TryLoadTexture(Path.Combine(iconDir, "next.png"));
@@ -1283,6 +1323,7 @@ namespace CMS2026_OXL
             _icoMenu = TryLoadTexture(Path.Combine(iconDir, "ModMenu.png"));
 
             string carImgRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "CarImages");
+
             foreach (var folder in new[] { "DNB Censor", "Katagiri Tamago BP", "Luxor Streamliner Mk3", "Mayen M5", "Salem Aries MK3" })
             {
                 string dir = Path.Combine(carImgRoot, folder);
@@ -1294,6 +1335,7 @@ namespace CMS2026_OXL
             }
         }
 
+       
         private Texture2D TryLoadLogo()
         {
             string path = Path.Combine(
