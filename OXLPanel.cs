@@ -88,6 +88,7 @@ namespace CMS2026_OXL
         private UILabelHandle _detailLocationLbl;
         private IntPtr _detailSpecsContainerPtr;
 
+        private UILabelHandle _detailSellerStars;
 
         // ── Menu & static pages ───────────────────────────────────────────────
         private IntPtr _menuDropdownPtr;
@@ -371,7 +372,7 @@ namespace CMS2026_OXL
             S.BgColor(UIRuntime.GetStyle(w3ve), new Color(0.22f, 0.04f, 0.03f, 1f));
 
             _panel.AddSpace(6f);
-            
+
 
 
 
@@ -457,15 +458,15 @@ namespace CMS2026_OXL
             // 2. Obliczamy całkowitą szerokość zawartości
             float totalContentWidth = (itemCount * itemWidth) + ((itemCount - 1) * gap);
 
-            
-            
+
+
 
             // 4. Budowa wiersza
             var catRow = _panel.AddRow(height: itemHeight, gap: gap);
             catRow.AddSpace(8); // Lewy margines
 
             // Passenger Cars
-            var carCatLbl = catRow.AddLabel("\U0001F697  Passenger Cars", width: itemWidth,  color: OXLGreen);
+            var carCatLbl = catRow.AddLabel("\U0001F697  Passenger Cars", width: itemWidth, color: OXLGreen);
             UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(carCatLbl.GetRawPtr()), _passengerCars);
             _panel.WireHover(carCatLbl.GetRawPtr(), Transp, BtnDark, BtnDarkHi);
             _panel.WireClick(carCatLbl.GetRawPtr(), ShowAllListings);
@@ -475,11 +476,11 @@ namespace CMS2026_OXL
             UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(partsCatLbl.GetRawPtr()), _carParts);
 
             // Workshop Items
-            var itemsCatLbl = catRow.AddLabel("\U0001F690  Workshop Items", width: itemWidth,  color: TextGray);
+            var itemsCatLbl = catRow.AddLabel("\U0001F690  Workshop Items", width: itemWidth, color: TextGray);
             UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(itemsCatLbl.GetRawPtr()), _workshopItems);
 
             // Decorations
-            var decorCatLbl = catRow.AddLabel("\U0001F4E6  Decorations", width: itemWidth,  color: TextGray);
+            var decorCatLbl = catRow.AddLabel("\U0001F4E6  Decorations", width: itemWidth, color: TextGray);
             UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(decorCatLbl.GetRawPtr()), _decorations);
 
             catRow.AddSpace(8); // Prawy margines
@@ -841,6 +842,14 @@ namespace CMS2026_OXL
                 contentX, 10f, contentW, 24f, Color.white);
             titleLbl.SetFontSize(16);
 
+            var starsRowLbl = _panel.AddLabelToContainer(
+            rowPtr,
+            FormatStars(listing.SellerRating),
+            contentX, 34f,          // ta sama wysokość co noteLbl
+            80f, 18f,
+            StarColor(listing.SellerRating));
+            starsRowLbl.SetFontSize(11);
+
             string note = listing.SellerNote.Length > 80
                 ? listing.SellerNote.Substring(0, 77) + "..."
                 : listing.SellerNote;
@@ -1142,6 +1151,8 @@ namespace CMS2026_OXL
             _detailSellerNote.SetFontSize(12);
             ry += 80f;
 
+            
+
             // Timer
             _detailTimer = _panel.AddLabelToContainer(
                 overlay, "", RightX, ry, RightW, 24f,
@@ -1167,7 +1178,7 @@ namespace CMS2026_OXL
                 new Color(0.16f, 0.48f, 0.28f, 1f));
             ry += 60f;
 
-            // ── Seller card ───────────────────────────────────────────────────
+            // ── Seller card ───────────────────────────────────────────────────────────
             var sellerCard = UIRuntime.NewVE();
             var scs = UIRuntime.GetStyle(sellerCard);
             S.Position(scs, "Absolute");
@@ -1180,15 +1191,22 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, sellerCard);
 
             var sellerTypeLbl = _panel.AddLabelToContainer(
-                sellerCard, "PRIVATE SELLER",
-                12f, 8f, 200f, 16f,
-                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+    sellerCard, "PRIVATE SELLER",
+    12f, 8f, 200f, 16f,
+    new Color(0.38f, 0.55f, 0.42f, 0.80f));
             sellerTypeLbl.SetFontSize(9);
 
             var sellerNameLbl = _panel.AddLabelToContainer(
                 sellerCard, "Anonymous",
-                12f, 26f, 300f, 24f, Color.white);
+                12f, 26f, 180f, 24f, Color.white);
             sellerNameLbl.SetFontSize(15);
+
+            // ← deklaracja PRZED przypisaniem do pola
+            var sellerStarsLbl = _panel.AddLabelToContainer(
+                sellerCard, FormatStars(3),
+                200f, 26f, 160f, 24f, StarColor(3));
+            sellerStarsLbl.SetFontSize(14);
+            _detailSellerStars = sellerStarsLbl;   // ← teraz już po deklaracji ✓
 
             var sellerYearLbl = _panel.AddLabelToContainer(
                 sellerCard, "Member since 2024",
@@ -1268,6 +1286,9 @@ namespace CMS2026_OXL
             _detailLocationLbl?.SetText($"\U0001F4CD  {listing.Location}");
             _detailYear?.SetText($"Year: {listing.Year}");
 
+            _detailSellerStars?.SetText(FormatStars(listing.SellerRating));
+            _detailSellerStars?.SetColor(StarColor(listing.SellerRating));
+
             // Swap image
             if (_detailImgBoxPtr != IntPtr.Zero)
             {
@@ -1335,7 +1356,7 @@ namespace CMS2026_OXL
             }
         }
 
-       
+
         private Texture2D TryLoadLogo()
         {
             string path = Path.Combine(
@@ -1405,6 +1426,24 @@ namespace CMS2026_OXL
                 return null;
             }
         }
+
+
+        // ── Seller rating helpers ─────────────────────────────────────────────────
+        private static string FormatStars(int rating)
+        {
+            rating = Mathf.Clamp(rating, 1, 5);
+            return new string('★', rating) + new string('☆', 5 - rating);
+        }
+
+        private static Color StarColor(int rating) => rating switch
+        {
+            5 => new Color(0.22f, 0.75f, 0.40f, 1f),
+            4 => new Color(0.55f, 0.80f, 0.30f, 1f),
+            3 => new Color(0.85f, 0.72f, 0.20f, 1f),
+            2 => new Color(0.90f, 0.45f, 0.15f, 1f),
+            _ => new Color(0.90f, 0.20f, 0.20f, 1f),
+        };
+
 
         //footer builder
         private void BuildFooter(object container, float yTop)
@@ -1605,9 +1644,9 @@ namespace CMS2026_OXL
             OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} for ${listing.Price}");
 
             // Spawn async, deduct on success
-            GameBridge.SpawnCar(listing.InternalId, listing.Condition, result =>
+            GameBridge.SpawnCar(listing, result =>
             {
-                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}  condition={listing.Condition:P0}");
+                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
                 if (result == GameBridge.SpawnResult.Success)
                     GameBridge.DeductMoney(listing.Price);
             });
