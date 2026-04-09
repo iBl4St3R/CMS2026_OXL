@@ -22,13 +22,43 @@ namespace CMS2026_OXL
             if (!sceneName.ToLower().Contains("garage")) return;
             if (!FrameworkAPI.IsReady) return;
 
+            // ── Podpięcie do CursorManager (raz na scenę) ──────────────────
+            // Odsubskrybuj najpierw — zabezpieczenie przed wielokrotnym
+            // wywołaniem OnSceneWasLoaded (np. reload sceny)
+            CursorManager.OnCursorShow -= OnCursorShow;
+            CursorManager.OnCursorHide -= OnCursorHide;
+            CursorManager.OnCursorShow += OnCursorShow;
+            CursorManager.OnCursorHide += OnCursorHide;
+
             _panel = new OXLPanel();
             _panel.Build();
             TryRegisterConsole();
-
-            // USUNIĘTO WSZYSTKO CO DOTYCZY PurchasedCarIds i RespawnAll
         }
 
+        private static void OnCursorShow()
+        {
+            try
+            {
+                if (Il2CppCMS.Core.GameMode.Get().currentMode != Il2Cpp.gameMode.UI)
+                    Il2CppCMS.Core.GameMode.Get().SetCurrentMode(Il2Cpp.gameMode.UI);
+            }
+            catch (Exception ex) { Log.Warning($"[OXL] OnCursorShow: {ex.Message}"); }
+        }
+
+        private static void OnCursorHide()
+        {
+            try
+            {
+                if (Il2CppCMS.Core.GameMode.Get().currentMode == Il2Cpp.gameMode.UI)
+                {
+                    // Singleton<T> nie istnieje — WindowManager sam implementuje wzorzec singletona
+                    var wm = Il2CppCMS.UI.WindowManager.Instance;
+                    if (wm == null || wm.activeWindows.Count <= 0)
+                        Il2CppCMS.Core.GameMode.Get().SetCurrentMode(Il2Cpp.gameMode.Garage);
+                }
+            }
+            catch (Exception ex) { Log.Warning($"[OXL] OnCursorHide: {ex.Message}"); }
+        }
 
         public override void OnUpdate()
         {

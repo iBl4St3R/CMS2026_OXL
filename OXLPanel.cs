@@ -1581,37 +1581,20 @@ namespace CMS2026_OXL
         // ══════════════════════════════════════════════════════════════════════
 
 
-
-
         public void Open()
         {
             if (_panel == null) return;
-
             _panel.SetVisible(true);
-            _isVisible = true; // Aktualizacja stanu
-
-            if (GameMode.Get().currentMode != gameMode.UI)
-            {
-                GameMode.Get().SetCurrentMode(gameMode.UI);
-            }
+            _isVisible = true;
         }
 
         public void Close()
         {
             if (_panel == null) return;
-
             _panel.SetVisible(false);
-            _isVisible = false; // Aktualizacja stanu
-
-            if (GameMode.Get().currentMode == gameMode.UI)
-            {
-                // Tutaj błąd CS0012 zniknie po dodaniu referencji do Il2CppSystem
-                if (Singleton<WindowManager>.Instance.activeWindows.Count <= 0)
-                {
-                    GameMode.Get().SetCurrentMode(gameMode.Garage);
-                }
-            }
+            _isVisible = false;
         }
+
 
         // Metoda do wygodnego przełączania (np. dla klawisza F10)
         public void Toggle()
