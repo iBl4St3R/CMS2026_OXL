@@ -70,6 +70,17 @@ namespace CMS2026_OXL
         private const float RowH = 90f;
         private const float RowGap = 1f;
 
+        private UILabelHandle _listingMoneyLbl;
+        private string FormatMetaLine(CarListing listing)
+        {
+            float rem = listing.ExpiresAt - _listings.GameTime;
+            string timer = rem <= 0f ? "Auction ended"
+                : $"Expires in {(int)(rem / 60f)}:{(int)(rem % 60f):D2}";
+            string mi = listing.Mileage >= 1000
+                ? $"{listing.Mileage / 1000}k mi" : $"{listing.Mileage} mi";
+            return $"{timer}  ·  {listing.Location}  ·  {mi}  ·  {listing.Year}  ·  ~{listing.DeliveryHours}h delivery";
+        }
+
         private readonly Dictionary<string, UILabelHandle> _timerLabels = new();
         private bool _buyClickConsumed = false;
 
@@ -649,17 +660,17 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(overlay, topBar);
 
+            // ← HidePage, nie HideListingPage
             var backPtr = _panel.AddButtonToContainer(
-                topBar, "\u2190  Back",
-                Pad, 6f, 100f, TopBarH - 12f,
-                BtnDark, HidePage);
+                topBar, "\u2190  Back", 12f, 6f, 110f, 32f, BtnDark, HidePage);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
+            // ← _pageTitleLbl, dynamicznie ustawiany przez ShowPage()
             _pageTitleLbl = _panel.AddLabelToContainer(
                 topBar, "", 130f, 0f, PanelW - 150f, TopBarH, OXLGreen);
             _pageTitleLbl.SetFontSize(18);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_pageTitleLbl.GetRawPtr())),
-                        TextAnchor.MiddleLeft);
+                TextAnchor.MiddleLeft);
 
             // Separator
             var sep = UIRuntime.NewVE();
@@ -728,14 +739,29 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(overlay, topBar);
 
+
+
+            // Back
             var backPtr = _panel.AddButtonToContainer(
                 topBar, "\u2190  Back", 12f, 6f, 110f, 32f, BtnDark, HideListingPage);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
+            // Title — wyśrodkowany między Back a Balance
             var titleLbl = _panel.AddLabelToContainer(
-                topBar, "\U0001F697  Passenger Cars — active listings",
-                140f, 0f, 700f, 44f, OXLGreen);
-            titleLbl.SetFontSize(15);
+                topBar, "\U0001F697  Passenger Cars \u2014 active listings",
+                130f, 0f, PanelW - 350f, 44f, OXLGreen);
+            titleLbl.SetFontSize(17);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            // Balance — prawy róg
+            _listingMoneyLbl = _panel.AddLabelToContainer(
+                topBar, "Balance: ---",
+                PanelW - 220f, 0f, 210f, 44f,
+                new Color(0.55f, 0.90f, 0.55f, 1f));
+            _listingMoneyLbl.SetFontSize(15);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingMoneyLbl.GetRawPtr())),
+                TextAnchor.MiddleRight);
 
             // Sep
             var sep = UIRuntime.NewVE();
@@ -776,9 +802,9 @@ namespace CMS2026_OXL
             const float Pad = 16f;
             const float ImgW = 125f;
             const float ImgH = 62f;
-            const float RightW = 180f;
+            const float RightW = 262f; // stars + price + buy w jednej linii
 
-            // Row background
+            // ── Row background ────────────────────────────────────────────────────
             var rowBg = UIRuntime.NewVE();
             var rbs = UIRuntime.GetStyle(rowBg);
             S.Position(rbs, "Absolute");
@@ -795,20 +821,19 @@ namespace CMS2026_OXL
             _panel.WireClick(rowPtr, () =>
             {
                 if (_buyClickConsumed) { _buyClickConsumed = false; return; }
-                ShowDetail(listing);   // ← listing z closure, nie _detailListing
+                ShowDetail(listing);
             });
 
-
-            // Bottom separator
+            // ── Separator — FIXED: yOffset uwzględniony ───────────────────────────
             var rowSep = UIRuntime.NewVE();
             var rss = UIRuntime.GetStyle(rowSep);
             S.Position(rss, "Absolute");
-            S.Left(rss, Pad); S.Top(rss, RowH - 1f);
+            S.Left(rss, Pad); S.Top(rss, yOffset + RowH - 1f);
             S.Width(rss, PanelW - Pad * 2f); S.Height(rss, 1f);
-            S.BgColor(rss, new Color(0.15f, 0.22f, 0.32f, 0.5f));
+            S.BgColor(rss, new Color(0.15f, 0.22f, 0.32f, 0.35f));
             UIRuntime.AddChild(container, rowSep);
 
-            // Thumbnail
+            // ── Thumbnail ─────────────────────────────────────────────────────────
             var imgBox = UIRuntime.NewVE();
             var ibs = UIRuntime.GetStyle(imgBox);
             S.Position(ibs, "Absolute");
@@ -821,12 +846,7 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(rowBg, imgBox);
 
             if (_carImages.TryGetValue(listing.ImageFolder, out var carTex))
-            {
                 UIRuntime.SetBackgroundImage(imgBox, carTex);
-                // ScaleMode.ScaleToFit przez styl
-                var imsVE = UIRuntime.WrapVE(UIRuntime.GetPtr(imgBox));
-                // backgroundSize nie jest w S{} — pomijamy, domyślnie stretch jest ok
-            }
             else
             {
                 var iconLbl = _panel.AddLabelToContainer(
@@ -835,71 +855,67 @@ namespace CMS2026_OXL
                 iconLbl.SetFontSize(24);
             }
 
-            // Content area
+            // ── Content area ──────────────────────────────────────────────────────
             float contentX = Pad + ImgW + 14f;
             float contentW = PanelW - contentX - RightW - Pad * 2f;
 
+            // Tytuł — największy
             var titleLbl = _panel.AddLabelToContainer(
                 rowPtr, $"{listing.Make} {listing.Model}  \u2022  {listing.Year}",
-                contentX, 10f, contentW, 24f, Color.white);
-            titleLbl.SetFontSize(16);
+                contentX, 8f, contentW, 26f, Color.white);
+            titleLbl.SetFontSize(18);
 
-            var starsRowLbl = _panel.AddLabelToContainer(
-                rowPtr,
-                FormatStars(listing.SellerRating),
-                contentX + contentW - 90f, 10f,   // prawa strona, ta sama linia co tytuł
-                90f, 22f,
-                StarColor(listing.SellerRating));
-            starsRowLbl.SetFontSize(12);
-
-            string note = listing.SellerNote.Length > 80
-                ? listing.SellerNote.Substring(0, 77) + "..."
+            // Nota sprzedawcy — bardziej widoczna
+            string note = listing.SellerNote.Length > 95
+                ? listing.SellerNote.Substring(0, 92) + "..."
                 : listing.SellerNote;
-            var noteLbl = _panel.AddLabelToContainer(rowPtr, $"\"{note}\"", contentX, 34f, contentW, 18f, TextGray);
-            noteLbl.SetFontSize(11);
+            var noteLbl = _panel.AddLabelToContainer(
+                rowPtr, $"\"{note}\"",
+                contentX, 34f, contentW, 18f,
+                new Color(0.72f, 0.76f, 0.80f, 1f));
+            noteLbl.SetFontSize(12);
 
-            // ── Metadata row ──────────────────────────────────────────────────────
-            string mileageStr = listing.Mileage >= 1000
-                ? $"{listing.Mileage / 1000}k mi"
-                : $"{listing.Mileage} mi";
-            string meta = $"\U0001F4CD {listing.Location}  \u00B7  " +
-                          $"\U0001F6E3 {mileageStr}  \u00B7  " +
-                          $"\U0001F4C5 {listing.Year}  \u00B7  " +
-                          $"\u23F0 ~{listing.DeliveryHours}h delivery";
-
-            var metaLbl = _panel.AddLabelToContainer(
-                rowPtr, meta,
-                contentX, 54f, contentW, 18f,
-                new Color(0.35f, 0.55f, 0.72f, 1f));
-            metaLbl.SetFontSize(11);
-
-
-
-
-            float remaining = listing.ExpiresAt - _listings.GameTime;
-            Color timerColor = remaining < 120f
+            // Dolna linia: timer · lokacja · przebieg · rok · dostawa
+            float rem = listing.ExpiresAt - _listings.GameTime;
+            Color metaColor = rem < 120f
                 ? new Color(0.95f, 0.55f, 0.20f, 1f)
                 : new Color(0.45f, 0.65f, 0.85f, 1f);
-            var timerLbl = _panel.AddLabelToContainer(rowPtr, FormatTimer(listing), contentX, 72f, 240f, 16f, timerColor);   // was 62f
-            timerLbl.SetFontSize(12);
-            _timerLabels[listing.InternalId] = timerLbl;
 
-            // Right side
+            var metaLbl = _panel.AddLabelToContainer(
+                rowPtr, FormatMetaLine(listing),
+                contentX, 60f, contentW, 18f, metaColor);
+            metaLbl.SetFontSize(11);
+            _timerLabels[listing.InternalId] = metaLbl;
+
+            // ── Prawa strona: [★★★★★] [$22,250] [BUY ▶] — jedna linia ───────────
             float rightX = PanelW - RightW - Pad;
+            float lineY = (RowH - 34f) / 2f;  // środek pionowy wiersza
 
+            // Gwiazdki
+            var starsLbl = _panel.AddLabelToContainer(
+                rowPtr, FormatStars(listing.SellerRating),
+                rightX, lineY + 2f, 68f, 30f,
+                StarColor(listing.SellerRating));
+            starsLbl.SetFontSize(13);
+
+            // Cena
             var priceLbl = _panel.AddLabelToContainer(
                 rowPtr, $"${listing.Price:N0}",
-                rightX, 10f, RightW, 30f, OXLGreen);
-            priceLbl.SetFontSize(20);
+                rightX + 70f, lineY, 98f, 34f, OXLGreen);
+            priceLbl.SetFontSize(19);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(priceLbl.GetRawPtr())),
+                TextAnchor.MiddleLeft);
 
-            var buyPtr = _panel.AddButtonToContainer(rowPtr, "BUY \u25BA", rightX + RightW - 130f, 46f, 130f, 34f, OXLGreen,
-            () =>
-            {
-                _buyClickConsumed = true;
-                ExecutePurchase(listing);
-            }
-            );
-            _panel.WireHover(buyPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
+            // BUY button
+            var buyPtr = _panel.AddButtonToContainer(
+                rowPtr, "BUY \u25BA",
+                rightX + 170f, lineY, 92f, 34f,
+                OXLGreen,
+                () => { _buyClickConsumed = true; ExecutePurchase(listing); });
+            _panel.WireHover(buyPtr,
+                OXLGreen,
+                new Color(0.28f, 0.70f, 0.42f, 1f),
+                new Color(0.16f, 0.48f, 0.28f, 1f));
         }
 
         // ── Pagination bar ────────────────────────────────────────────────────
@@ -947,6 +963,14 @@ namespace CMS2026_OXL
         // ── Rebuild current page ──────────────────────────────────────────────
         private void RefreshListings()
         {
+            try
+            {
+                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
+                _listingMoneyLbl?.SetText($"Balance:  ${bal:N0}");
+            }
+            catch { _listingMoneyLbl?.SetText("Balance: ---"); }
+
+
             if (_listingRowsContainerPtr == IntPtr.Zero) return;
 
             var container = UIRuntime.WrapVE(_listingRowsContainerPtr);
@@ -1000,7 +1024,7 @@ namespace CMS2026_OXL
             {
                 if (!_timerLabels.TryGetValue(listing.InternalId, out var lbl)) continue;
                 float rem = listing.ExpiresAt - _listings.GameTime;
-                lbl.SetText(FormatTimer(listing));
+                lbl.SetText(FormatMetaLine(listing));
                 lbl.SetColor(rem < 120f
                     ? new Color(0.95f, 0.55f, 0.20f, 1f)
                     : new Color(0.45f, 0.65f, 0.85f, 1f));
