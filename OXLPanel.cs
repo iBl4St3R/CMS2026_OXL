@@ -101,6 +101,8 @@ namespace CMS2026_OXL
 
         private UILabelHandle _detailSellerStars;
 
+        private UILabelHandle _detailBalanceLbl;
+
         // ── Menu & static pages ───────────────────────────────────────────────
         private IntPtr _menuDropdownPtr;
         private bool _menuOpen = false;
@@ -1089,11 +1091,13 @@ namespace CMS2026_OXL
                 topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, HideDetail);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            _detailTitle = _panel.AddLabelToContainer(
-                topBar, "", 170f, 0f, PanelW - 200f, 44f, Color.white);
-            _detailTitle.SetFontSize(17);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailTitle.GetRawPtr())),
-                        TextAnchor.MiddleLeft);
+            // Balance — prawy górny róg (gdzie był timer)
+            _detailBalanceLbl = _panel.AddLabelToContainer(
+                topBar, "Balance: ---", PanelW - 240f, 0f, 228f, 44f,
+                new Color(0.55f, 0.90f, 0.55f, 1f));
+            _detailBalanceLbl.SetFontSize(14);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailBalanceLbl.GetRawPtr())),
+                TextAnchor.MiddleRight);
 
             var topSep = UIRuntime.NewVE();
             var tss = UIRuntime.GetStyle(topSep);
@@ -1104,16 +1108,14 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, topSep);
 
             // ════════════════════════════════════════════════════════════════
-            //  LAYOUT
-            //  Left  : image   x=24   w=820  h=462
-            //  Right : info    x=868  w=PanelW-868-12
+            //  LAYOUT  Left=image 820px   Right=info od x=868
             // ════════════════════════════════════════════════════════════════
             const float ContentTop = 56f;
             const float ImgX = 24f;
             const float ImgW = 820f;
             const float ImgH = 462f;
-            const float RightX = ImgX + ImgW + 24f;           // 868
-            const float RightW = PanelW - RightX - 12f;       // 576 — dosięga prawej krawędzi
+            const float RightX = ImgX + ImgW + 24f;      // 868
+            const float RightW = PanelW - RightX - 12f;  // ~576
 
             // ── Large image ───────────────────────────────────────────────────
             var imgBox = UIRuntime.NewVE();
@@ -1142,124 +1144,112 @@ namespace CMS2026_OXL
             // ── RIGHT COLUMN ──────────────────────────────────────────────────
             float ry = ContentTop;
 
-            // "Listed • Xh delivery estimate"
-            _detailListedLbl = _panel.AddLabelToContainer(
-                overlay, "", RightX, ry, RightW, 20f,
-                new Color(0.38f, 0.45f, 0.50f, 1f));
-            _detailListedLbl.SetFontSize(11);
-            ry += 26f;
-
-            // ── Tytuł + Cena w jednej linii ───────────────────────────────────
-            const float TitleH = 40f;
+            // Nazwa + Cena w jednej linii
+            const float TitleRowH = 44f;
 
             _detailTitle = _panel.AddLabelToContainer(
-                overlay, "", RightX, ry, RightW * 0.55f, TitleH, Color.white);
+                overlay, "", RightX, ry, RightW * 0.58f, TitleRowH, Color.white);
             _detailTitle.SetFontSize(24);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailTitle.GetRawPtr())),
                 TextAnchor.MiddleLeft);
 
             _detailPrice = _panel.AddLabelToContainer(
-                overlay, "", RightX + RightW * 0.55f, ry, RightW * 0.45f, TitleH, OXLGreen);
+                overlay, "", RightX + RightW * 0.58f, ry, RightW * 0.42f, TitleRowH, OXLGreen);
             _detailPrice.SetFontSize(26);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailPrice.GetRawPtr())),
                 TextAnchor.MiddleRight);
+            ry += TitleRowH + 2f;
 
-            ry += TitleH + 10f;
-
-            // ── Nota sprzedawcy — większa, bardziej wyrazna ───────────────────
-            const float NoteH = 100f;
-            var noteBox = UIRuntime.NewVE();
-            var nbs = UIRuntime.GetStyle(noteBox);
-            S.Position(nbs, "Absolute");
-            S.Left(nbs, RightX); S.Top(nbs, ry);
-            S.Width(nbs, RightW); S.Height(nbs, NoteH);
-            S.BgColor(nbs, new Color(0.048f, 0.085f, 0.138f, 1f));
-            S.BorderRadius(nbs, 8f);
-            S.BorderWidth(nbs, 1f);
-            S.BorderColor(nbs, new Color(0.22f, 0.52f, 0.32f, 0.55f));
-            UIRuntime.AddChild(overlay, noteBox);
-
-            var quoteIcon = _panel.AddLabelToContainer(
-                noteBox, "\u201C",
-                10f, 4f, 24f, 24f,
-                new Color(0.22f, 0.59f, 0.34f, 0.50f));
-            quoteIcon.SetFontSize(28);
-
-            _detailSellerNote = _panel.AddLabelToContainer(
-                noteBox, "",
-                30f, 8f, RightW - 42f, NoteH - 16f,
-                new Color(0.82f, 0.86f, 0.88f, 1f));
-            _detailSellerNote.SetFontSize(13);
-            ry += NoteH + 10f;
-
-            // ── Timer ─────────────────────────────────────────────────────────
+            // Expires in — pod nazwą/ceną
             _detailTimer = _panel.AddLabelToContainer(
-                overlay, "", RightX, ry, RightW, 22f,
+                overlay, "", RightX, ry, RightW, 20f,
                 new Color(0.45f, 0.65f, 0.85f, 1f));
             _detailTimer.SetFontSize(12);
-            ry += 28f;
+            ry += 26f;
 
             // ── BUY NOW ───────────────────────────────────────────────────────
             _detailBuyPtr = _panel.AddButtonToContainer(
                 overlay, "BUY NOW  \u25BA",
-                RightX, ry, RightW, 50f,
+                RightX, ry, RightW, 48f,
                 OXLGreen,
                 () => { if (_detailListing == null) return; ExecutePurchase(_detailListing); HideDetail(); });
             _panel.WireHover(_detailBuyPtr,
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
                 new Color(0.16f, 0.48f, 0.28f, 1f));
-            ry += 58f;
+            ry += 56f;
 
             // ── Seller card ───────────────────────────────────────────────────
-            const float SellerCardH = 80f;
+            const float CardH = 72f;
+            const float AvatarS = 64f;
+
             var sellerCard = UIRuntime.NewVE();
             var scs = UIRuntime.GetStyle(sellerCard);
             S.Position(scs, "Absolute");
             S.Left(scs, RightX); S.Top(scs, ry);
-            S.Width(scs, RightW); S.Height(scs, SellerCardH);
+            S.Width(scs, RightW); S.Height(scs, CardH);
             S.BgColor(scs, new Color(0.042f, 0.072f, 0.115f, 1f));
             S.BorderRadius(scs, 8f);
             S.BorderWidth(scs, 1f);
             S.BorderColor(scs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
             UIRuntime.AddChild(overlay, sellerCard);
 
+            var avatarBox = UIRuntime.NewVE();
+            var avs = UIRuntime.GetStyle(avatarBox);
+            S.Position(avs, "Absolute");
+            S.Left(avs, 6f); S.Top(avs, (CardH - AvatarS) / 2f);
+            S.Width(avs, AvatarS); S.Height(avs, AvatarS);
+            S.BgColor(avs, new Color(0.08f, 0.14f, 0.22f, 1f));
+            S.BorderRadius(avs, 6f);
+            S.BorderWidth(avs, 1f);
+            S.BorderColor(avs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
+            UIRuntime.AddChild(sellerCard, avatarBox);
+
+            var avatarLbl = _panel.AddLabelToContainer(
+                avatarBox, "?", 0f, 0f, AvatarS, AvatarS,
+                new Color(0.30f, 0.45f, 0.35f, 0.8f));
+            avatarLbl.SetFontSize(28);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(avatarLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            float tx = AvatarS + 14f;
+
             var sellerTypeLbl = _panel.AddLabelToContainer(
                 sellerCard, "PRIVATE SELLER",
-                14f, 8f, 200f, 16f,
+                tx, 8f, 200f, 14f,
                 new Color(0.38f, 0.55f, 0.42f, 0.80f));
             sellerTypeLbl.SetFontSize(9);
 
             var sellerNameLbl = _panel.AddLabelToContainer(
                 sellerCard, "Anonymous",
-                14f, 26f, 180f, 28f, Color.white);
-            sellerNameLbl.SetFontSize(16);
+                tx, 22f, 180f, 22f, Color.white);
+            sellerNameLbl.SetFontSize(15);
 
             var sellerStarsLbl = _panel.AddLabelToContainer(
                 sellerCard, FormatStars(3),
-                14f, 54f, 120f, 20f, StarColor(3));
-            sellerStarsLbl.SetFontSize(14);
+                tx, 46f, 100f, 18f, StarColor(3));
+            sellerStarsLbl.SetFontSize(13);
             _detailSellerStars = sellerStarsLbl;
 
-            var sellerYearLbl = _panel.AddLabelToContainer(
+            _detailListedLbl = _panel.AddLabelToContainer(
                 sellerCard, "Member since 2024",
-                140f, 54f, 200f, 20f, TextGray);
-            sellerYearLbl.SetFontSize(10);
+                tx + 108f, 46f, 180f, 18f, TextGray);
+            _detailListedLbl.SetFontSize(10);
 
-            // Send Message button — prawy róg seller card
             var msgPtr = _panel.AddButtonToContainer(
                 sellerCard, "\u2709  Message",
-                RightW - 120f, 22f, 108f, 32f,
+                RightW - 116f, (CardH - 32f) / 2f, 108f, 32f,
                 new Color(0.06f, 0.12f, 0.22f, 1f),
                 () => { /* TODO */ });
             _panel.WireHover(msgPtr,
                 new Color(0.06f, 0.12f, 0.22f, 1f),
                 new Color(0.10f, 0.20f, 0.34f, 1f),
                 SearchBdr);
-            ry += SellerCardH + 10f;
+            ry += CardH + 8f;
 
             // ── Location card ─────────────────────────────────────────────────
-            const float LocCardH = 58f;
+            const float LocCardH = 72f;
+
             var locCard = UIRuntime.NewVE();
             var lcs = UIRuntime.GetStyle(locCard);
             S.Position(lcs, "Absolute");
@@ -1271,47 +1261,70 @@ namespace CMS2026_OXL
             S.BorderColor(lcs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
             UIRuntime.AddChild(overlay, locCard);
 
+            var pinBox = UIRuntime.NewVE();
+            var pbs = UIRuntime.GetStyle(pinBox);
+            S.Position(pbs, "Absolute");
+            S.Left(pbs, 6f); S.Top(pbs, (LocCardH - AvatarS) / 2f);
+            S.Width(pbs, AvatarS); S.Height(pbs, AvatarS);
+            S.BgColor(pbs, new Color(0.08f, 0.14f, 0.22f, 1f));
+            S.BorderRadius(pbs, 6f);
+            S.BorderWidth(pbs, 1f);
+            S.BorderColor(pbs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
+            UIRuntime.AddChild(locCard, pinBox);
+
+            var pinLbl = _panel.AddLabelToContainer(
+                pinBox, "\U0001F4CD", 0f, 0f, AvatarS, AvatarS,
+                new Color(0.22f, 0.59f, 0.34f, 0.9f));
+            pinLbl.SetFontSize(22);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
             var locHeader = _panel.AddLabelToContainer(
                 locCard, "LOCATION",
-                14f, 7f, 200f, 14f,
+                AvatarS + 14f, 10f, 200f, 14f,
                 new Color(0.38f, 0.55f, 0.42f, 0.80f));
             locHeader.SetFontSize(9);
 
             _detailLocationLbl = _panel.AddLabelToContainer(
-                locCard, "", 14f, 24f, RightW - 28f, 26f, Color.white);
-            _detailLocationLbl.SetFontSize(15);
+                locCard, "", AvatarS + 14f, 26f, 260f, 24f, Color.white);
+            _detailLocationLbl.SetFontSize(16);
 
-            // ════════════════════════════════════════════════════════════════
-            //  SPECS SECTION — below image
-            // ════════════════════════════════════════════════════════════════
-            float specsTop = ContentTop + ImgH + 16f;
+            // Delivery — prawa strona, większe i jaśniejsze
+            _detailYear = _panel.AddLabelToContainer(
+                locCard, "", RightW - 210f, 0f, 202f, LocCardH,
+                new Color(0.65f, 0.72f, 0.78f, 1f));
+            _detailYear.SetFontSize(13);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailYear.GetRawPtr())),
+                TextAnchor.MiddleRight);
+            ry += LocCardH + 8f;
+
+            // ── Seller note ───────────────────────────────────────────────────
+            float noteH = ContentTop + ImgH - ry - 4f;
+            if (noteH < 60f) noteH = 60f;
+
+            var noteBox = UIRuntime.NewVE();
+            var nbs = UIRuntime.GetStyle(noteBox);
+            S.Position(nbs, "Absolute");
+            S.Left(nbs, RightX); S.Top(nbs, ry);
+            S.Width(nbs, RightW); S.Height(nbs, noteH);
+            S.BgColor(nbs, new Color(0.040f, 0.072f, 0.118f, 1f));
+            S.BorderRadius(nbs, 8f);
+            S.BorderWidth(nbs, 1f);
+            S.BorderColor(nbs, new Color(0.22f, 0.52f, 0.32f, 0.45f));
+            UIRuntime.AddChild(overlay, noteBox);
+
+            var quoteIcon = _panel.AddLabelToContainer(
+                noteBox, "\u201C", 10f, 2f, 26f, 28f,
+                new Color(0.22f, 0.59f, 0.34f, 0.45f));
+            quoteIcon.SetFontSize(30);
+
+            _detailSellerNote = _panel.AddLabelToContainer(
+                noteBox, "",
+                30f, 10f, RightW - 42f, noteH - 20f,
+                new Color(0.80f, 0.84f, 0.86f, 1f));
+            _detailSellerNote.SetFontSize(13);
+
             const float FootH = 32f;
-            float specsH = PanelH - OverlayTop - specsTop - FootH - 8f;
-
-            var specsSep = UIRuntime.NewVE();
-            var spss = UIRuntime.GetStyle(specsSep);
-            S.Position(spss, "Absolute");
-            S.Left(spss, ImgX); S.Top(spss, specsTop - 2f);
-            S.Width(spss, PanelW - ImgX * 2f); S.Height(spss, 1f);
-            S.BgColor(spss, new Color(0.15f, 0.42f, 0.24f, 0.35f));
-            UIRuntime.AddChild(overlay, specsSep);
-
-            var specsHeader = _panel.AddLabelToContainer(
-                overlay, "VEHICLE DETAILS",
-                ImgX, specsTop + 4f, 300f, 16f,
-                new Color(0.22f, 0.48f, 0.30f, 0.65f));
-            specsHeader.SetFontSize(10);
-
-            var specsVE = UIRuntime.NewVE();
-            var svs = UIRuntime.GetStyle(specsVE);
-            S.Position(svs, "Absolute");
-            S.Left(svs, ImgX); S.Top(svs, specsTop + 24f);
-            S.Width(svs, PanelW - ImgX * 2f);
-            S.Height(svs, specsH - 24f);
-            S.Overflow(svs, "Hidden");
-            UIRuntime.AddChild(overlay, specsVE);
-            _detailSpecsContainerPtr = UIRuntime.GetPtr(specsVE);
-
             BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
 
@@ -1325,15 +1338,20 @@ namespace CMS2026_OXL
             _detailTitle?.SetText($"{listing.Make} {listing.Model}");
             _detailPrice?.SetText($"${listing.Price:N0}");
             _detailTimer?.SetText(FormatTimer(listing));
-            _detailListedLbl?.SetText($"Listed \u2022 {listing.DeliveryHours}h delivery estimate");
             _detailSellerNote?.SetText($"\"{listing.SellerNote}\"");
-            _detailLocationLbl?.SetText($"\U0001F4CD  {listing.Location}");
-            _detailYear?.SetText($"Year: {listing.Year}");
+            _detailLocationLbl?.SetText($"{listing.Location}");
+            _detailYear?.SetText($"Listed  \u00B7  ~{listing.DeliveryHours}h delivery");
 
             _detailSellerStars?.SetText(FormatStars(listing.SellerRating));
             _detailSellerStars?.SetColor(StarColor(listing.SellerRating));
 
-            // Swap image
+            try
+            {
+                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
+                _detailBalanceLbl?.SetText($"Balance:  ${bal:N0}");
+            }
+            catch { _detailBalanceLbl?.SetText("Balance: ---"); }
+
             if (_detailImgBoxPtr != IntPtr.Zero)
             {
                 var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
@@ -1343,7 +1361,6 @@ namespace CMS2026_OXL
                     UIRuntime.SetBackgroundImage(imgVE, null);
             }
 
-            // Rebuild specs tags
             if (_detailSpecsContainerPtr != IntPtr.Zero)
             {
                 var specsVE = UIRuntime.WrapVE(_detailSpecsContainerPtr);
