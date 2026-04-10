@@ -119,9 +119,8 @@ namespace CMS2026_OXL
             float exhaustableMax = actual > 0.75f ? 0.40f : 0.18f;
             float group2Mult = listing.Archetype == SellerArchetype.Dealer ? 0.40f : 1.0f;
 
-            // Dent i dust proporcjonalne do zużycia — 0.0 = brak, 1.0 = max
-            float dentAmount = Mathf.Clamp(1.0f - bodyBase, 0f, 1f);
-            float dustAmount = Mathf.Clamp(1.0f - bodyBase + 0.15f, 0f, 1f);
+            
+            
 
             // ── INDEXEDPARTS ──────────────────────────────────────────────────────
             var ip = cl.indexedParts;
@@ -157,8 +156,28 @@ namespace CMS2026_OXL
                     // Tylko na karoserii, nie na szybach/lampach
                     if (!IsGlass(name, true))
                     {
-                        try { cl.SetDent(cp[i], dentAmount * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
-                        try { cl.EnableDust(cp[i], dustAmount); } catch { }
+                        float dent = listing.Archetype switch
+                        {
+                            SellerArchetype.Honest => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
+                            SellerArchetype.Neglected => Mathf.Clamp(1.0f - bodyBase + 0.15f, 0f, 0.90f),
+                            SellerArchetype.Dealer => Mathf.Clamp(1.0f - bodyBase, 0f, 0.20f),
+                            SellerArchetype.Wrecker => UnityEngine.Random.Range(0.65f, 1.0f),
+                            _ => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
+                        };
+
+                        try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
+
+                        float dust = listing.Archetype switch
+                        {
+                            SellerArchetype.Honest => 0f,
+                            SellerArchetype.Neglected => Mathf.Clamp(1.0f - bodyBase + 0.10f, 0f, 0.85f),
+                            SellerArchetype.Dealer => 0f,
+                            SellerArchetype.Wrecker => UnityEngine.Random.Range(0.70f, 1.0f),
+                            _ => 0f,
+                        };
+
+                        if (dust > 0f)
+                            try { cl.EnableDust(cp[i], dust); } catch { }
                     }
                 }
             }
@@ -189,8 +208,7 @@ namespace CMS2026_OXL
 
             yield return new WaitForFixedUpdate();
 
-            OXLPlugin.Log.Msg(
-                $"[OXL] ApplyWear done | actual={actual:P0} body={bodyBase:P0} dent={dentAmount:F2} arch={listing.Archetype} faults={listing.Faults}");
+            OXLPlugin.Log.Msg($"[OXL] ApplyWear done | actual={actual:P0} body={bodyBase:P0} arch={listing.Archetype} faults={listing.Faults}");
         }
 
         // ══════════════════════════════════════════════════════════════════════
