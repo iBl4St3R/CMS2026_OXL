@@ -139,6 +139,7 @@ namespace CMS2026_OXL
         private Texture2D _passengerCars, _carParts, _workshopItems, _decorations;
 
 
+        // klucz: "DNB Censor/cyan_good" itp.
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
         // Właściwość pomocnicza do sprawdzania stanu z zewnątrz
@@ -847,8 +848,11 @@ namespace CMS2026_OXL
             S.BorderColor(ibs, new Color(0.15f, 0.25f, 0.38f, 0.7f));
             UIRuntime.AddChild(rowBg, imgBox);
 
-            if (_carImages.TryGetValue(listing.ImageFolder, out var carTex))
+            string imgKey = ResolveImageKey(listing);
+            if (imgKey != null && _carImages.TryGetValue(imgKey, out var carTex))
+            {
                 UIRuntime.SetBackgroundImage(imgBox, carTex);
+            }
             else
             {
                 var iconLbl = _panel.AddLabelToContainer(
@@ -1324,6 +1328,19 @@ namespace CMS2026_OXL
                 new Color(0.80f, 0.84f, 0.86f, 1f));
             _detailSellerNote.SetFontSize(13);
 
+
+            // WIP label pod zdjęciem
+            var wipLbl = _panel.AddLabelToContainer(
+                overlay, "\u26A0  Images: Work In Progress  \u2014  Placeholder photos, final artwork coming soon  \u26A0",
+                ImgX, ContentTop + ImgH + 4f, ImgW, 22f,
+                new Color(0.95f, 0.55f, 0.10f, 0.80f));
+            wipLbl.SetFontSize(10);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(wipLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+            S.BgColor(UIRuntime.GetStyle(UIRuntime.WrapVE(wipLbl.GetRawPtr())),
+                new Color(0.18f, 0.10f, 0.02f, 0.60f));
+
+
             const float FootH = 32f;
             BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
@@ -1332,7 +1349,12 @@ namespace CMS2026_OXL
         // Because ShowDetail is called repeatedly, the tags will stack on each open.Cleanest fix: add a bool _detailSpecsBuilt = false flag and only call BuildDetailSpecs once, or clear a dedicated specs container before rebuilding — same pattern as RefreshListings() uses Clear().
         private void ShowDetail(CarListing listing)
         {
-            if (_detailOverlayPtr == IntPtr.Zero) return;
+            if (_detailImgBoxPtr != IntPtr.Zero)
+            {
+                var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
+                string key = ResolveImageKey(listing);
+                UIRuntime.SetBackgroundImage(imgVE, key != null && _carImages.TryGetValue(key, out var t) ? t : null);
+            }
             _detailListing = listing;
 
             _detailTitle?.SetText($"{listing.Make} {listing.Model}");
@@ -1410,10 +1432,15 @@ namespace CMS2026_OXL
             {
                 string dir = Path.Combine(carImgRoot, folder);
                 if (!Directory.Exists(dir)) continue;
-                var files = Directory.GetFiles(dir, "*.png");
-                if (files.Length == 0) continue;
-                var tex = TryLoadTexture(files[0]); // zawsze pierwsza .png
-                if (tex != null) _carImages[folder] = tex;
+
+                foreach (var file in Directory.GetFiles(dir, "*.png"))
+                {
+                    var tex = TryLoadTexture(file);
+                    if (tex == null) continue;
+                    // klucz = "DNB Censor/cyan_good"
+                    string key = folder + "/" + Path.GetFileNameWithoutExtension(file);
+                    _carImages[key] = tex;
+                }
             }
         }
 
@@ -1783,6 +1810,17 @@ namespace CMS2026_OXL
             _alertMessageLbl?.SetText(message);
             S.Display(UIRuntime.GetStyle(
                 UIRuntime.WrapVE(_alertOverlayPtr)), true);
+        }
+
+        private string ResolveImageKey(CarListing listing)
+        {
+            string condition = listing.ActualCondition >= 0.45f ? "good" : "worn";
+            string preferred = $"{listing.ImageFolder}/{listing.Color}_{condition}";
+            if (_carImages.ContainsKey(preferred)) return preferred;
+
+            // fallback: jakikolwiek plik z tego folderu
+            string any = _carImages.Keys.FirstOrDefault(k => k.StartsWith(listing.ImageFolder + "/"));
+            return any;
         }
 
         // ══════════════════════════════════════════════════════════════════════

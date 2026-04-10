@@ -58,5 +58,7 @@
             get => ActualCondition;
             set => ActualCondition = value;
         }
+
+        public string Color { get; set; } = "white";
     }
 }

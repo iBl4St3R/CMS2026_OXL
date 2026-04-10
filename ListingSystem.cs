@@ -34,6 +34,36 @@ namespace CMS2026_OXL
                  MinYear = 1994, MaxYear = 1999, MinPrice = 3000,  MaxPrice = 11000 },
 };
 
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  KOLORY — 4 aktywne per auto, reszta w komentarzu do przyszłego użycia
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static readonly Dictionary<string, string[]> ActiveColors =
+            new Dictionary<string, string[]>
+        {
+    // DNB Censor
+    // Pełna paleta: black, red, gray, white, darkgreen, cyan, blue, purple, pink, silver
+    { "car_dnb_censor",          new[] { "black", "white", "cyan", "silver" } },
+
+    // Katagiri Tamago BP
+    // Pełna paleta: black, white, silver, gray, gold, teal, red, darkgray
+    { "car_katagiri_tamago",     new[] { "white", "silver", "black", "red" } },
+
+    // Luxor Streamliner Mk3
+    // Pełna paleta: beige, cream, gray, silver, teal, lightblue, darkgray, navy
+    { "car_luxor_streamliner",   new[] { "silver", "cream", "navy", "gray" } },
+
+    // Mayen M5
+    // Pełna paleta: white, darkgreen, gray, silver, darkblue, navy, maroon, black
+    { "car_mayen_m5",            new[] { "black", "white", "darkblue", "gray" } },
+
+    // Salem Aries MK3
+    // Pełna paleta: red, orange, darkgray, gold, green, white, lightblue, silver
+    { "car_salem_aries",         new[] { "white", "red", "silver", "lightblue" } },
+        };
+
+
         // ══════════════════════════════════════════════════════════════════════
         //  PULE OPISÓW — pogrupowane per archetyp
         //  Kilka jest "awaryjnych" — nadpisują losowanie gdy wystąpi konkretna flaga
@@ -159,6 +189,19 @@ namespace CMS2026_OXL
             var ttl = UnityEngine.Random.Range(120f, 600f);
             int year = rng.Next(def.MinYear, def.MaxYear + 1);
 
+            // Kolor — losowany z aktywnej puli dla danego auta
+            string[] colorPool = ActiveColors.TryGetValue(def.InternalId.Split('_')[0] + "_" +
+                string.Join("_", def.InternalId.Split('_').Skip(1).Take(2)), out var cp)
+                ? cp : new[] { "white" };
+
+            // prostsze podejście — wyciągamy base ID bez numeru losowego
+            string baseId = def.InternalId; // np. "car_mayen_m5"
+            string[] pool = ActiveColors.ContainsKey(baseId) ? ActiveColors[baseId] : new[] { "white" };
+            string color = pool[rng.Next(pool.Length)];
+            
+
+
+
             // 1. Archetyp sprzedawcy
             var archetype = RollArchetype(rng);
 
@@ -219,6 +262,7 @@ namespace CMS2026_OXL
                 Location = Locations[rng.Next(Locations.Length)],
                 DeliveryHours = rng.Next(1, 37),
                 SellerRating = rating,
+                Color = color,
             };
         }
 
