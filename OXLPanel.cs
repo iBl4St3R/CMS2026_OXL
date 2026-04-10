@@ -1579,7 +1579,7 @@ namespace CMS2026_OXL
             // "powered by" — mniejszy, bardziej wyszarzony, przyklejony do prawej
             var poweredLbl = _panel.AddLabelToContainer(
                 foot,
-                "powered by UITK Framework 0.2.0",
+                "powered by UITK Framework 0.2.1",
                 0f, 0f, PanelW - 10f, FootH,
                 new Color(0.18f, 0.32f, 0.22f, 0.45f));
             poweredLbl.SetFontSize(9);
