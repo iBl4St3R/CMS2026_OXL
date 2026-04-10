@@ -16,23 +16,23 @@ namespace CMS2026_OXL
         }
 
         private static readonly CarDef[] CarDefs =
-        {
-            new CarDef { Make = "DNB",      Model = "Censor",          ImageFolder = "DNB Censor",
-                         InternalId = "car_dnb_censor",
-                         MinYear = 2000, MaxYear = 2015, MinPrice = 8000,  MaxPrice = 32000 },
-            new CarDef { Make = "Katagiri", Model = "Tamago BP",        ImageFolder = "Katagiri Tamago BP",
-                         InternalId = "car_katagiri_tamago",
-                         MinYear = 1995, MaxYear = 2010, MinPrice = 3500,  MaxPrice = 12000 },
-            new CarDef { Make = "Luxor",    Model = "Streamliner Mk3",  ImageFolder = "Luxor Streamliner Mk3",
-                         InternalId = "car_luxor_streamliner",
-                         MinYear = 2005, MaxYear = 2020, MinPrice = 10000, MaxPrice = 22000 },
-            new CarDef { Make = "Mayen",    Model = "M5",               ImageFolder = "Mayen M5",
-                         InternalId = "car_mayen_m5",
-                         MinYear = 2010, MaxYear = 2022, MinPrice = 12000, MaxPrice = 26000 },
-            new CarDef { Make = "Salem",    Model = "Aries MK3",        ImageFolder = "Salem Aries MK3",
-                         InternalId = "car_salem_aries",
-                         MinYear = 1998, MaxYear = 2012, MinPrice = 9000,  MaxPrice = 20000 },
-        };
+ {
+    new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",
+                 InternalId = "car_dnb_censor",
+                 MinYear = 1991, MaxYear = 1992, MinPrice = 3500,  MaxPrice = 12000 },
+    new CarDef { Make = "Katagiri", Model = "Tamago BP",       ImageFolder = "Katagiri Tamago BP",
+                 InternalId = "car_katagiri_tamago",
+                 MinYear = 2000, MaxYear = 2005, MinPrice = 3500,  MaxPrice = 12000 },
+    new CarDef { Make = "Luxor",    Model = "Streamliner Mk3", ImageFolder = "Luxor Streamliner Mk3",
+                 InternalId = "car_luxor_streamliner",
+                 MinYear = 1992, MaxYear = 1996, MinPrice = 4000,  MaxPrice = 14000 },
+    new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",
+                 InternalId = "car_mayen_m5",
+                 MinYear = 2008, MaxYear = 2015, MinPrice = 10000, MaxPrice = 26000 },
+    new CarDef { Make = "Salem",    Model = "Aries MK3",       ImageFolder = "Salem Aries MK3",
+                 InternalId = "car_salem_aries",
+                 MinYear = 1994, MaxYear = 1999, MinPrice = 3000,  MaxPrice = 11000 },
+};
 
         // ══════════════════════════════════════════════════════════════════════
         //  PULE OPISÓW — pogrupowane per archetyp
