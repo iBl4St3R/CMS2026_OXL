@@ -358,7 +358,7 @@ namespace CMS2026_OXL
             S.BgColor(UIRuntime.GetStyle(w1ve), new Color(0.22f, 0.04f, 0.03f, 1f));
 
             var w2 = _panel.AddLabel(
-                "THIS MOD WILL NOT BE AVAILABLE OR SUPPORTED ONCE THE FULL GAME IS RELEASED FOR PURCHASE",
+                "THIS MOD WILL NOT BE AVAILABLE OR SUPPORTED (IN DEMO) ONCE THE FULL GAME IS RELEASED FOR PURCHASE",
                 new Color(1.0f, 0.35f, 0.25f, 1f), height: 36f);
             w2.SetFontSize(24);
             var w2ve = UIRuntime.WrapVE(w2.GetRawPtr());
@@ -953,11 +953,14 @@ namespace CMS2026_OXL
             UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(container, null);
             _timerLabels.Clear();
 
-            // Use filtered list if a search is active, otherwise show everything
-            var all = _filteredListings ?? _listings.ActiveListings;
+            // Posortowana kopia — zawsze lokalna, nie nadpisuje _filteredListings
+            var all = (_filteredListings ?? _listings.ActiveListings)
+                .OrderBy(l => l.ExpiresAt)
+                .ToList();
 
-            _currentPage = Mathf.Clamp(_currentPage, 0, Mathf.Max(0, TotalPages() - 1));
-            _pageCountLabel?.SetText($"{_currentPage + 1} / {TotalPages()}");
+            int totalPages = Mathf.Max(1, Mathf.CeilToInt(all.Count / (float)RowsPerPage));
+            _currentPage = Mathf.Clamp(_currentPage, 0, totalPages - 1);
+            _pageCountLabel?.SetText($"{_currentPage + 1} / {totalPages}");
 
             if (all.Count == 0)
             {
@@ -1632,10 +1635,11 @@ namespace CMS2026_OXL
         //carspawn
         private void ExecutePurchase(CarListing listing)
         {
+            // ── Walidacja PRZED jakąkolwiek zmianą stanu ──────────────────────────
             if (!GameBridge.HasFreeSlot())
             {
                 ShowAlert("Parking lot is full.\nMake room before purchasing.");
-                return;
+                return;  // ← listing zostaje, kasa zostaje, nic się nie dzieje
             }
 
             int balance = 0;
@@ -1645,19 +1649,29 @@ namespace CMS2026_OXL
             if (balance < listing.Price)
             {
                 ShowAlert($"Not enough funds.\n\nRequired:  ${listing.Price:N0}\nAvailable: ${balance:N0}");
-                return;
+                return;  // ← listing zostaje
             }
 
             if (!_listings.ActiveListings.Contains(listing)) return;
 
+            // ── Wszystko OK — dopiero teraz usuwamy listing ───────────────────────
             _listings.ActiveListings.Remove(listing);
-            OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} for ${listing.Price}");
+            OXLPlugin.Log.Msg($"[OXL] Purchasing: {listing.Make} {listing.Model} for ${listing.Price}");
 
             GameBridge.SpawnCar(listing, result =>
             {
                 OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
                 if (result == GameBridge.SpawnResult.Success)
+                {
                     GameBridge.DeductMoney(listing.Price);
+                }
+                else
+                {
+                    // Spawn się nie udał — zwróć listing i pieniędzy nie ruszaj
+                    _listings.ActiveListings.Add(listing);
+                    ShowAlert($"Delivery failed ({result}).\nThe listing has been restored.");
+                    RefreshListings();
+                }
             });
 
             if (_filteredListings != null) ApplyFilters();
