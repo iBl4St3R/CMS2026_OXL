@@ -10,8 +10,6 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using UnityEngine;
-using static Il2CppCMS.Platforms.Steam.SteamWorkshopUploader;
-using static Il2CppCMS.UI.Logic.TopMenu;
 
 namespace CMS2026_OXL
 {
@@ -1345,7 +1343,7 @@ namespace CMS2026_OXL
 
             // WIP label pod zdjęciem
             var wipLbl = _panel.AddLabelToContainer(
-                overlay, "\u26A0  Images: Work In Progress  \u2014  Placeholder photos, final artwork coming soon  \u26A0",
+                overlay, "\u26A0  Images: Work In Progress  \u2014  Car full details coming soon  \u26A0",
                 ImgX, ContentTop + ImgH + 4f, ImgW, 22f,
                 new Color(0.95f, 0.55f, 0.10f, 0.80f));
             wipLbl.SetFontSize(10);
@@ -1894,7 +1892,7 @@ namespace CMS2026_OXL
             var descLbl = _panel.AddLabelToContainer(
                 overlay,
                 "Adjusts listing prices relative to the baseline.\n" +
-                "Easy = cars cost 30% less.  Normal = baseline.  Hard = cars cost 30% more.",
+                 "Easy = 10% cheaper.  Normal = 30% higher (recommended).  Hard = 60% higher.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
                 TextGray);
             descLbl.SetFontSize(12);
@@ -1908,13 +1906,13 @@ namespace CMS2026_OXL
             float bx = (PanelW - totalBtnsW) / 2f;
 
             BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,
-    "EASY", "Cars 30% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
+    "EASY", "Cars 10% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
     ref _diffEasyLbl, ref _diffEasyCardPtr);
             BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,
-    "NORMAL", "Baseline prices", new Color(0.55f, 0.75f, 0.90f, 1f),
+    "NORMAL", "Cars 30% more expensive", new Color(0.55f, 0.75f, 0.90f, 1f),
     ref _diffNormalLbl, ref _diffNormalCardPtr);
             BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,
-    "HARD", "Cars 30% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
+    "HARD", "Cars 60% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
     ref _diffHardLbl, ref _diffHardCardPtr);
 
             cy += BtnH + 32f;

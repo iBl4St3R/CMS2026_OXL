@@ -10,11 +10,15 @@ namespace CMS2026_OXL
     {
         public static Difficulty CurrentDifficulty { get; private set; } = Difficulty.Normal;
 
+
+        /// Easy   = listing prices 10% lower  (slight discount)
+        /// Normal = prices 30% above baseline (intended balance)
+        /// Hard   = listing prices 60% higher (tight margins)
         public static float PriceMultiplier => CurrentDifficulty switch
         {
-            Difficulty.Easy => 0.70f,
-            Difficulty.Hard => 1.30f,
-            _ => 1.00f,
+            Difficulty.Easy => 0.90f,  // -10%
+            Difficulty.Hard => 1.60f,  // +60%
+            _ => 1.30f,  // Normal +30%
         };
 
         // ── Ścieżka do pliku ──────────────────────────────────────────────────
