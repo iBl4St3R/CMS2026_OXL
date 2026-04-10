@@ -30,6 +30,9 @@ namespace CMS2026_OXL
             CursorManager.OnCursorShow += OnCursorShow;
             CursorManager.OnCursorHide += OnCursorHide;
 
+
+            OXLSettings.Load();//wcyztajmy konfiga
+
             _panel = new OXLPanel();
             _panel.Build();
             TryRegisterConsole();
