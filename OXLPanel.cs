@@ -148,6 +148,17 @@ namespace CMS2026_OXL
         public bool IsVisible => _isVisible;
 
 
+        // ── Settings overlay ──────────────────────────────────────────────────────
+        private IntPtr _settingsOverlayPtr;
+        private UILabelHandle _diffEasyLbl;
+        private UILabelHandle _diffNormalLbl;
+        private UILabelHandle _diffHardLbl;
+
+        // ── Settings difficulty card ptrs (do aktualizacji bordera) ──────────
+        private IntPtr _diffEasyCardPtr;
+        private IntPtr _diffNormalCardPtr;
+        private IntPtr _diffHardCardPtr;
+
         //guards
 
 
@@ -195,6 +206,7 @@ namespace CMS2026_OXL
             // so the dropdown itself renders on top of the address bar. ✓
 
             BuildAlertOverlay();
+            BuildSettingsOverlay();
             BuildAddressBar();
 
 
@@ -700,7 +712,9 @@ namespace CMS2026_OXL
         {
             if (_pageOverlayPtr == IntPtr.Zero) return;
 
-            // Chowamy overlaye aukcji, żeby page overlay był na wierzchu
+            // Settings (index 1) ma własny dedykowany overlay
+            if (index == 1) { ShowSettings(); return; }
+
             HideListingPage();
             HideDetail();
 
@@ -1821,6 +1835,209 @@ namespace CMS2026_OXL
             // fallback: jakikolwiek plik z tego folderu
             string any = _carImages.Keys.FirstOrDefault(k => k.StartsWith(listing.ImageFolder + "/"));
             return any;
+        }
+
+        private void BuildSettingsOverlay()
+        {
+            const float TopBarH = 44f;
+            const float Pad = 24f;
+
+            var overlay = UIRuntime.NewVE();
+            var os = UIRuntime.GetStyle(overlay);
+            S.Position(os, "Absolute");
+            S.Left(os, 0f); S.Top(os, OverlayTop);
+            S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
+            S.BgColor(os, PageBg);
+            S.Overflow(os, "Hidden");
+            S.Display(os, false);
+            _panel.AddOverlayToPanel(overlay);
+            _settingsOverlayPtr = UIRuntime.GetPtr(overlay);
+
+            // ── Top bar ───────────────────────────────────────────────────────────
+            var topBar = UIRuntime.NewVE();
+            var ts = UIRuntime.GetStyle(topBar);
+            S.Position(ts, "Absolute");
+            S.Left(ts, 0f); S.Top(ts, 0f);
+            S.Width(ts, PanelW); S.Height(ts, TopBarH);
+            S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
+            UIRuntime.AddChild(overlay, topBar);
+
+            var backPtr = _panel.AddButtonToContainer(
+                topBar, "\u2190  Back", 12f, 6f, 110f, 32f, BtnDark, HideSettings);
+            _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            var titleLbl = _panel.AddLabelToContainer(
+                topBar, "Settings", 130f, 0f, 300f, TopBarH, OXLGreen);
+            titleLbl.SetFontSize(18);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())),
+                TextAnchor.MiddleLeft);
+
+            // Sep
+            var sep = UIRuntime.NewVE();
+            var ss = UIRuntime.GetStyle(sep);
+            S.Position(ss, "Absolute");
+            S.Left(ss, 0f); S.Top(ss, TopBarH);
+            S.Width(ss, PanelW); S.Height(ss, 1f);
+            S.BgColor(ss, Border);
+            UIRuntime.AddChild(overlay, sep);
+
+            // ── Section: Difficulty ───────────────────────────────────────────────
+            float cy = TopBarH + Pad;
+
+            var sectionLbl = _panel.AddLabelToContainer(
+                overlay, "DIFFICULTY",
+                Pad, cy, 300f, 18f,
+                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+            sectionLbl.SetFontSize(10);
+            cy += 22f;
+
+            var descLbl = _panel.AddLabelToContainer(
+                overlay,
+                "Adjusts listing prices relative to the baseline.\n" +
+                "Easy = cars cost 30% less.  Normal = baseline.  Hard = cars cost 30% more.",
+                Pad, cy, PanelW - Pad * 2f, 40f,
+                TextGray);
+            descLbl.SetFontSize(12);
+            cy += 50f;
+
+            // ── Three difficulty buttons side by side ────────────────────────────
+            const float BtnW = 200f;
+            const float BtnH = 64f;
+            const float BtnGap = 16f;
+            float totalBtnsW = BtnW * 3 + BtnGap * 2;
+            float bx = (PanelW - totalBtnsW) / 2f;
+
+            BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,
+    "EASY", "Cars 30% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
+    ref _diffEasyLbl, ref _diffEasyCardPtr);
+            BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,
+    "NORMAL", "Baseline prices", new Color(0.55f, 0.75f, 0.90f, 1f),
+    ref _diffNormalLbl, ref _diffNormalCardPtr);
+            BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,
+    "HARD", "Cars 30% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
+    ref _diffHardLbl, ref _diffHardCardPtr);
+
+            cy += BtnH + 32f;
+
+            // ── Note ──────────────────────────────────────────────────────────────
+            var noteLbl = _panel.AddLabelToContainer(
+                overlay,
+                "Change takes effect on the next generated listing.\n" +
+                "Active listings keep their original prices.",
+                Pad, cy, PanelW - Pad * 2f, 40f,
+                new Color(0.30f, 0.38f, 0.34f, 0.80f));
+            noteLbl.SetFontSize(11);
+
+            const float FootH = 32f;
+            BuildFooter(overlay, PanelH - OverlayTop - FootH);
+        }
+
+        private void BuildDiffButton(object overlay,float x, float y, float w, float h,Difficulty diff, string label, string sublabel,
+            Color accentColor, ref UILabelHandle outLbl, ref IntPtr outCardPtr)
+        {
+            bool isActive = OXLSettings.CurrentDifficulty == diff;
+
+            Color bgNormal = isActive
+                ? new Color(0.06f, 0.14f, 0.10f, 1f)
+                : new Color(0.05f, 0.09f, 0.15f, 1f);
+            Color borderColor = isActive
+                ? accentColor
+                : new Color(0.15f, 0.28f, 0.20f, 0.45f);
+
+            // Card background
+            var card = UIRuntime.NewVE();
+            var cs = UIRuntime.GetStyle(card);
+            S.Position(cs, "Absolute");
+            S.Left(cs, x); S.Top(cs, y);
+            S.Width(cs, w); S.Height(cs, h);
+            S.BgColor(cs, bgNormal);
+            S.BorderRadius(cs, 8f);
+            S.BorderWidth(cs, isActive ? 2f : 1f);
+            S.BorderColor(cs, borderColor);
+            UIRuntime.AddChild(overlay, card);
+            var cardPtr = UIRuntime.GetPtr(card);
+
+            outCardPtr = UIRuntime.GetPtr(card);
+
+
+            _panel.WireHover(cardPtr, bgNormal,
+                new Color(0.08f, 0.16f, 0.14f, 1f),
+                accentColor with { a = 0.30f });
+
+            _panel.WireClick(cardPtr, () =>
+            {
+                OXLSettings.Set(diff);
+                RefreshDiffButtons();
+            });
+
+            // Label (difficulty name)
+            var mainLbl = _panel.AddLabelToContainer(
+                card, label, 0f, 10f, w, 26f, accentColor);
+            mainLbl.SetFontSize(18);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(mainLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            // Sublabel (description)
+            outLbl = _panel.AddLabelToContainer(
+                card, sublabel, 0f, 38f, w, 18f, TextGray);
+            outLbl.SetFontSize(11);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(outLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+        }
+
+        /// <summary>
+        /// Rebuilds the visual state of all three difficulty buttons
+        /// to reflect the current OXLSettings.CurrentDifficulty.
+        /// Called after the player clicks a button.
+        /// </summary>
+        private void RefreshDiffButtons()
+        {
+            RefreshSingleDiffCard(
+                _diffEasyCardPtr, _diffEasyLbl,
+                Difficulty.Easy, new Color(0.20f, 0.60f, 0.35f, 1f));
+
+            RefreshSingleDiffCard(
+                _diffNormalCardPtr, _diffNormalLbl,
+                Difficulty.Normal, new Color(0.55f, 0.75f, 0.90f, 1f));
+
+            RefreshSingleDiffCard(
+                _diffHardCardPtr, _diffHardLbl,
+                Difficulty.Hard, new Color(0.90f, 0.45f, 0.20f, 1f));
+        }
+
+        private void RefreshSingleDiffCard(IntPtr cardPtr, UILabelHandle lbl,
+                                    Difficulty diff, Color accentColor)
+        {
+            if (cardPtr == IntPtr.Zero) return;
+
+            bool active = OXLSettings.CurrentDifficulty == diff;
+            var st = UIRuntime.GetStyle(UIRuntime.WrapVE(cardPtr));
+
+            S.BorderWidth(st, active ? 2f : 1f);
+            S.BorderColor(st, active
+                ? accentColor
+                : new Color(0.15f, 0.28f, 0.20f, 0.45f));
+            S.BgColor(st, active
+                ? new Color(0.06f, 0.14f, 0.10f, 1f)
+                : new Color(0.05f, 0.09f, 0.15f, 1f));
+
+            lbl?.SetColor(active ? accentColor : TextDim);
+        }
+
+        private void ShowSettings()
+        {
+            if (_settingsOverlayPtr == IntPtr.Zero) return;
+            HideListingPage();
+            HideDetail();
+            HidePage();
+            RefreshDiffButtons();
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_settingsOverlayPtr)), true);
+        }
+
+        private void HideSettings()
+        {
+            if (_settingsOverlayPtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_settingsOverlayPtr)), false);
         }
 
         // ══════════════════════════════════════════════════════════════════════
