@@ -2,7 +2,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using Random = UnityEngine.Random;
+
 
 namespace CMS2026_OXL
 {
@@ -37,17 +37,25 @@ namespace CMS2026_OXL
             catch { }
         }
 
-        public static bool HasFreeSlot() =>
-            System.Linq.Enumerable.Any(GetLoaders(),
-                cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
+        public static bool HasFreeSlot()
+        {
+            try
+            {
+                return Il2CppCMS.Garage.CarLoaderPlaces.Get().GetPlaceForLoadCar() != null;
+            }
+            catch
+            {
+                // fallback na starą metodę jeśli API niedostępne
+                return System.Linq.Enumerable.Any(GetLoaders(),
+                    cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
+            }
+        }
 
         // ── Spawn coroutine ───────────────────────────────────────────────────
 
         private static IEnumerator DoSpawn(string gameCarId, CarListing listing, Action<SpawnResult> onDone)
         {
-            var loaders = GetLoaders();
-            var free = System.Linq.Enumerable.FirstOrDefault(loaders,
-                cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
+            var free = Il2CppCMS.Garage.CarLoaderPlaces.Get().GetPlaceForLoadCar();
 
             if (free == null) { onDone?.Invoke(SpawnResult.NoFreeSlot); yield break; }
 
@@ -106,20 +114,16 @@ namespace CMS2026_OXL
             float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
 
-            // Mechanika zawsze nieco gorsza niż to co widać
-            float mechBase = Mathf.Clamp(actual * Random.Range(0.82f, 0.98f), 0.02f, 1.0f);
-            float bodyBase = Mathf.Clamp(actual * Random.Range(0.88f, 1.04f), 0.02f, 1.0f);
-
-            // ── GRUPA I — Materiały eksploatacyjne ────────────────────────────
-            // Zawsze w złym stanie — właściciel o nich zapomina
-            // Przy actual > 0.75 mogą być do 40%, ale nigdy pełne
+            float mechBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.82f, 0.98f), 0.02f, 1.0f);
+            float bodyBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.88f, 1.04f), 0.02f, 1.0f);
             float exhaustableMax = actual > 0.75f ? 0.40f : 0.18f;
-
-            // ── GRUPA II — Ukryta mechanika ───────────────────────────────────
-            // Dealer (arch C) stosuje mnożnik kary — auto wypolerowane, zawieszenie ukryte
             float group2Mult = listing.Archetype == SellerArchetype.Dealer ? 0.40f : 1.0f;
 
-            // ── INDEXEDPARTS — silnik, układ napędowy, elektryka ──────────────
+            // Dent i dust proporcjonalne do zużycia — 0.0 = brak, 1.0 = max
+            float dentAmount = Mathf.Clamp(1.0f - bodyBase, 0f, 1f);
+            float dustAmount = Mathf.Clamp(1.0f - bodyBase + 0.15f, 0f, 1f);
+
+            // ── INDEXEDPARTS ──────────────────────────────────────────────────────
             var ip = cl.indexedParts;
             if (ip != null)
             {
@@ -127,14 +131,14 @@ namespace CMS2026_OXL
                 {
                     if (ip[i] == null) continue;
                     string id = ip[i].id?.ToLower() ?? "";
-
                     float wear = ClassifyAndWear(id, mechBase, exhaustableMax, group2Mult, faults, false);
-                    ip[i].condition = wear;
+                    try { ip[i].SetCondition(wear); } catch { ip[i].condition = wear; }
                 }
             }
             cl.ClearEnginePartsConditionCache();
 
-            // ── CARPARTS — karoseria, szyby, fotele ──────────────────────────
+            // ── CARPARTS — kondycja + dent + dust ────────────────────────────────
+            // Dev_RepairAllBody najpierw — czyści poprzedni stan wizualny
             cl.Dev_RepairAllBody();
             yield return new WaitForEndOfFrame();
 
@@ -145,32 +149,48 @@ namespace CMS2026_OXL
                 {
                     if (cp[i] == null) continue;
                     string name = cp[i].name?.ToLower() ?? "";
-
                     float wear = ClassifyAndWear(name, bodyBase, exhaustableMax, group2Mult, faults, true);
+
                     cl.SetCondition(cp[i], wear);
+
+                    // Denty i kurz — osobny system wizualny
+                    // Tylko na karoserii, nie na szybach/lampach
+                    if (!IsGlass(name, true))
+                    {
+                        try { cl.SetDent(cp[i], dentAmount * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
+                        try { cl.EnableDust(cp[i], dustAmount); } catch { }
+                    }
                 }
             }
 
+            // ── Stan ogólny karoserii ─────────────────────────────────────────────
             cl.SetConditionOnBody(bodyBase);
             cl.SetConditionOnDetails(bodyBase);
             if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
 
-            // ── Historia pojazdu ──────────────────────────────────────────────
+            yield return new WaitForFixedUpdate();
+
+            try { cl.UpdateCarBodyParts(); } catch { }
+            try { cl.SetupCarSupport(); } catch { }
+
+            yield return new WaitForFixedUpdate();
+
+            // ── Historia pojazdu ──────────────────────────────────────────────────
             var cid = cl.CarInfoData;
             if (cid != null)
             {
                 uint mileage = (uint)Mathf.RoundToInt(
-                    Mathf.Lerp(220000, 3000, actual) * Random.Range(0.85f, 1.15f));
+                    Mathf.Lerp(220000, 3000, actual) * UnityEngine.Random.Range(0.85f, 1.15f));
                 cid.Mileage = mileage;
 
-                int age = Mathf.RoundToInt(Mathf.Lerp(28, 1, actual) * Random.Range(0.80f, 1.20f));
+                int age = Mathf.RoundToInt(Mathf.Lerp(28, 1, actual) * UnityEngine.Random.Range(0.80f, 1.20f));
                 cid.Year = (ushort)Mathf.Clamp(2026 - age, 1980, 2025);
             }
 
             yield return new WaitForFixedUpdate();
 
             OXLPlugin.Log.Msg(
-                $"[OXL] ApplyWear done | actual={actual:P0} arch={listing.Archetype} faults={listing.Faults}");
+                $"[OXL] ApplyWear done | actual={actual:P0} body={bodyBase:P0} dent={dentAmount:F2} arch={listing.Archetype} faults={listing.Faults}");
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -190,10 +210,10 @@ namespace CMS2026_OXL
             {
                 if (faults.HasFlag(FaultFlags.GlassDamage))
                     // 40% szans na rozbicie, reszta normalna kondycja
-                    return Random.value < 0.40f ? Random.Range(0.0f, 0.05f) : baseCondition;
+                    return UnityEngine.Random.value < 0.40f ? UnityEngine.Random.Range(0.0f, 0.05f) : baseCondition;
                 else
                     // Bez flagi — małe ryzyko losowe (7%)
-                    return Random.value < 0.07f ? Random.Range(0.0f, 0.10f) : baseCondition;
+                    return UnityEngine.Random.value < 0.07f ? UnityEngine.Random.Range(0.0f, 0.10f) : baseCondition;
             }
 
             // ── GRUPA I — Materiały eksploatacyjne ────────────────────────────
@@ -203,56 +223,56 @@ namespace CMS2026_OXL
                 if (IsTimingBelt(partId))
                 {
                     if (faults.HasFlag(FaultFlags.TimingBelt))
-                        return Random.Range(0.0f, 0.08f); // pułapka: 0–8%
+                        return UnityEngine.Random.Range(0.0f, 0.08f); // pułapka: 0–8%
                     else
-                        return Mathf.Clamp(baseCondition * Random.Range(0.5f, 0.85f), 0.10f, exhaustableMax);
+                        return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.5f, 0.85f), 0.10f, exhaustableMax);
                 }
 
                 // Filtry, świece — zawsze niskie
-                return Random.Range(0.0f, exhaustableMax);
+                return UnityEngine.Random.Range(0.0f, exhaustableMax);
             }
 
             // ── GRUPA I — Hamulce (fault-driven) ─────────────────────────────
             if (IsBrakePart(partId))
             {
                 if (faults.HasFlag(FaultFlags.BrakesGone))
-                    return Random.Range(0.0f, 0.12f); // praktycznie brak
+                    return UnityEngine.Random.Range(0.0f, 0.12f); // praktycznie brak
                 else
-                    return Mathf.Clamp(baseCondition * Random.Range(0.55f, 0.90f), 0.05f, exhaustableMax + 0.20f);
+                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.05f, exhaustableMax + 0.20f);
             }
 
             // ── GRUPA II — Ukryta mechanika ───────────────────────────────────
             if (IsSuspension(partId))
             {
                 if (faults.HasFlag(FaultFlags.SuspensionWorn))
-                    return Mathf.Clamp(baseCondition * group2Mult * Random.Range(0.20f, 0.45f), 0.02f, 0.35f);
+                    return Mathf.Clamp(baseCondition * group2Mult * UnityEngine.Random.Range(0.20f, 0.45f), 0.02f, 0.35f);
                 else
-                    return Mathf.Clamp(baseCondition * group2Mult * Random.Range(0.70f, 1.0f), 0.05f, 1.0f);
+                    return Mathf.Clamp(baseCondition * group2Mult * UnityEngine.Random.Range(0.70f, 1.0f), 0.05f, 1.0f);
             }
 
             if (IsExhaust(partId))
             {
                 if (faults.HasFlag(FaultFlags.ExhaustRusted))
-                    return Random.Range(0.0f, 0.15f);
+                    return  UnityEngine.Random.Range(0.0f, 0.15f);
                 else
-                    return Mathf.Clamp(baseCondition * Random.Range(0.60f, 0.95f), 0.05f, 1.0f);
+                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.05f, 1.0f);
             }
 
             if (IsElectrical(partId))
             {
                 if (faults.HasFlag(FaultFlags.ElectricalFault))
-                    return Mathf.Clamp(baseCondition * Random.Range(0.15f, 0.40f), 0.02f, 0.40f);
+                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.15f, 0.40f), 0.02f, 0.40f);
                 else
-                    return Mathf.Clamp(baseCondition * Random.Range(0.75f, 1.0f), 0.10f, 1.0f);
+                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.10f, 1.0f);
             }
 
             if (faults.HasFlag(FaultFlags.HeadGasket) && IsHeadGasketRelated(partId))
-                return Random.Range(0.0f, 0.10f);
+                return UnityEngine.Random.Range(0.0f, 0.10f);
 
             // ── GRUPA IV — Twarda mechanika (domyślna) ────────────────────────
             // Minimum 25% — silnik fizycznie istnieje, tylko wrecker może zejść niżej
             float hardMin = 0.25f;
-            return Mathf.Clamp(baseCondition * Random.Range(0.85f, 1.0f), hardMin, 1.0f);
+            return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.85f, 1.0f), hardMin, 1.0f);
         }
 
         // ══════════════════════════════════════════════════════════════════════
