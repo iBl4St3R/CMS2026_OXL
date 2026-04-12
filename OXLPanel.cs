@@ -82,6 +82,25 @@ namespace CMS2026_OXL
         private readonly Dictionary<string, UILabelHandle> _timerLabels = new();
         private bool _buyClickConsumed = false;
 
+
+        // ── Photo gallery state ───────────────────────────────────────────────────
+        private CarPhotoLoader _photoLoader;
+        private List<Texture2D> _galleryPhotos = new();
+        private int _galleryIndex = 0;
+
+        // ── Gallery UI elements ───────────────────────────────────────────────────
+        private IntPtr _galleryMainImgPtr;    // główne zdjęcie 820×462
+        private IntPtr _galleryPrevBtnPtr;
+        private IntPtr _galleryNextBtnPtr;
+        private IntPtr _galleryThumbsRowPtr;  // kontener miniaturek
+        private UILabelHandle _galleryCounterLbl;
+
+        private const float ImgW = 820f;
+        private const float ImgH = 462f;
+        private const float ThumbW = 80f;
+        private const float ThumbH = 45f;
+        private const float ThumbGap = 6f;
+
         // ── Detail overlay ────────────────────────────────────────────────────
         private IntPtr _detailOverlayPtr;
         private UILabelHandle _detailTitle;
@@ -168,6 +187,9 @@ namespace CMS2026_OXL
         public void Build()
         {
             LoadIcons();
+
+            string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
+            _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
 
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
             float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
@@ -860,13 +882,14 @@ namespace CMS2026_OXL
             S.BorderColor(ibs, new Color(0.15f, 0.25f, 0.38f, 0.7f));
             UIRuntime.AddChild(rowBg, imgBox);
 
-            string imgKey = ResolveImageKey(listing);
-            if (imgKey != null && _carImages.TryGetValue(imgKey, out var carTex))
+            Texture2D thumbTex = _photoLoader?.GetThumbnail(listing);
+            if (thumbTex != null)
             {
-                UIRuntime.SetBackgroundImage(imgBox, carTex);
+                UIRuntime.SetBackgroundImage(imgBox, thumbTex);
             }
             else
             {
+                // fallback emoji
                 var iconLbl = _panel.AddLabelToContainer(
                     imgBox, "\U0001F697", 0f, 0f, ImgW, ImgH,
                     new Color(0.28f, 0.40f, 0.52f, 1f));
@@ -1133,29 +1156,48 @@ namespace CMS2026_OXL
             const float RightX = ImgX + ImgW + 24f;      // 868
             const float RightW = PanelW - RightX - 12f;  // ~576
 
-            // ── Large image ───────────────────────────────────────────────────
-            var imgBox = UIRuntime.NewVE();
-            var ibs = UIRuntime.GetStyle(imgBox);
-            S.Position(ibs, "Absolute");
-            S.Left(ibs, ImgX); S.Top(ibs, ContentTop);
-            S.Width(ibs, ImgW); S.Height(ibs, ImgH);
-            S.BgColor(ibs, new Color(0.07f, 0.11f, 0.18f, 1f));
-            S.BorderRadius(ibs, 10f);
-            S.BorderWidth(ibs, 1f);
-            S.BorderColor(ibs, new Color(0.18f, 0.28f, 0.42f, 0.7f));
-            UIRuntime.AddChild(overlay, imgBox);
-            _detailImgBoxPtr = UIRuntime.GetPtr(imgBox);
+            // ── GALLERY — główne zdjęcie + strzałki + miniatury ──────────────────────
+            var mainImgBox = UIRuntime.NewVE();
+            var mibs = UIRuntime.GetStyle(mainImgBox);
+            S.Position(mibs, "Absolute");
+            S.Left(mibs, ImgX); S.Top(mibs, ContentTop);
+            S.Width(mibs, ImgW); S.Height(mibs, ImgH);
+            S.BgColor(mibs, new Color(0.05f, 0.08f, 0.13f, 1f));
+            S.BorderRadius(mibs, 6f);
+            UIRuntime.AddChild(overlay, mainImgBox);
+            _galleryMainImgPtr = UIRuntime.GetPtr(mainImgBox);
 
-            var imgIcon = Activator.CreateInstance(UIRuntime.LabelType);
-            var iils = UIRuntime.GetStyle(imgIcon);
-            S.Position(iils, "Absolute");
-            S.Left(iils, 0f); S.Top(iils, 0f);
-            S.Width(iils, ImgW); S.Height(iils, ImgH);
-            S.Color(iils, new Color(0.20f, 0.30f, 0.40f, 1f));
-            S.Font(iils); S.TextAlign(iils, TextAnchor.MiddleCenter);
-            S.FontSize(iils, 72);
-            UIRuntime.LabelType.GetProperty("text").SetValue(imgIcon, "\U0001F697");
-            UIRuntime.AddChild(imgBox, imgIcon);
+            // Strzałka wstecz
+            _galleryPrevBtnPtr = _panel.AddButtonToContainer(
+                mainImgBox, "‹",
+                4f, (ImgH - 48f) / 2f, 36f, 48f,
+                new Color(0f, 0f, 0f, 0.45f),
+                () => GalleryStep(-1));
+            StyleGalleryArrow(_galleryPrevBtnPtr);
+
+            // Strzałka naprzód
+            _galleryNextBtnPtr = _panel.AddButtonToContainer(
+                mainImgBox, "›",
+                ImgW - 40f, (ImgH - 48f) / 2f, 36f, 48f,
+                new Color(0f, 0f, 0f, 0.45f),
+                () => GalleryStep(1));
+            StyleGalleryArrow(_galleryNextBtnPtr);
+
+            // Licznik zdjęć
+            _galleryCounterLbl = _panel.AddLabelToContainer(
+                mainImgBox, "1 / 1",
+                ImgW - 60f, ImgH - 22f, 56f, 18f,
+                new Color(1f, 1f, 1f, 0.55f));
+            _galleryCounterLbl.SetFontSize(10);
+
+            // Miniatury pod głównym zdjęciem
+            var thumbsRow = UIRuntime.NewVE();
+            var trs = UIRuntime.GetStyle(thumbsRow);
+            S.Position(trs, "Absolute");
+            S.Left(trs, ImgX); S.Top(trs, ContentTop + ImgH + 6f);
+            S.Width(trs, ImgW); S.Height(trs, ThumbH);
+            UIRuntime.AddChild(overlay, thumbsRow);
+            _galleryThumbsRowPtr = UIRuntime.GetPtr(thumbsRow);
 
             // ── RIGHT COLUMN ──────────────────────────────────────────────────
             float ry = ContentTop;
@@ -1341,16 +1383,7 @@ namespace CMS2026_OXL
             _detailSellerNote.SetFontSize(13);
 
 
-            // WIP label pod zdjęciem
-            var wipLbl = _panel.AddLabelToContainer(
-                overlay, "\u26A0  Images: Work In Progress  \u2014  Car full details coming soon  \u26A0",
-                ImgX, ContentTop + ImgH + 4f, ImgW, 22f,
-                new Color(0.95f, 0.55f, 0.10f, 0.80f));
-            wipLbl.SetFontSize(10);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(wipLbl.GetRawPtr())),
-                TextAnchor.MiddleCenter);
-            S.BgColor(UIRuntime.GetStyle(UIRuntime.WrapVE(wipLbl.GetRawPtr())),
-                new Color(0.18f, 0.10f, 0.02f, 0.60f));
+            
 
 
             const float FootH = 32f;
@@ -1358,24 +1391,111 @@ namespace CMS2026_OXL
         }
 
 
-        // Because ShowDetail is called repeatedly, the tags will stack on each open.Cleanest fix: add a bool _detailSpecsBuilt = false flag and only call BuildDetailSpecs once, or clear a dedicated specs container before rebuilding — same pattern as RefreshListings() uses Clear().
+        private void StyleGalleryArrow(IntPtr ptr)
+        {
+            var st = UIRuntime.GetStyle(UIRuntime.WrapVE(ptr));
+            S.BorderRadius(st, 6f);
+            S.FontSize(st, 22);
+            // Tekst wyśrodkowany
+            S.TextAlign(st, TextAnchor.MiddleCenter);
+        }
+
+        private void GalleryStep(int delta)
+        {
+            if (_galleryPhotos.Count == 0) return;
+            _galleryIndex = (_galleryIndex + delta + _galleryPhotos.Count) % _galleryPhotos.Count;
+
+            // Aktualizuj counter i thumbs od razu
+            _galleryCounterLbl?.SetText($"{_galleryIndex + 1} / {_galleryPhotos.Count}");
+            RefreshGalleryThumbs();
+
+            // Animowane przejście głównego zdjęcia
+            if (_galleryMainImgPtr != IntPtr.Zero)
+            {
+                var mainVE = UIRuntime.WrapVE(_galleryMainImgPtr);
+                Texture2D next = _galleryPhotos[_galleryIndex];
+                MelonCoroutines.Start(GalleryFadeSwap(mainVE, next));
+            }
+        }
+        private void RefreshGallery()
+        {
+            if (_galleryMainImgPtr == IntPtr.Zero) return;
+
+            // Główne zdjęcie
+            var mainVE = UIRuntime.WrapVE(_galleryMainImgPtr);
+            Texture2D tex = _galleryPhotos.Count > 0 ? _galleryPhotos[_galleryIndex] : null;
+            UIRuntime.SetBackgroundImage(mainVE, tex);
+
+            // Licznik
+            _galleryCounterLbl?.SetText($"{_galleryIndex + 1} / {Mathf.Max(1, _galleryPhotos.Count)}");
+
+            // Strzałki
+            bool moreThanOne = _galleryPhotos.Count > 1;
+            if (_galleryPrevBtnPtr != IntPtr.Zero)
+                S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_galleryPrevBtnPtr)), moreThanOne);
+            if (_galleryNextBtnPtr != IntPtr.Zero)
+                S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_galleryNextBtnPtr)), moreThanOne);
+
+            // Miniaturki
+            RefreshGalleryThumbs();
+        }
+
+        private void RefreshGalleryThumbs()
+        {
+            if (_galleryThumbsRowPtr == IntPtr.Zero) return;
+            var thumbsVE = UIRuntime.WrapVE(_galleryThumbsRowPtr);
+            UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(thumbsVE, null);
+
+            if (_galleryPhotos.Count == 0) return;
+
+            float totalThumbsW = _galleryPhotos.Count * ThumbW + (_galleryPhotos.Count - 1) * ThumbGap;
+            float startX = (ImgW - totalThumbsW) / 2f;
+
+            for (int i = 0; i < _galleryPhotos.Count; i++)
+            {
+                int idx = i;
+                bool isActive = (idx == _galleryIndex);
+
+                var thumb = UIRuntime.NewVE();
+                var ts = UIRuntime.GetStyle(thumb);
+                S.Position(ts, "Absolute");
+                S.Left(ts, startX + idx * (ThumbW + ThumbGap));
+                S.Top(ts, 0f);
+                S.Width(ts, ThumbW);
+                S.Height(ts, ThumbH);
+                S.BorderRadius(ts, 4f);
+                S.BorderWidth(ts, isActive ? 2f : 1f);
+                S.BorderColor(ts, isActive ? OXLGreen : new Color(0.20f, 0.30f, 0.42f, 0.60f));
+                S.BgColor(ts, new Color(0.07f, 0.11f, 0.18f, 1f));
+                UIRuntime.SetBackgroundImage(thumb, _galleryPhotos[idx]);
+                UIRuntime.AddChild(thumbsVE, thumb);
+
+                var thumbPtr = UIRuntime.GetPtr(thumb);
+                _panel.WireClick(thumbPtr, () => { _galleryIndex = idx; RefreshGallery(); });
+                _panel.WireHover(thumbPtr,
+                    new Color(0.07f, 0.11f, 0.18f, 1f),
+                    new Color(0.12f, 0.18f, 0.28f, 1f),
+                    OXLGreen);
+            }
+        }
+
         private void ShowDetail(CarListing listing)
         {
-            if (_detailImgBoxPtr != IntPtr.Zero)
-            {
-                var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
-                string key = ResolveImageKey(listing);
-                UIRuntime.SetBackgroundImage(imgVE, key != null && _carImages.TryGetValue(key, out var t) ? t : null);
-            }
             _detailListing = listing;
 
+            // ── Ładuj zdjęcia lazy ────────────────────────────────────────────────
+            _galleryPhotos = _photoLoader?.GetPhotos(listing, preferMed: true)
+                             ?? new List<Texture2D>();
+            _galleryIndex = 0;
+            RefreshGallery();
+
+            // ── Reszta pól (bez zmian) ────────────────────────────────────────────
             _detailTitle?.SetText($"{listing.Make} {listing.Model}");
             _detailPrice?.SetText($"${listing.Price:N0}");
             _detailTimer?.SetText(FormatTimer(listing));
             _detailSellerNote?.SetText($"\"{listing.SellerNote}\"");
-            _detailLocationLbl?.SetText($"{listing.Location}");
+            _detailLocationLbl?.SetText(listing.Location);
             _detailYear?.SetText($"Listed  \u00B7  ~{listing.DeliveryHours}h delivery");
-
             _detailSellerStars?.SetText(FormatStars(listing.SellerRating));
             _detailSellerStars?.SetColor(StarColor(listing.SellerRating));
 
@@ -1385,15 +1505,6 @@ namespace CMS2026_OXL
                 _detailBalanceLbl?.SetText($"Balance:  ${bal:N0}");
             }
             catch { _detailBalanceLbl?.SetText("Balance: ---"); }
-
-            if (_detailImgBoxPtr != IntPtr.Zero)
-            {
-                var imgVE = UIRuntime.WrapVE(_detailImgBoxPtr);
-                if (_carImages.TryGetValue(listing.ImageFolder, out var tex))
-                    UIRuntime.SetBackgroundImage(imgVE, tex);
-                else
-                    UIRuntime.SetBackgroundImage(imgVE, null);
-            }
 
             if (_detailSpecsContainerPtr != IntPtr.Zero)
             {
@@ -1411,6 +1522,8 @@ namespace CMS2026_OXL
         {
             if (_detailOverlayPtr == IntPtr.Zero) return;
             _detailListing = null;
+            _galleryPhotos.Clear();     // ← puszcza referencje
+            _photoLoader?.Evict();      // ← LRU cleanup
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), false);
         }
 
@@ -1526,6 +1639,46 @@ namespace CMS2026_OXL
                 return null;
             }
         }
+
+        // Dodaj do StyleGalleryArrow lub oddzielna metoda
+        private void AnimateGalleryTransition(object mainVE, Texture2D newTex, bool goRight)
+        {
+            // Fade out → swap texture → fade in
+            // UIToolkit nie ma built-in translate animation przez C# API w Il2Cpp,
+            // więc używamy prostego coroutine opacity trick
+            MelonCoroutines.Start(GalleryFadeSwap(mainVE, newTex));
+        }
+
+        private System.Collections.IEnumerator GalleryFadeSwap(object veObj, Texture2D newTex)
+        {
+            // Fade out (3 kroki)
+            for (float a = 1f; a >= 0f; a -= 0.33f)
+            {
+                // UIToolkit opacity przez style
+                var st = UIRuntime.GetStyle(veObj);
+                // Tymczasowo przyciemniamy tło
+                S.BgColor(st, new Color(0f, 0f, 0f, a * 0.7f));
+                yield return new WaitForSeconds(0.03f);
+            }
+
+            UIRuntime.SetBackgroundImage(veObj, newTex);
+
+            // Fade in
+            for (float a = 0f; a <= 1f; a += 0.33f)
+            {
+                var st = UIRuntime.GetStyle(veObj);
+                S.BgColor(st, new Color(0f, 0f, 0f, (1f - a) * 0.7f));
+                yield return new WaitForSeconds(0.03f);
+            }
+
+            // Reset do czystego tła
+            var finalSt = UIRuntime.GetStyle(veObj);
+            S.BgColor(finalSt, new Color(0f, 0f, 0f, 0f));
+        }
+
+        
+
+
 
 
         // ── Seller rating helpers ─────────────────────────────────────────────────

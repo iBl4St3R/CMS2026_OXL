@@ -39,28 +39,48 @@ namespace CMS2026_OXL
         //  KOLORY — 4 aktywne per auto, reszta w komentarzu do przyszłego użycia
         // ══════════════════════════════════════════════════════════════════════
 
+        // GetColorRegistry przekazuje AllColors — loader używa ich jako fallback
+        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry()
+        {
+            var result = new Dictionary<string, (string, string[])>();
+            foreach (var def in CarDefs)
+            {
+                if (AllColors.TryGetValue(def.InternalId, out var colors))
+                    result[def.ImageFolder] = (def.InternalId, colors);
+            }
+            return result;
+        }
+
+
+        // ── Pełna paleta — kolejność = AllowedColors w grze = color_map.txt ──────
+        private static readonly Dictionary<string, string[]> AllColors =
+            new Dictionary<string, string[]>
+        {
+    { "car_dnb_censor", new[] {
+        "black","darkred","gray","white","darkgreen","cyan","lightblue","blue","purple","pink","red" } },
+    { "car_katagiri_tamago", new[] {
+        "black","white","beige","gold","darkgreen","gray","gray2","silver","teal","navy","blue","red","darkred" } },
+    { "car_luxor_streamliner", new[] {
+        "darkgray","beige","cream","offwhite","gray","teal","darkblue","lightblue","navy","nearblack","charcoal","silver","darkmaroon","maroon" } },
+    { "car_mayen_m5", new[] {
+        "black","white","green","darkgray","darkteal","silver","darkblue","navy","maroon","darkmaroon","red" } },
+    { "car_salem_aries", new[] {
+        "red","darkred","rust","gold","green","white","lightblue","lightblue2","silver","darkpurple" } },
+        };
+
+
+
+
+
+        // ── Aktywne w listingach — nazwy muszą być z AllColors ───────────────────
         private static readonly Dictionary<string, string[]> ActiveColors =
             new Dictionary<string, string[]>
         {
-    // DNB Censor
-    // Pełna paleta: black, red, gray, white, darkgreen, cyan, blue, purple, pink, silver
-    { "car_dnb_censor",          new[] { "black", "white", "cyan", "silver" } },
-
-    // Katagiri Tamago BP
-    // Pełna paleta: black, white, silver, gray, gold, teal, red, darkgray
-    { "car_katagiri_tamago",     new[] { "white", "silver", "black", "red" } },
-
-    // Luxor Streamliner Mk3
-    // Pełna paleta: beige, cream, gray, silver, teal, lightblue, darkgray, navy
-    { "car_luxor_streamliner",   new[] { "silver", "cream", "navy", "gray" } },
-
-    // Mayen M5
-    // Pełna paleta: white, darkgreen, gray, silver, darkblue, navy, maroon, black
-    { "car_mayen_m5",            new[] { "black", "white", "darkblue", "gray" } },
-
-    // Salem Aries MK3
-    // Pełna paleta: red, orange, darkgray, gold, green, white, lightblue, silver
-    { "car_salem_aries",         new[] { "white", "red", "silver", "lightblue" } },
+    { "car_dnb_censor",        new[] { "black", "white", "cyan", "gray" } },
+    { "car_katagiri_tamago",   new[] { "white", "silver", "black", "red" } },
+    { "car_luxor_streamliner", new[] { "silver", "cream", "navy", "gray" } },
+    { "car_mayen_m5",          new[] { "black", "white", "darkblue", "silver" } },
+    { "car_salem_aries",       new[] { "white", "red", "silver", "lightblue" } },
         };
 
 
