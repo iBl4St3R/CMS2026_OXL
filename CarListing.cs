@@ -1,5 +1,7 @@
 ﻿namespace CMS2026_OXL
 {
+
+   
     public enum SellerArchetype
     {
         Honest,    // A — uczciwy, cena = stan
@@ -23,6 +25,7 @@
 
     public class CarListing
     {
+        public List<string> PhotoFiles { get; set; } = new();
         public string Make { get; set; } = "";
         public string Model { get; set; } = "";
         public int Year { get; set; }

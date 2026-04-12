@@ -208,7 +208,11 @@ namespace CMS2026_OXL
 
             yield return new WaitForFixedUpdate();
 
-            OXLPlugin.Log.Msg($"[OXL] ApplyWear done | actual={actual:P0} body={bodyBase:P0} arch={listing.Archetype} faults={listing.Faults}");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] ══ WEAR APPLIED ═════════════════");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] Actual={actual:P0}  MechBase={mechBase:P0}  BodyBase={bodyBase:P0}");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] Arch={listing.Archetype}  ExhaustMax={exhaustableMax:P0}  G2Mult={group2Mult:F2}");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] Faults={listing.Faults}");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] ════════════════════════════════════");
         }
 
         // ══════════════════════════════════════════════════════════════════════

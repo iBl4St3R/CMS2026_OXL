@@ -9,7 +9,7 @@ namespace CMS2026_OXL
     public class CarPhotoLoader
     {
         private const int MAX_CACHED = 40;
-        private const int PHOTOS_PER_SESSION = 6;
+        private const int PHOTOS_PER_SESSION = 8;
 
         private readonly string _lowResRoot;
         private readonly string _medResRoot;
@@ -109,6 +109,18 @@ namespace CMS2026_OXL
         //  PUBLIC API
         // ══════════════════════════════════════════════════════════════════════
 
+        public List<Texture2D> GetPhotosFromFiles(List<string> files)
+        {
+            var result = new List<Texture2D>();
+            foreach (var file in files)
+            {
+                var tex = GetOrLoad(MakeCacheKey(file), file);
+                if (tex != null) result.Add(tex);
+            }
+            return result;
+        }
+
+
         public List<Texture2D> GetPhotos(CarListing listing, bool preferMed = true)
         {
             string carName = listing.ImageFolder;
@@ -135,11 +147,11 @@ namespace CMS2026_OXL
             if (sessionPath == null)
                 return Fallback(carName);
 
-            var files = Directory.GetFiles(sessionPath, "*.jpg")
-                .Where(f => !f.EndsWith("MINI.jpg", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => f)
-                .Take(PHOTOS_PER_SESSION)
-                .ToList();
+            var allFiles = Directory.GetFiles(sessionPath, "*.jpg").Where(f => !f.EndsWith("MINI.jpg", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(f => f)
+            .ToArray();
+
+            var files = PickPhotoSelection(allFiles);
 
             if (files.Count == 0)
                 return Fallback(carName);
@@ -156,6 +168,95 @@ namespace CMS2026_OXL
 
             return result.Count > 0 ? result : Fallback(carName);
         }
+
+        public struct CacheInfo
+        {
+            public int Count;
+            public float EstimatedMB;
+            public int LruCount;
+            public int FallbackCount;
+        }
+
+        public CacheInfo GetCacheInfo()
+        {
+            float mb = 0f;
+            foreach (var tex in _cache.Values)
+            {
+                if (tex == null) continue;
+                // width * height * bytes per pixel (RGB24=3, RGBA32=4)
+                int bpp = tex.format == TextureFormat.RGBA32 ? 4 : 3;
+                mb += (tex.width * tex.height * bpp) / 1024f / 1024f;
+            }
+
+            return new CacheInfo
+            {
+                Count = _cache.Count,
+                EstimatedMB = mb,
+                LruCount = _lruOrder.Count,
+                FallbackCount = _fallbacks.Count,
+            };
+        }
+
+        /// <summary>
+        /// Wybiera zestaw plików zdjęć dla listingu — raz przy generowaniu oferty.
+        /// Nie ładuje tekstur, tylko zwraca ścieżki.
+        /// </summary>
+        public List<string> SelectPhotoFiles(CarListing listing)
+        {
+            string carName = listing.ImageFolder;
+            string condFolder = PhotoConditionHelper.ToFolderName(
+                                      PhotoConditionHelper.Resolve(listing));
+            string colorFolder = ResolveColorFolderName(carName, listing.Color);
+            string colorPath = FindColorPath(carName, colorFolder, preferMed: true);
+
+            if (colorPath == null) return new List<string>();
+
+            string condPath = Path.Combine(colorPath, condFolder);
+            if (!Directory.Exists(condPath))
+                condPath = FallbackCondPath(colorPath);
+            if (condPath == null) return new List<string>();
+
+            string sessionPath = PickSession(condPath);
+            if (sessionPath == null) return new List<string>();
+
+            var allFiles = Directory.GetFiles(sessionPath, "*.jpg")
+                .Where(f => !f.EndsWith("MINI.jpg", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f)
+                .ToArray();
+
+            return PickPhotoSelection(allFiles);
+        }
+
+        private static List<string> PickPhotoSelection(string[] allFiles)
+        {
+            if (allFiles.Length == 0) return new List<string>();
+
+            int maxAvailable = allFiles.Length;
+            int targetCount = UnityEngine.Random.Range(5, Mathf.Min(9, maxAvailable + 1));
+            targetCount = Mathf.Max(targetCount, Mathf.Min(2, maxAvailable));
+
+            var result = new List<string>();
+
+            bool takeBothBase = maxAvailable >= 2 && UnityEngine.Random.value < 0.55f;
+            result.Add(allFiles[0]);
+            if (takeBothBase && maxAvailable >= 2)
+                result.Add(allFiles[1]);
+
+            var remaining = allFiles.Skip(takeBothBase ? 2 : 1).ToList();
+            for (int i = remaining.Count - 1; i > 0; i--)
+            {
+                int j = UnityEngine.Random.Range(0, i + 1);
+                (remaining[i], remaining[j]) = (remaining[j], remaining[i]);
+            }
+
+            result.AddRange(remaining.Take(targetCount - result.Count));
+
+            // Base shots pierwsze, reszta w losowej kolejności w jakiej zostały dobrane
+            var baseShots = result.Where(f => Array.IndexOf(allFiles, f) < 2).ToList();
+            var otherShots = result.Where(f => Array.IndexOf(allFiles, f) >= 2).ToList();
+            return baseShots.Concat(otherShots).ToList();
+        }
+
 
         public Texture2D GetThumbnail(CarListing listing)
         {

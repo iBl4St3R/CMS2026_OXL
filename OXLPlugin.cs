@@ -82,24 +82,197 @@ namespace CMS2026_OXL
 
                 if (apiType == null) return;
 
-                apiType.GetMethod("RegisterMod")?.Invoke(null, new object[]
+                var print = apiType.GetMethod("Print", new[] { typeof(string), typeof(string) });
+                var register = apiType.GetMethod("RegisterCommand");
+
+                void Print(string msg) => print?.Invoke(null, new object[] { msg, "OXL" });
+
+                // ── Istniejąca komenda ────────────────────────────────────────────
+                register?.Invoke(null, new object[]
                 {
-                    "CMS2026_OXL",
-                    "OXL — Online eX-Owner Lies",
-                    "Blaster",
-                    "In-game car auction marketplace for CMS 2026",
-                    "https://github.com/iBl4St3R/CMS2026-OXL",
-                    null, null
+            "oxl_open",
+            "Toggle the OXL auction panel",
+            (Action<string[]>)(_ => { _panel?.Toggle(); })
                 });
 
-                apiType.GetMethod("RegisterCommand")?.Invoke(null, new object[]
+                // ── oxl_status — podsumowanie aktywnych listingów ─────────────────
+                register?.Invoke(null, new object[]
                 {
-                    "oxl_open",
-                    "Toggle the OXL auction panel, 2nd time close the panel",
-                    (Action<string[]>)(_ => { if (_panel != null) _panel.Toggle(); })
+            "oxl_status",
+            "Show active listing count and game time",
+            (Action<string[]>)(_ =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                var listings = _panel.GetActiveListings();
+                Print($"Active listings: {listings.Count}");
+                Print($"Game time: {_panel.GetGameTime():F0}s");
+                foreach (var l in listings)
+                {
+                    float rem = l.ExpiresAt - _panel.GetGameTime();
+                    Print($"  [{l.Archetype,-9}] {l.Make} {l.Model} {l.Year} | ${l.Price:N0} | " +
+                          $"{l.SellerRating}★ | Cond={l.ApparentCondition:P0}/{l.ActualCondition:P0} | " +
+                          $"Expires in {(int)(rem/60f)}:{(int)(rem%60f):D2}");
+                }
+            })
+                });
+
+                // ── oxl_end_all — kończy wszystkie aukcje ─────────────────────────
+                register?.Invoke(null, new object[]
+                {
+            "oxl_end_all",
+            "End all active auctions immediately",
+            (Action<string[]>)(_ =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                int count = _panel.GetActiveListings().Count;
+                _panel.GetActiveListings().Clear();
+                Print($"Ended {count} active auction(s).");
+            })
+                });
+
+                // ── oxl_generate — generuje N nowych listingów ───────────────────
+                register?.Invoke(null, new object[]
+                {
+            "oxl_generate",
+            "oxl_generate <count> — generate N new listings (1–20)",
+            (Action<string[]>)(args =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                int n = 1;
+                if (args.Length > 1) int.TryParse(args[1], out n);
+                n = Math.Max(1, Math.Min(50, n));
+                _panel.GenerateListings(n);
+                Print($"Generated {n} new listing(s). Total: {_panel.GetActiveListings().Count}");
+            })
+                });
+
+                // ── oxl_detail — szczegóły aktualnie otwartego listingu ──────────
+                register?.Invoke(null, new object[]
+                {
+            "oxl_detail",
+            "Show full details of the currently open listing",
+            (Action<string[]>)(_ =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                var l = _panel.GetCurrentDetailListing();
+                if (l == null) { Print("No listing currently open. Open a detail view first."); return; }
+
+                Print($"══ LISTING DETAIL ═══════════════════════");
+                Print($"  Car:        {l.Make} {l.Model} {l.Year}");
+                Print($"  Price:      ${l.Price:N0}");
+                Print($"  Plate:      {l.Registration}");
+                Print($"  Color:      {l.Color}");
+                Print($"  Mileage:    {l.Mileage:N0} mi");
+                Print($"  Location:   {l.Location}  (~{l.DeliveryHours}h delivery)");
+                Print($"──────────────────────────────────────────");
+                Print($"  Archetype:  {l.Archetype}");
+                Print($"  Rating:     {l.SellerRating}★");
+                Print($"  Apparent:   {l.ApparentCondition:P0}  (what buyer sees)");
+                Print($"  Actual:     {l.ActualCondition:P0}  (real condition)");
+                Print($"  Honesty:    {l.ActualCondition / Math.Max(l.ApparentCondition, 0.01f):P0}");
+                Print($"  Faults:     {l.Faults}");
+                Print($"──────────────────────────────────────────");
+                Print($"  Note:       \"{l.SellerNote}\"");
+                Print($"══════════════════════════════════════════");
+            })
+                });
+
+                // ── oxl_end_current — kończy aktualnie otwarty listing ───────────
+                register?.Invoke(null, new object[]
+                {
+            "oxl_end_current",
+            "End the currently open listing auction",
+            (Action<string[]>)(_ =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                var l = _panel.GetCurrentDetailListing();
+                if (l == null) { Print("No listing currently open."); return; }
+                string name = $"{l.Make} {l.Model} {l.Year}";
+                _panel.GetActiveListings().Remove(l);
+                _panel.CloseDetail();
+                Print($"Auction ended: {name}");
+            })
+                });
+
+                // ── oxl_reveal — ujawnia prawdziwy stan wszystkich listingów ──────
+                register?.Invoke(null, new object[]
+                {
+            "oxl_reveal",
+            "Reveal actual condition and hidden faults for all active listings",
+            (Action<string[]>)(_ =>
+            {
+                if (_panel == null) { Print("OXL panel not initialized."); return; }
+                var listings = _panel.GetActiveListings();
+                if (listings.Count == 0) { Print("No active listings."); return; }
+                Print($"══ REVEAL ALL ({listings.Count} listings) ════════════");
+                foreach (var l in listings)
+                {
+                    float gap = l.ApparentCondition - l.ActualCondition;
+                    string warning = gap > 0.25f ? " ⚠ SCAM" : gap > 0.10f ? " ! suspicious" : "";
+                    Print($"  {l.Make} {l.Model} | {l.Archetype,-9} | " +
+                          $"App={l.ApparentCondition:P0} Act={l.ActualCondition:P0}{warning}");
+                    if (l.Faults != FaultFlags.None)
+                        Print($"    Faults: {l.Faults}");
+                }
+                Print($"══════════════════════════════════════════");
+            })
                 });
 
 
+                // ── oxl_memory — pomiar RAM tylko naszego systemu ─────────────────────
+                register?.Invoke(null, new object[]
+                {
+    "oxl_memory",
+    "Show OXL memory usage (textures, listings, cache)",
+    (Action<string[]>)(_ =>
+    {
+        if (_panel == null) { Print("OXL panel not initialized."); return; }
+
+        // ── Tekstury w cache ──────────────────────────────────────────────
+        var cacheInfo = _panel.GetPhotoCacheInfo();
+
+        // ── Listings ──────────────────────────────────────────────────────
+        int listingCount = _panel.GetActiveListings()?.Count ?? 0;
+        int photoFilesTotal = _panel.GetActiveListings()
+            ?.Sum(l => l.PhotoFiles?.Count ?? 0) ?? 0;
+
+        // ── Managed heap — nasz assembly ─────────────────────────────────
+        long managedBytes = GC.GetTotalMemory(false);
+
+        Print($"══ OXL MEMORY ════════════════════════════");
+        Print($"  Texture cache:   {cacheInfo.Count} textures");
+        Print($"  Cache VRAM est:  ~{cacheInfo.EstimatedMB:F1} MB");
+        Print($"  Cached keys:     {cacheInfo.LruCount} in LRU");
+        Print($"  Fallbacks:       {cacheInfo.FallbackCount} textures");
+        Print($"──────────────────────────────────────────");
+        Print($"  Active listings: {listingCount}");
+        Print($"  PhotoFiles refs: {photoFilesTotal} path strings");
+        Print($"──────────────────────────────────────────");
+        Print($"  Managed heap:    {managedBytes / 1024f / 1024f:F2} MB  (whole process)");
+        Print($"  (heap includes Unity, MelonLoader, all mods)");
+        Print($"══════════════════════════════════════════");
+    })
+                });
+                
+
+
+                                // ── oxl_set_difficulty — zmienia trudność z konsoli ───────────────
+                                register?.Invoke(null, new object[]
+                {
+            "oxl_difficulty",
+            "oxl_difficulty <easy|normal|hard> — set economy difficulty",
+            (Action<string[]>)(args =>
+            {
+                if (args.Length < 2) { Print($"Current difficulty: {OXLSettings.CurrentDifficulty}"); return; }
+                if (Enum.TryParse(args[1], ignoreCase: true, out Difficulty d))
+                {
+                    OXLSettings.Set(d);
+                    Print($"Difficulty set to: {d}  (multiplier: {OXLSettings.PriceMultiplier:P0})");
+                }
+                else
+                    Print($"Unknown difficulty '{args[1]}'. Use: easy | normal | hard");
+            })
+                });
 
                 Log.Msg("[OXL] Registered in SimpleConsole.");
             }

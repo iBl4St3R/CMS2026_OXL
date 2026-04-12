@@ -44,7 +44,7 @@ namespace CMS2026_OXL
         private const float OverlayTop = TitleBarH + AddrBarH; // 76f
 
         private UIPanel _panel;
-        private readonly ListingSystem _listings = new ListingSystem();
+        private ListingSystem _listings; // nie inicjalizuj tu
 
         // ── Search & filter state ─────────────────────────────────────────────
         private UITextInputHandle _searchInput;
@@ -156,6 +156,8 @@ namespace CMS2026_OXL
         private Texture2D _passengerCars, _carParts, _workshopItems, _decorations;
 
 
+
+
         // klucz: "DNB Censor/cyan_good" itp.
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
@@ -179,7 +181,7 @@ namespace CMS2026_OXL
         //guards
 
 
-
+        private CarSpecLoader _specLoader;
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
         // ══════════════════════════════════════════════════════════════════════
@@ -190,6 +192,9 @@ namespace CMS2026_OXL
 
             string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
             _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
+            _listings = new ListingSystem(_photoLoader);
+            _specLoader = new CarSpecLoader(modsRoot);
+
 
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
             float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
@@ -1199,6 +1204,21 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, thumbsRow);
             _galleryThumbsRowPtr = UIRuntime.GetPtr(thumbsRow);
 
+            // ── Specs panel under thumbnails ──────────────────────────────────────
+            const float SpecsTop = ContentTop + ImgH + 6f + ThumbH + 10f; // po miniaturach
+            float specsH = PanelH - OverlayTop - SpecsTop - 32f;          // do footera
+
+            var specsContainer = UIRuntime.NewVE();
+            var sps = UIRuntime.GetStyle(specsContainer);
+            S.Position(sps, "Absolute");
+            S.Left(sps, ImgX);
+            S.Top(sps, SpecsTop);
+            S.Width(sps, ImgW);          // ta sama szerokość co galeria: 820px
+            S.Height(sps, specsH);
+            S.Overflow(sps, "Hidden");
+            UIRuntime.AddChild(overlay, specsContainer);
+            _detailSpecsContainerPtr = UIRuntime.GetPtr(specsContainer);
+
             // ── RIGHT COLUMN ──────────────────────────────────────────────────
             float ry = ContentTop;
 
@@ -1356,8 +1376,11 @@ namespace CMS2026_OXL
                 TextAnchor.MiddleRight);
             ry += LocCardH + 8f;
 
-            // ── Seller note ───────────────────────────────────────────────────
-            float noteH = ContentTop + ImgH - ry - 4f;
+            // ── Seller note — rozciągnięty do footera ─────────────────────────────
+            const float FooterH = 32f;
+            const float BottomPad = 8f;
+            float panelBottom = PanelH - OverlayTop - FooterH - BottomPad;
+            float noteH = panelBottom - ry;
             if (noteH < 60f) noteH = 60f;
 
             var noteBox = UIRuntime.NewVE();
@@ -1382,8 +1405,6 @@ namespace CMS2026_OXL
                 new Color(0.80f, 0.84f, 0.86f, 1f));
             _detailSellerNote.SetFontSize(13);
 
-
-            
 
 
             const float FootH = 32f;
@@ -1484,8 +1505,9 @@ namespace CMS2026_OXL
             _detailListing = listing;
 
             // ── Ładuj zdjęcia lazy ────────────────────────────────────────────────
-            _galleryPhotos = _photoLoader?.GetPhotos(listing, preferMed: true)
-                             ?? new List<Texture2D>();
+            _galleryPhotos = listing.PhotoFiles.Count > 0
+     ? (_photoLoader?.GetPhotosFromFiles(listing.PhotoFiles) ?? new List<Texture2D>())
+     : (_photoLoader?.GetPhotos(listing, preferMed: true) ?? new List<Texture2D>());
             _galleryIndex = 0;
             RefreshGallery();
 
@@ -1820,60 +1842,182 @@ namespace CMS2026_OXL
         //        UIRuntime.AddChild(overlay, sep);
         //    }
 
+        // ══════════════════════════════════════════════════════════════════════
+        //  DETAIL SPECS PANEL  — siatka kafelków pod galerią
+        // ══════════════════════════════════════════════════════════════════════
+
         private void BuildDetailSpecsTags(object container, CarListing listing)
         {
-            const float TagH = 36f;   // było 28 — wyższe
-            const float TagGapX = 10f;
-            const float TagGapY = 8f;
-            const float PadX = 14f;
-            const float MaxW = PanelW - 48f * 2f;
+            var spec = _specLoader?.Get(listing.InternalId) ?? new CarSpec();
+            var d = spec.AutoDetected;
 
-            string mileageStr = listing.Mileage >= 1000
+            // Condition text + colour
+            string condText = listing.ApparentCondition >= 0.70f ? "Good"
+                             : listing.ApparentCondition >= 0.40f ? "Fair" : "Poor";
+            var condColor = listing.ApparentCondition >= 0.70f
+                                 ? new Color(0.22f, 0.75f, 0.40f, 1f)
+                                 : listing.ApparentCondition >= 0.40f
+                                     ? new Color(0.85f, 0.72f, 0.20f, 1f)
+                                     : new Color(0.90f, 0.28f, 0.18f, 1f);
+
+            // Mileage string
+            string mi = listing.Mileage >= 1000
                 ? $"{listing.Mileage / 1000}k mi" : $"{listing.Mileage} mi";
 
-            var specs = new[]
+            // Tile definitions: (label, value, widthWeight, accentColor?)
+            // widthWeight: 1 = normal (~190px), 2 = wide (~390px)
+            var tiles = new (string label, string value, int w, Color? accent)[]
             {
-        $"\U0001F4CB  Reg: {listing.Registration}",
-        $"\U0001F4C5  Year: {listing.Year}",
-        $"\U0001F6E3  Mileage: {mileageStr}",
-        $"\u26FD  Fuel: Petrol",
-        $"\U0001F697  Body: Sedan",
-        $"\U0001F3A8  Color: White",
-        $"\u2699  Engine: 2.0L",
-        $"\U0001F4AA  Power: 150 hp",
-        $"\U0001F527  Gearbox: Automatic",
-        $"\U0001F6A6  Condition: Used",
-        $"\U0001F30D  Origin: Unknown",
-        $"\u2B05  Drive: FWD",
-        $"\U0001F511  Doors: 4",
-        $"\U0001F4CD  Steering: Left",
-    };
+        // Row 1 — identity
+        ("MODEL",        $"{listing.Make} {listing.Model}", 2, null),
+        ("YEAR",          listing.Year.ToString(),          1, null),
+        ("PLATE",         listing.Registration,             1, null),
+
+        // Row 2 — condition
+        ("MILEAGE",       mi,                               1, null),
+        ("CONDITION",     condText,                         1, condColor),
+        ("COLOR",         CapFirst(listing.Color),          1, null),
+        ("RARITY",        Or(d.Rarity, "—"),                1, RarityColor(d.Rarity)),
+
+        // Row 3 — powertrain
+        ("ENGINE",        Or(d.EngineType, "—"),            2, null),
+        ("DRIVETRAIN",    Or(d.Drivetrain, "—"),            1, null),
+        ("WEIGHT",        Or(d.Weight, "—"),                1, null),
+
+        // Row 4 — power
+        ("POWER",         Or(d.EnginePower, "—"),           2, null),
+        ("TORQUE",        Or(d.EngineTorque, "—"),          2, null),
+
+        // Row 5 — tyres
+        ("TYRES FRONT",   Or(d.TireFront, "—"),             2, null),
+        ("TYRES REAR",    Or(d.TireRear,  "—"),             2, null),
+            };
+
+            // Layout: total width = ImgW (820px), gap = 8px, 4 columns = ~195px each
+            const float Gap = 8f;
+            const float TileH = 52f;
+            const float RowGap = 6f;
+            const float UnitW = (820f - Gap * 3f) / 4f;  // ≈198px per unit
+            const float PadLeft = 12f;
+            const float PadTop = 6f;
 
             float cx = 0f, cy = 0f;
 
-            foreach (var spec in specs)
+            foreach (var (label, value, ww, accent) in tiles)
             {
-                float tagW = Mathf.Clamp(spec.Length * 7.2f + PadX * 2f, 120f, 320f);
-                if (cx + tagW > MaxW) { cx = 0f; cy += TagH + TagGapY; }
+                float tileW = UnitW * ww + Gap * (ww - 1);
 
-                var tag = UIRuntime.NewVE();
-                var ts = UIRuntime.GetStyle(tag);
-                S.Position(ts, "Absolute");
-                S.Left(ts, cx); S.Top(ts, cy);
-                S.Width(ts, tagW); S.Height(ts, TagH);
-                S.BgColor(ts, new Color(0.052f, 0.088f, 0.142f, 1f));
-                S.BorderRadius(ts, 7f);
-                S.BorderWidth(ts, 1f);
-                S.BorderColor(ts, new Color(0.18f, 0.38f, 0.25f, 0.65f));
-                UIRuntime.AddChild(container, tag);
+                // Wrap if doesn't fit
+                if (cx > 0 && cx + tileW > 820f + 0.5f)
+                {
+                    cx = 0f;
+                    cy += TileH + RowGap;
+                }
 
+                // Background card
+                var card = UIRuntime.NewVE();
+                var cs = UIRuntime.GetStyle(card);
+                S.Position(cs, "Absolute");
+                S.Left(cs, cx); S.Top(cs, cy);
+                S.Width(cs, tileW); S.Height(cs, TileH);
+                S.BgColor(cs, new Color(0.042f, 0.072f, 0.115f, 1f));
+                S.BorderRadius(cs, 6f);
+                S.BorderWidth(cs, 1f);
+                S.BorderColor(cs, new Color(0.16f, 0.30f, 0.22f, 0.50f));
+                UIRuntime.AddChild(container, card);
+
+                // Label (small, dimmed header)
                 var lbl = _panel.AddLabelToContainer(
-                    tag, spec, PadX, 0f, tagW - PadX, TagH,
-                    new Color(0.62f, 0.84f, 0.70f, 1f));
-                lbl.SetFontSize(12);   // było 11
+                    card, label,
+                    PadLeft, PadTop, tileW - PadLeft, 16f,
+                    new Color(0.35f, 0.50f, 0.40f, 0.80f));
+                lbl.SetFontSize(9);
 
-                cx += tagW + TagGapX;
+                // Value
+                Color valueColor = accent ?? Color.white;
+                var val = _panel.AddLabelToContainer(
+                    card, value,
+                    PadLeft, PadTop + 18f, tileW - PadLeft * 2f, TileH - PadTop - 20f,
+                    valueColor);
+                val.SetFontSize(13);
+
+                // Color swatch — shown only for COLOR tile
+                if (label == "COLOR")
+                {
+                    Color swatchCol = HexColor(listing.Color);
+                    var swatch = UIRuntime.NewVE();
+                    var ss = UIRuntime.GetStyle(swatch);
+                    S.Position(ss, "Absolute");
+                    S.Left(ss, tileW - 28f); S.Top(ss, (TileH - 18f) / 2f);
+                    S.Width(ss, 18f); S.Height(ss, 18f);
+                    S.BgColor(ss, swatchCol);
+                    S.BorderRadius(ss, 3f);
+                    S.BorderWidth(ss, 1f);
+                    S.BorderColor(ss, new Color(1f, 1f, 1f, 0.15f));
+                    UIRuntime.AddChild(card, swatch);
+                }
+
+                cx += tileW + Gap;
             }
+        }
+
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+
+        private static string Or(string s, string fallback) =>
+            string.IsNullOrWhiteSpace(s) ? fallback : s;
+
+        private static string CapFirst(string s) =>
+            string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s.Substring(1);
+
+        private static Color? RarityColor(string rarity)
+        {
+            if (string.IsNullOrEmpty(rarity)) return null;
+            string r = rarity.ToLower();
+            if (r.Contains("rzadk") || r.Contains("rare"))
+                return new Color(0.55f, 0.30f, 0.90f, 1f); // fiolet
+            if (r.Contains("powsz") || r.Contains("common"))
+                return new Color(0.50f, 0.60f, 0.65f, 1f); // szary
+            return new Color(0.22f, 0.75f, 0.40f, 1f);     // zielony default
+        }
+
+        private static Color HexColor(string colorName)
+        {
+            // Approximate swatch colours for ActiveColors
+            return colorName?.ToLower() switch
+            {
+                "white" => new Color(0.93f, 0.93f, 0.93f),
+                "black" => new Color(0.08f, 0.08f, 0.08f),
+                "red" => new Color(0.80f, 0.10f, 0.10f),
+                "darkred" => new Color(0.50f, 0.05f, 0.05f),
+                "silver" => new Color(0.70f, 0.72f, 0.74f),
+                "gray" => new Color(0.45f, 0.45f, 0.45f),
+                "cyan" => new Color(0.10f, 0.75f, 0.80f),
+                "lightblue" => new Color(0.50f, 0.70f, 0.90f),
+                "lightblue2" => new Color(0.55f, 0.75f, 0.93f),
+                "blue" => new Color(0.10f, 0.20f, 0.80f),
+                "darkblue" => new Color(0.05f, 0.10f, 0.50f),
+                "navy" => new Color(0.05f, 0.08f, 0.38f),
+                "green" => new Color(0.10f, 0.60f, 0.20f),
+                "darkgreen" => new Color(0.05f, 0.35f, 0.10f),
+                "gold" => new Color(0.85f, 0.68f, 0.10f),
+                "beige" => new Color(0.90f, 0.85f, 0.72f),
+                "cream" => new Color(0.95f, 0.92f, 0.80f),
+                "offwhite" => new Color(0.92f, 0.90f, 0.86f),
+                "teal" => new Color(0.10f, 0.55f, 0.52f),
+                "darkteal" => new Color(0.05f, 0.35f, 0.32f),
+                "maroon" => new Color(0.50f, 0.05f, 0.15f),
+                "darkmaroon" => new Color(0.32f, 0.02f, 0.08f),
+                "rust" => new Color(0.70f, 0.28f, 0.05f),
+                "darkpurple" => new Color(0.35f, 0.05f, 0.50f),
+                "purple" => new Color(0.55f, 0.10f, 0.80f),
+                "pink" => new Color(0.90f, 0.45f, 0.65f),
+                "charcoal" => new Color(0.22f, 0.22f, 0.22f),
+                "nearblack" => new Color(0.10f, 0.10f, 0.10f),
+                "darkgray" => new Color(0.30f, 0.30f, 0.30f),
+                "gray2" => new Color(0.50f, 0.50f, 0.52f),
+                _ => new Color(0.55f, 0.55f, 0.55f),
+            };
         }
 
 
@@ -1902,6 +2046,17 @@ namespace CMS2026_OXL
 
             // ── Wszystko OK — dopiero teraz usuwamy listing ───────────────────────
             _listings.ActiveListings.Remove(listing);
+
+            OXLPlugin.Log.Msg($"[OXL:BUY] ══ PURCHASE ══════════════════════");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Car:      {listing.Make} {listing.Model} {listing.Year}");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Price:    ${listing.Price:N0}");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Seller:   {listing.Archetype} | {listing.SellerRating}★ | \"{listing.SellerNote}\"");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Cond:     Apparent={listing.ApparentCondition:P0}  Actual={listing.ActualCondition:P0}");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Faults:   {listing.Faults}");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Mileage:  {listing.Mileage:N0} mi  |  Location: {listing.Location}  |  Delivery: ~{listing.DeliveryHours}h");
+            OXLPlugin.Log.Msg($"[OXL:BUY] Color:    {listing.Color}  |  Plate: {listing.Registration}");
+            OXLPlugin.Log.Msg($"[OXL:BUY] ════════════════════════════════════");
+            OXLPlugin.Log.Msg($"");
             OXLPlugin.Log.Msg($"[OXL] Purchasing: {listing.Make} {listing.Model} for ${listing.Price}");
 
             GameBridge.SpawnCar(listing, result =>
@@ -2210,6 +2365,24 @@ namespace CMS2026_OXL
             _isVisible = false;
         }
 
+
+        // ── Console API helpers ───────────────────────────────────────────────────
+        public List<CarListing> GetActiveListings() => _listings?.ActiveListings;
+        public float GetGameTime() => _listings?.GameTime ?? 0f;
+        public CarListing GetCurrentDetailListing() => _detailListing;
+
+        public void CloseDetail()
+        {
+            HideDetail();
+        }
+
+        public void GenerateListings(int count)
+        {
+            for (int i = 0; i < count; i++)
+                _listings?.ForceGenerate();
+        }
+
+        public CarPhotoLoader.CacheInfo GetPhotoCacheInfo() => _photoLoader?.GetCacheInfo() ?? default;
 
         // Metoda do wygodnego przełączania (np. dla klawisza F10)
         public void Toggle()

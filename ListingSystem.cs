@@ -8,6 +8,14 @@ namespace CMS2026_OXL
 {
     public class ListingSystem
     {
+
+        private readonly CarPhotoLoader _photoLoader;
+
+        public ListingSystem(CarPhotoLoader photoLoader)
+        {
+            _photoLoader = photoLoader;
+        }
+
         // ── Car definitions — nowe widełki skalibrowane do cen skupu ─────────
         private class CarDef
         {
@@ -463,6 +471,11 @@ namespace CMS2026_OXL
         //  ACTIVE LISTINGS
         // ══════════════════════════════════════════════════════════════════════
 
+        /// <summary>Manually trigger generation of one new listing.</summary>
+        public void ForceGenerate()
+        {
+            ActiveListings.Add(GenerateListing());
+        }
         public List<CarListing> ActiveListings { get; private set; } = new();
 
         private float _gameTime = 0f;
@@ -549,7 +562,9 @@ namespace CMS2026_OXL
             // 7. Nota sprzedawcy
             string note = SelectNote(archetype, faults, rng);
 
-            return new CarListing
+
+
+            var listing = new CarListing
             {
                 Registration = GenReg(rng),
                 Make = def.Make,
@@ -570,6 +585,13 @@ namespace CMS2026_OXL
                 SellerRating = rating,
                 Color = color,
             };
+
+            listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
+
+            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | " +$"Arch={archetype} | Rating={rating}★ | " +$"Apparent={apparent:P0} Actual={actual:P0} | " +$"Price=${price:N0} | Faults={faults} | " +$"Color={color} | TTL={ttl:F0}s | ID={def.InternalId}");
+
+            return listing;
+
         }
 
         // ══════════════════════════════════════════════════════════════════════
