@@ -240,9 +240,9 @@ namespace CMS2026_OXL
         long managedBytes = GC.GetTotalMemory(false);
 
         Print($"══ OXL MEMORY ════════════════════════════");
-        Print($"  Texture cache:   {cacheInfo.Count} textures");
-        Print($"  Cache VRAM est:  ~{cacheInfo.EstimatedMB:F1} MB");
-        Print($"  Cached keys:     {cacheInfo.LruCount} in LRU");
+        Print($"  Texture cache:   {cacheInfo.Count} textures  (~{cacheInfo.EstimatedMB:F1} MB)");
+        Print($"  Thumbnail cache: {cacheInfo.ThumbCount} thumbs    (~{cacheInfo.ThumbMB:F1} MB)");
+        Print($"  LRU entries:     {cacheInfo.LruCount}");
         Print($"  Fallbacks:       {cacheInfo.FallbackCount} textures");
         Print($"──────────────────────────────────────────");
         Print($"  Active listings: {listingCount}");

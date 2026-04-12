@@ -8,8 +8,11 @@ namespace CMS2026_OXL
 {
     public class CarPhotoLoader
     {
-        private const int MAX_CACHED = 40;
-        private const int PHOTOS_PER_SESSION = 8;
+        private const int MAX_CACHED = 80;
+        private const int MAX_THUMB_CACHED = 30;  // miniatury na liście aukcji
+        private readonly Dictionary<string, Texture2D> _thumbCache = new();
+        private readonly LinkedList<string> _thumbLru = new();
+
 
         private readonly string _lowResRoot;
         private readonly string _medResRoot;
@@ -175,6 +178,8 @@ namespace CMS2026_OXL
             public float EstimatedMB;
             public int LruCount;
             public int FallbackCount;
+            public int ThumbCount;
+            public float ThumbMB;
         }
 
         public CacheInfo GetCacheInfo()
@@ -183,9 +188,16 @@ namespace CMS2026_OXL
             foreach (var tex in _cache.Values)
             {
                 if (tex == null) continue;
-                // width * height * bytes per pixel (RGB24=3, RGBA32=4)
                 int bpp = tex.format == TextureFormat.RGBA32 ? 4 : 3;
                 mb += (tex.width * tex.height * bpp) / 1024f / 1024f;
+            }
+
+            float thumbMb = 0f;
+            foreach (var tex in _thumbCache.Values)
+            {
+                if (tex == null) continue;
+                int bpp = tex.format == TextureFormat.RGBA32 ? 4 : 3;
+                thumbMb += (tex.width * tex.height * bpp) / 1024f / 1024f;
             }
 
             return new CacheInfo
@@ -194,6 +206,8 @@ namespace CMS2026_OXL
                 EstimatedMB = mb,
                 LruCount = _lruOrder.Count,
                 FallbackCount = _fallbacks.Count,
+                ThumbCount = _thumbCache.Count,
+                ThumbMB = thumbMb,
             };
         }
 
@@ -278,13 +292,44 @@ namespace CMS2026_OXL
                 {
                     string miniFile = Path.Combine(session, "001MINI.jpg");
                     if (File.Exists(miniFile))
-                        return GetOrLoad("MINI_" + MakeCacheKey(miniFile), miniFile);
+                    {
+                        string key = "MINI_" + MakeCacheKey(miniFile);
+
+                        if (_thumbCache.TryGetValue(key, out var cached))
+                        {
+                            _thumbLru.Remove(key);
+                            _thumbLru.AddFirst(key);
+                            return cached;
+                        }
+
+                        var tex = LoadTexture(miniFile);
+                        if (tex != null)
+                        {
+                            _thumbCache[key] = tex;
+                            _thumbLru.AddFirst(key);
+                            EvictThumbs();
+                            return tex;
+                        }
+                    }
                 }
             }
 
-            // Fallback: pierwsze zdjęcie LOWRES
             var photos = GetPhotos(listing, preferMed: false);
             return photos.FirstOrDefault() ?? GetFallback(carName);
+        }
+
+        private void EvictThumbs()
+        {
+            while (_thumbCache.Count > MAX_THUMB_CACHED && _thumbLru.Count > 0)
+            {
+                string oldest = _thumbLru.Last.Value;
+                _thumbLru.RemoveLast();
+                if (_thumbCache.TryGetValue(oldest, out var tex))
+                {
+                    if (tex != null) UnityEngine.Object.Destroy(tex);
+                    _thumbCache.Remove(oldest);
+                }
+            }
         }
 
         public void Evict()

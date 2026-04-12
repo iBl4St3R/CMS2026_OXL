@@ -109,7 +109,6 @@ namespace CMS2026_OXL
         private UILabelHandle _detailPrice;
         private IntPtr _detailBuyPtr;
         private CarListing _detailListing;
-        private IntPtr _detailImgBoxPtr;
 
         private UILabelHandle _detailListedLbl;
         private UILabelHandle _detailSellerNote;
