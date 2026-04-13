@@ -10,6 +10,17 @@ namespace CMS2026_OXL
     {
         public static Difficulty CurrentDifficulty { get; private set; } = Difficulty.Normal;
 
+        public static bool UseMiles { get; private set; } = true;
+
+        public static void SetUseMiles(bool value)
+        {
+            UseMiles = value;
+            Save();
+        }
+
+        public static string FormatMileage(int mileage) => UseMiles
+        ? (mileage >= 1000 ? $"{mileage / 1000}k mi" : $"{mileage} mi")
+        : (mileage >= 1000 ? $"{mileage * 1609 / 1000 / 1000}k km" : $"{mileage * 1609 / 1000} km");
 
         /// Easy   = listing prices 10% lower  (slight discount)
         /// Normal = prices 30% above baseline (intended balance)
@@ -75,6 +86,9 @@ namespace CMS2026_OXL
                         else
                             OXLPlugin.Log.Msg($"[OXL] Config: unknown difficulty '{value}', using Normal.");
                     }
+
+                    if (key == "use_miles")
+                        UseMiles = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                 }
 
                 OXLPlugin.Log.Msg($"[OXL] Config loaded — difficulty={CurrentDifficulty}");
@@ -105,8 +119,10 @@ namespace CMS2026_OXL
                     "#   Easy   = listing prices 30% lower  (more profit margin)\n" +
                     "#   Normal = baseline prices\n" +
                     "#   Hard   = listing prices 30% higher (tighter margins)\n" +
+                    $"use_miles = {UseMiles}\n" +
                     "# \n" +
                    $"difficulty = {CurrentDifficulty}\n");
+                    
 
                 OXLPlugin.Log.Msg($"[OXL] Config saved — difficulty={CurrentDifficulty}");
             }

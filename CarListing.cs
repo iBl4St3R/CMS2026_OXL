@@ -25,6 +25,7 @@
 
     public class CarListing
     {
+        public int ColorIndex { get; set; } = 0; // indeks w AllowedColors
         public List<string> PhotoFiles { get; set; } = new();
         public string Make { get; set; } = "";
         public string Model { get; set; } = "";

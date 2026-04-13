@@ -111,6 +111,26 @@ namespace CMS2026_OXL
 
         private static IEnumerator ApplyWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
+            // ── Ustaw kolor lakieru ───────────────────────────────────────────────────
+            try
+            {
+                var allowedColors = cl.AllowedColors;
+                if (allowedColors != null && listing.ColorIndex >= 0 && listing.ColorIndex < allowedColors.Count)
+                {
+                    Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(
+                        cl, allowedColors[listing.ColorIndex], false);
+                }
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL] SetColor failed: {ex.Message}");
+            }
+
+            yield return new WaitForEndOfFrame();
+
+            // ── reszta ────────────────────────────
+
+
             float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
 
@@ -198,12 +218,22 @@ namespace CMS2026_OXL
             var cid = cl.CarInfoData;
             if (cid != null)
             {
-                uint mileage = (uint)Mathf.RoundToInt(
-                    Mathf.Lerp(220000, 3000, actual) * UnityEngine.Random.Range(0.85f, 1.15f));
-                cid.Mileage = mileage;
+                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
+                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
+            }
 
-                int age = Mathf.RoundToInt(Mathf.Lerp(28, 1, actual) * UnityEngine.Random.Range(0.80f, 1.20f));
-                cid.Year = (ushort)Mathf.Clamp(2026 - age, 1980, 2025);
+            // Rejestracja — ustaw na obu tablicach
+            if (!string.IsNullOrEmpty(listing.Registration))
+            {
+                try
+                {
+                    cl.SetNewLicensePlateNumber(listing.Registration, true);   // tył
+                    cl.SetNewLicensePlateNumber(listing.Registration, false);  // przód
+                }
+                catch (Exception ex)
+                {
+                    OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}");
+                }
             }
 
             yield return new WaitForFixedUpdate();

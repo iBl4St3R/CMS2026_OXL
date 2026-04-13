@@ -513,8 +513,11 @@ namespace CMS2026_OXL
             string baseId = def.InternalId; // np. "car_mayen_m5"
             string[] pool = ActiveColors.ContainsKey(baseId) ? ActiveColors[baseId] : new[] { "white" };
             string color = pool[rng.Next(pool.Length)];
-            
 
+            // Znajdź indeks koloru w AllColors
+            int colorIndex = 0;
+            if (AllColors.TryGetValue(def.InternalId, out var allColorNames))
+                colorIndex = Array.IndexOf(allColorNames, color);
 
 
             // 1. Archetyp sprzedawcy
@@ -585,6 +588,9 @@ namespace CMS2026_OXL
                 SellerRating = rating,
                 Color = color,
             };
+
+            listing.Color = color;//hmm mam mind fucka
+            listing.ColorIndex = colorIndex;
 
             listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
 
@@ -802,9 +808,22 @@ namespace CMS2026_OXL
         private static string GenReg(Random rng)
         {
             const string L = "ABCDEFGHJKLMNPRSTVWXYZ";
-            return $"{L[rng.Next(L.Length)]}{L[rng.Next(L.Length)]}" +
-                   $"{rng.Next(100, 999)}" +
-                   $"{L[rng.Next(L.Length)]}{rng.Next(10, 99)}";
+            const string N = "0123456789";
+
+            // Format: 2 litery + 2-4 cyfry + 1-2 litery = 5-8 znaków
+            int digitCount = rng.Next(2, 5);     // 2–4 cyfry
+            int trailCount = rng.Next(2, 3);
+
+            var sb = new System.Text.StringBuilder();
+            // 2 litery prefix
+            sb.Append(L[rng.Next(L.Length)]);
+            sb.Append(L[rng.Next(L.Length)]);
+            // cyfry
+            for (int i = 0; i < digitCount; i++) sb.Append(N[rng.Next(N.Length)]);
+            // litery suffix
+            for (int i = 0; i < trailCount; i++) sb.Append(L[rng.Next(L.Length)]);
+
+            return sb.ToString();
         }
 
         private static readonly string[] Locations =

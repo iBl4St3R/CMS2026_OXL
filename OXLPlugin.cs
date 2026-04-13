@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 
 [assembly: MelonInfo(typeof(CMS2026_OXL.OXLPlugin),
-    "CMS2026_OXL", "0.2.0", "Blaster")]
+    "CMS2026_OXL", "0.3.0", "Blaster")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026 Demo")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026")]
 

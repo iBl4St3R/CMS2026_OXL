@@ -136,7 +136,7 @@ namespace CMS2026_OXL
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
 
-            "OXL — Online eX-Owner Lies\nVersion: 0.2.0\nAuthor: iBlaster\n\n" +
+            "OXL — Online eX-Owner Lies\nVersion: 0.3.0\nAuthor: iBlaster\n\n" +
             "Built on _CMS2026_UITK_Framework.\n\n" +
             "github.com/iBl4St3R/CMS2026-OXL\n\n" +
              "— Icons —\n" +
@@ -172,12 +172,12 @@ namespace CMS2026_OXL
         private UILabelHandle _diffNormalLbl;
         private UILabelHandle _diffHardLbl;
 
+       
+
         // ── Settings difficulty card ptrs (do aktualizacji bordera) ──────────
         private IntPtr _diffEasyCardPtr;
         private IntPtr _diffNormalCardPtr;
         private IntPtr _diffHardCardPtr;
-
-        //guards
 
 
         private CarSpecLoader _specLoader;
@@ -548,7 +548,7 @@ namespace CMS2026_OXL
             _panel.AddSeparator(new Color(0.15f, 0.42f, 0.24f, 0.45f));
 
             var footerLbl = _panel.AddLabel(
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.2.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.3.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 new Color(0.22f, 0.48f, 0.30f, 0.70f),
                 height: 32f);
             footerLbl.SetFontSize(10);
@@ -1743,7 +1743,7 @@ namespace CMS2026_OXL
             // Main footer text
             var lbl = _panel.AddLabelToContainer(
                 foot,
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.2.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.3.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 0f, 0f, PanelW, FootH,
                 new Color(0.22f, 0.48f, 0.30f, 0.70f));
             lbl.SetFontSize(10);
@@ -1761,85 +1761,6 @@ namespace CMS2026_OXL
                         TextAnchor.MiddleRight);
         }
 
-        //old keep for a while
-
-        //    private void BuildDetailSpecs(object overlay, CarListing listing)
-        //    {
-        //        const float StartX = 48f;
-        //        const float StartY = 320f;   // below the image+buy block
-        //        const float TagH = 28f;
-        //        const float TagGapX = 8f;
-        //        const float TagGapY = 6f;
-        //        const float PadX = 10f;
-        //        const float RowMaxW = PanelW - StartX * 2f;
-
-        //        // Fixed placeholder specs — replace with real data later
-        //        var specs = new[]
-        //        {
-        //    $"\U0001F4CB  Reg: {listing.Registration}",
-        //    $"\u26FD  Fuel: Petrol",
-        //    $"\U0001F697  Body: Sedan",
-        //    $"\U0001F3A8  Color: White",
-        //    $"\u2699  Engine: 2.0L",
-        //    $"\U0001F4AA  Power: 150 hp",
-        //    $"\U0001F6E3  Gearbox: Automatic",
-        //    $"\U0001F6A6  Condition: Used",
-        //    $"\U0001F30D  Origin: Unknown",
-        //    $"\u2B05  Drive: FWD",
-        //    $"\U0001F511  Doors: 4",
-        //    $"\U0001F4CD  Steering: Left",
-        //};
-
-        //        float cx = StartX;
-        //        float cy = StartY;
-
-        //        foreach (var spec in specs)
-        //        {
-        //            // Estimate tag width from text length
-        //            float tagW = Mathf.Clamp(spec.Length * 7.2f + PadX * 2f, 100f, 320f);
-
-        //            if (cx + tagW > StartX + RowMaxW)
-        //            {
-        //                cx = StartX;
-        //                cy += TagH + TagGapY;
-        //            }
-
-        //            var tag = UIRuntime.NewVE();
-        //            var ts = UIRuntime.GetStyle(tag);
-        //            S.Position(ts, "Absolute");
-        //            S.Left(ts, cx); S.Top(ts, cy);
-        //            S.Width(ts, tagW); S.Height(ts, TagH);
-        //            S.BgColor(ts, TagBg);
-        //            S.BorderRadius(ts, 5f);
-        //            S.BorderWidth(ts, 1f);
-        //            S.BorderColor(ts, TagBdr);
-        //            UIRuntime.AddChild(overlay, tag);
-
-        //            var lbl = _panel.AddLabelToContainer(
-        //                tag, spec,
-        //                PadX, 0f, tagW - PadX, TagH,
-        //                new Color(0.55f, 0.78f, 0.62f, 1f));
-        //            lbl.SetFontSize(11);
-
-        //            cx += tagW + TagGapX;
-        //        }
-
-        //        // Section header above the tags
-        //        var header = _panel.AddLabelToContainer(
-        //            overlay, "VEHICLE DETAILS",
-        //            StartX, StartY - 22f, 300f, 18f,
-        //            new Color(0.22f, 0.48f, 0.30f, 0.65f));
-        //        header.SetFontSize(10);
-
-        //        // Separator above header
-        //        var sep = UIRuntime.NewVE();
-        //        var ss = UIRuntime.GetStyle(sep);
-        //        S.Position(ss, "Absolute");
-        //        S.Left(ss, StartX); S.Top(ss, StartY - 26f);
-        //        S.Width(ss, PanelW - StartX * 2f); S.Height(ss, 1f);
-        //        S.BgColor(ss, TagBdr);
-        //        UIRuntime.AddChild(overlay, sep);
-        //    }
 
         // ══════════════════════════════════════════════════════════════════════
         //  DETAIL SPECS PANEL  — siatka kafelków pod galerią
@@ -1860,8 +1781,7 @@ namespace CMS2026_OXL
                                      : new Color(0.90f, 0.28f, 0.18f, 1f);
 
             // Mileage string
-            string mi = listing.Mileage >= 1000
-                ? $"{listing.Mileage / 1000}k mi" : $"{listing.Mileage} mi";
+            string mi = listing.Mileage >= 1000? $"{listing.Mileage / 1000}k mi" : $"{listing.Mileage} mi";
 
             // Tile definitions: (label, value, widthWeight, accentColor?)
             // widthWeight: 1 = normal (~190px), 2 = wide (~390px)
@@ -2212,15 +2132,12 @@ namespace CMS2026_OXL
             float totalBtnsW = BtnW * 3 + BtnGap * 2;
             float bx = (PanelW - totalBtnsW) / 2f;
 
-            BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,
-    "EASY", "Cars 10% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
-    ref _diffEasyLbl, ref _diffEasyCardPtr);
-            BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,
-    "NORMAL", "Cars 30% more expensive", new Color(0.55f, 0.75f, 0.90f, 1f),
-    ref _diffNormalLbl, ref _diffNormalCardPtr);
-            BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,
-    "HARD", "Cars 60% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
-    ref _diffHardLbl, ref _diffHardCardPtr);
+            BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,"EASY", "Cars 10% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
+            ref _diffEasyLbl, ref _diffEasyCardPtr);
+            BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,"NORMAL", "Cars 30% more expensive", new Color(0.55f, 0.75f, 0.90f, 1f),
+            ref _diffNormalLbl, ref _diffNormalCardPtr);
+            BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,"HARD", "Cars 60% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
+            ref _diffHardLbl, ref _diffHardCardPtr);
 
             cy += BtnH + 32f;
 
