@@ -1966,21 +1966,21 @@ namespace CMS2026_OXL
             // ── Wszystko OK — dopiero teraz usuwamy listing ───────────────────────
             _listings.ActiveListings.Remove(listing);
 
-            OXLPlugin.Log.Msg($"[OXL:BUY] ══ PURCHASE ══════════════════════");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Car:      {listing.Make} {listing.Model} {listing.Year}");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Price:    ${listing.Price:N0}");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Seller:   {listing.Archetype} | {listing.SellerRating}★ | \"{listing.SellerNote}\"");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Cond:     Apparent={listing.ApparentCondition:P0}  Actual={listing.ActualCondition:P0}");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Faults:   {listing.Faults}");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Mileage:  {listing.Mileage:N0} mi  |  Location: {listing.Location}  |  Delivery: ~{listing.DeliveryHours}h");
-            OXLPlugin.Log.Msg($"[OXL:BUY] Color:    {listing.Color}  |  Plate: {listing.Registration}");
-            OXLPlugin.Log.Msg($"[OXL:BUY] ════════════════════════════════════");
-            OXLPlugin.Log.Msg($"");
-            OXLPlugin.Log.Msg($"[OXL] Purchasing: {listing.Make} {listing.Model} for ${listing.Price}");
+            OXLLog.Msg($"[OXL:BUY] ══ PURCHASE ══════════════════════");
+            OXLLog.Msg($"[OXL:BUY] Car:      {listing.Make} {listing.Model} {listing.Year}");
+            OXLLog.Msg($"[OXL:BUY] Price:    ${listing.Price:N0}");
+            OXLLog.Msg($"[OXL:BUY] Seller:   {listing.Archetype} | {listing.SellerRating}★ | \"{listing.SellerNote}\"");
+            OXLLog.Msg($"[OXL:BUY] Cond:     Apparent={listing.ApparentCondition:P0}  Actual={listing.ActualCondition:P0}");
+            OXLLog.Msg($"[OXL:BUY] Faults:   {listing.Faults}");
+            OXLLog.Msg($"[OXL:BUY] Mileage:  {listing.Mileage:N0} mi  |  Location: {listing.Location}  |  Delivery: ~{listing.DeliveryHours}h");
+            OXLLog.Msg($"[OXL:BUY] Color:    {listing.Color}  |  Plate: {listing.Registration}");
+            OXLLog.Msg($"[OXL:BUY] ════════════════════════════════════");
+            OXLLog.Msg($"");
+            OXLLog.Msg($"[OXL] Purchasing: {listing.Make} {listing.Model} for ${listing.Price}");
 
             GameBridge.SpawnCar(listing, result =>
             {
-                OXLPlugin.Log.Msg($"[OXL] SpawnResult: {result}");
+                OXLLog.Msg($"[OXL] SpawnResult: {result}");
                 if (result == GameBridge.SpawnResult.Success)
                 {
                     GameBridge.DeductMoney(listing.Price);
@@ -1990,7 +1990,6 @@ namespace CMS2026_OXL
                     // Spawn się nie udał — zwróć listing i pieniędzy nie ruszaj
                     _listings.ActiveListings.Add(listing);
                     ShowAlert($"Delivery failed ({result}).\nThe listing has been restored.");
-                    RefreshListings();
                 }
             });
 
