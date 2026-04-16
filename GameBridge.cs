@@ -1,8 +1,11 @@
-﻿using MelonLoader;
+﻿// GameBridge.cs
+// Spawns a car into the game world and applies wear based on CarListing.
+// ClassifyAndWear uses PartCatalog.Classify() — no more string-contains guessing.
+
+using MelonLoader;
 using System;
 using System.Collections;
 using UnityEngine;
-
 
 namespace CMS2026_OXL
 {
@@ -10,7 +13,9 @@ namespace CMS2026_OXL
     {
         public enum SpawnResult { Success, NoFreeSlot, NoCarDebug, SpawnFailed }
 
-        // ── Publiczne API ─────────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        //  PUBLIC API
+        // ══════════════════════════════════════════════════════════════════════
 
         /// <summary>Główna metoda — przyjmuje pełny listing z kondycją i usterkami.</summary>
         public static void SpawnCar(CarListing listing, Action<SpawnResult> onDone)
@@ -45,24 +50,21 @@ namespace CMS2026_OXL
             }
             catch
             {
-                // fallback na starą metodę jeśli API niedostępne
                 return System.Linq.Enumerable.Any(GetLoaders(),
                     cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
             }
         }
 
-        // ── Spawn coroutine ───────────────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════════
+        //  SPAWN COROUTINE
+        // ══════════════════════════════════════════════════════════════════════
 
         private static IEnumerator DoSpawn(string gameCarId, CarListing listing, Action<SpawnResult> onDone)
         {
             var free = Il2CppCMS.Garage.CarLoaderPlaces.Get().GetPlaceForLoadCar();
-
             if (free == null) { onDone?.Invoke(SpawnResult.NoFreeSlot); yield break; }
 
-            try
-            {
-                free.GetIl2CppType().GetMethod("UnloadCar")?.Invoke(free, null);
-            }
+            try { free.GetIl2CppType().GetMethod("UnloadCar")?.Invoke(free, null); }
             catch { }
 
             yield return new WaitForSeconds(0.2f);
@@ -106,30 +108,21 @@ namespace CMS2026_OXL
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  APPLY WEAR — cztery grupy części
+        //  APPLY WEAR
         // ══════════════════════════════════════════════════════════════════════
 
         private static IEnumerator ApplyWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
-            // ── Ustaw kolor lakieru ───────────────────────────────────────────────────
+            // ── Kolor lakieru ─────────────────────────────────────────────────
             try
             {
                 var allowedColors = cl.AllowedColors;
                 if (allowedColors != null && listing.ColorIndex >= 0 && listing.ColorIndex < allowedColors.Count)
-                {
-                    Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(
-                        cl, allowedColors[listing.ColorIndex], false);
-                }
+                    Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(cl, allowedColors[listing.ColorIndex], false);
             }
-            catch (Exception ex)
-            {
-                OXLPlugin.Log.Msg($"[OXL] SetColor failed: {ex.Message}");
-            }
+            catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetColor failed: {ex.Message}"); }
 
             yield return new WaitForEndOfFrame();
-
-            // ── reszta ────────────────────────────
-
 
             float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
@@ -137,27 +130,23 @@ namespace CMS2026_OXL
             float mechBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.82f, 0.98f), 0.02f, 1.0f);
             float bodyBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.88f, 1.04f), 0.02f, 1.0f);
             float exhaustableMax = actual > 0.75f ? 0.40f : 0.18f;
-            float group2Mult = listing.Archetype == SellerArchetype.Dealer ? 0.40f : 1.0f;
+            float dealerBodyMult = listing.Archetype == SellerArchetype.Dealer ? 0.40f : 1.0f;
 
-            
-            
-
-            // ── INDEXEDPARTS ──────────────────────────────────────────────────────
+            // ── IndexedParts — mechanika ──────────────────────────────────────
             var ip = cl.indexedParts;
             if (ip != null)
             {
                 for (int i = 0; i < ip.Count; i++)
                 {
                     if (ip[i] == null) continue;
-                    string id = ip[i].id?.ToLower() ?? "";
-                    float wear = ClassifyAndWear(id, mechBase, exhaustableMax, group2Mult, faults, false);
+                    string id = ip[i].id ?? "";
+                    float wear = WearForPart(id, mechBase, exhaustableMax, dealerBodyMult, faults, isBodyPart: false);
                     try { ip[i].SetCondition(wear); } catch { ip[i].condition = wear; }
                 }
             }
             cl.ClearEnginePartsConditionCache();
 
-            // ── CARPARTS — kondycja + dent + dust ────────────────────────────────
-            // Dev_RepairAllBody najpierw — czyści poprzedni stan wizualny
+            // ── CarParts — karoseria + wizualia ───────────────────────────────
             cl.Dev_RepairAllBody();
             yield return new WaitForEndOfFrame();
 
@@ -167,14 +156,11 @@ namespace CMS2026_OXL
                 for (int i = 0; i < cp.Count; i++)
                 {
                     if (cp[i] == null) continue;
-                    string name = cp[i].name?.ToLower() ?? "";
-                    float wear = ClassifyAndWear(name, bodyBase, exhaustableMax, group2Mult, faults, true);
-
+                    string name = cp[i].name ?? "";
+                    float wear = WearForPart(name, bodyBase, exhaustableMax, dealerBodyMult, faults, isBodyPart: true);
                     cl.SetCondition(cp[i], wear);
 
-                    // Denty i kurz — osobny system wizualny
-                    // Tylko na karoserii, nie na szybach/lampach
-                    if (!IsGlass(name, true))
+                    if (!IsGlass(name))
                     {
                         float dent = listing.Archetype switch
                         {
@@ -184,7 +170,6 @@ namespace CMS2026_OXL
                             SellerArchetype.Wrecker => UnityEngine.Random.Range(0.65f, 1.0f),
                             _ => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
                         };
-
                         try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
 
                         float dust = listing.Archetype switch
@@ -195,26 +180,21 @@ namespace CMS2026_OXL
                             SellerArchetype.Wrecker => UnityEngine.Random.Range(0.70f, 1.0f),
                             _ => 0f,
                         };
-
-                        if (dust > 0f)
-                            try { cl.EnableDust(cp[i], dust); } catch { }
+                        if (dust > 0f) try { cl.EnableDust(cp[i], dust); } catch { }
                     }
                 }
             }
 
-            // ── Stan ogólny karoserii ─────────────────────────────────────────────
             cl.SetConditionOnBody(bodyBase);
             cl.SetConditionOnDetails(bodyBase);
             if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
 
             yield return new WaitForFixedUpdate();
-
             try { cl.UpdateCarBodyParts(); } catch { }
             try { cl.SetupCarSupport(); } catch { }
-
             yield return new WaitForFixedUpdate();
 
-            // ── Historia pojazdu ──────────────────────────────────────────────────
+            // ── Historia pojazdu ──────────────────────────────────────────────
             var cid = cl.CarInfoData;
             if (cid != null)
             {
@@ -222,168 +202,146 @@ namespace CMS2026_OXL
                 cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
             }
 
-            // Rejestracja — ustaw na obu tablicach
             if (!string.IsNullOrEmpty(listing.Registration))
             {
                 try
                 {
-                    cl.SetNewLicensePlateNumber(listing.Registration, true);   // tył
-                    cl.SetNewLicensePlateNumber(listing.Registration, false);  // przód
+                    cl.SetNewLicensePlateNumber(listing.Registration, true);
+                    cl.SetNewLicensePlateNumber(listing.Registration, false);
                 }
-                catch (Exception ex)
-                {
-                    OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}");
-                }
+                catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}"); }
             }
 
             yield return new WaitForFixedUpdate();
 
-            OXLPlugin.Log.Msg($"[OXL:WEAR] ══ WEAR APPLIED ═════════════════");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] ══ WEAR APPLIED ═════════════════════════════════");
             OXLPlugin.Log.Msg($"[OXL:WEAR] Actual={actual:P0}  MechBase={mechBase:P0}  BodyBase={bodyBase:P0}");
-            OXLPlugin.Log.Msg($"[OXL:WEAR] Arch={listing.Archetype}  ExhaustMax={exhaustableMax:P0}  G2Mult={group2Mult:F2}");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] Arch={listing.Archetype}  ExhaustMax={exhaustableMax:P0}");
             OXLPlugin.Log.Msg($"[OXL:WEAR] Faults={listing.Faults}");
-            OXLPlugin.Log.Msg($"[OXL:WEAR] ════════════════════════════════════");
+            OXLPlugin.Log.Msg($"[OXL:WEAR] ════════════════════════════════════════════════");
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  KLASYFIKACJA CZĘŚCI — rdzeń logiki zużycia
+        //  WEAR CALCULATOR — oparty na PartCatalog, bez string-contains
         // ══════════════════════════════════════════════════════════════════════
+        // Zamiast 10 metod IsXxx() — jedna ścieżka: Classify → WearCat → float.
+        // isBodyPart=true: traktuj jako część karoserii (carParts), nie mechanikę.
 
-        private static float ClassifyAndWear(
-            string partId,
-            float baseCondition,
-            float exhaustableMax,
-            float group2Mult,
-            FaultFlags faults,
-            bool isBodyPart)
+        private static float WearForPart(string partId, float baseCondition, float exhaustableMax, float dealerBodyMult, FaultFlags faults, bool isBodyPart)
         {
-            // ── GRUPA III — Optyka i szkło (binarne) ──────────────────────────
-            if (IsGlass(partId, isBodyPart))
+            // Szyby, lusterka, reflektory — logika binarna, nie przez katalog
+            if (isBodyPart && IsGlass(partId))
             {
                 if (faults.HasFlag(FaultFlags.GlassDamage))
-                    // 40% szans na rozbicie, reszta normalna kondycja
-                    return UnityEngine.Random.value < 0.40f ? UnityEngine.Random.Range(0.0f, 0.05f) : baseCondition;
-                else
-                    // Bez flagi — małe ryzyko losowe (7%)
-                    return UnityEngine.Random.value < 0.07f ? UnityEngine.Random.Range(0.0f, 0.10f) : baseCondition;
+                    return UnityEngine.Random.value < 0.40f ? UnityEngine.Random.Range(0f, 0.08f) : baseCondition;
+                return baseCondition;
             }
 
-            // ── GRUPA I — Materiały eksploatacyjne ────────────────────────────
-            if (IsExhaustable(partId))
+            WearCat cat = PartCatalog.Classify(partId);
+
+            // Hardware i Structural nigdy się nie zużywają — zawsze pełny stan
+            if (cat == WearCat.Hardware || cat == WearCat.Structural)
+                return 1.0f;
+
+            return cat switch
             {
-                // Pasek rozrządu — specjalna pułapka
-                if (IsTimingBelt(partId))
-                {
-                    if (faults.HasFlag(FaultFlags.TimingBelt))
-                        return UnityEngine.Random.Range(0.0f, 0.08f); // pułapka: 0–8%
-                    else
-                        return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.5f, 0.85f), 0.10f, exhaustableMax);
-                }
+                // ── Materiały eksploatacyjne — ograniczone do exhaustableMax ─────────────
+                WearCat.SparkPlug => UnityEngine.Random.Range(0f, exhaustableMax),
+                WearCat.FilterOil => UnityEngine.Random.Range(0f, exhaustableMax),
+                WearCat.FilterFuel => UnityEngine.Random.Range(0f, exhaustableMax),
+                WearCat.FilterAir => UnityEngine.Random.Range(0f, exhaustableMax * 1.5f),
 
-                // Filtry, świece — zawsze niskie
-                return UnityEngine.Random.Range(0.0f, exhaustableMax);
-            }
+                // ── Rozrząd — TRAP, odpowiada na FaultFlags.TimingBelt ───────────────────
+                WearCat.TimingChain => faults.HasFlag(FaultFlags.TimingBelt) ? UnityEngine.Random.Range(0f, 0.12f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.80f), 0.05f, 0.80f),
+                WearCat.TimingTensioner => faults.HasFlag(FaultFlags.TimingBelt) ? UnityEngine.Random.Range(0f, 0.10f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.75f), 0.05f, 0.75f),
+                WearCat.TimingRoller => faults.HasFlag(FaultFlags.TimingBelt) ? UnityEngine.Random.Range(0f, 0.10f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.78f), 0.05f, 0.78f),
 
-            // ── GRUPA I — Hamulce (fault-driven) ─────────────────────────────
-            if (IsBrakePart(partId))
-            {
-                if (faults.HasFlag(FaultFlags.BrakesGone))
-                    return UnityEngine.Random.Range(0.0f, 0.12f); // praktycznie brak
-                else
-                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.05f, exhaustableMax + 0.20f);
-            }
+                // ── Hamulce — odpowiada na FaultFlags.BrakesGone ─────────────────────────
+                WearCat.BrakeFriction => faults.HasFlag(FaultFlags.BrakesGone) ? UnityEngine.Random.Range(0f, 0.05f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.30f, 0.70f), 0.02f, 0.70f),
+                WearCat.BrakeDisc => faults.HasFlag(FaultFlags.BrakesGone) ? UnityEngine.Random.Range(0.05f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.85f), 0.10f, 0.85f),
+                WearCat.BrakeCaliper => faults.HasFlag(FaultFlags.BrakesGone) ? UnityEngine.Random.Range(0.10f, 0.30f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.20f, 1.0f),
+                WearCat.BrakeBooster => faults.HasFlag(FaultFlags.BrakesGone) ? UnityEngine.Random.Range(0.20f, 0.45f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.30f, 1.0f),
+                WearCat.AbsSystem => faults.HasFlag(FaultFlags.BrakesGone) ? UnityEngine.Random.Range(0.10f, 0.35f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.20f, 1.0f),
 
-            // ── GRUPA II — Ukryta mechanika ───────────────────────────────────
-            if (IsSuspension(partId))
-            {
-                if (faults.HasFlag(FaultFlags.SuspensionWorn))
-                    return Mathf.Clamp(baseCondition * group2Mult * UnityEngine.Random.Range(0.20f, 0.45f), 0.02f, 0.35f);
-                else
-                    return Mathf.Clamp(baseCondition * group2Mult * UnityEngine.Random.Range(0.70f, 1.0f), 0.05f, 1.0f);
-            }
+                // ── Zawieszenie — odpowiada na FaultFlags.SuspensionWorn ─────────────────
+                WearCat.Shock => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.80f), 0.05f, 0.80f),
+                WearCat.Spring => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.10f, 0.35f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
+                WearCat.Bushing => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.35f, 0.75f), 0.05f, 0.75f),
+                WearCat.Wishbone => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.10f, 0.35f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.20f, 0.90f),
+                WearCat.Stabilizer => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.05f, 0.30f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.85f), 0.10f, 0.85f),
+                WearCat.Steering => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.05f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
+                WearCat.Knuckle => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f),
+                WearCat.Hub => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 1.0f), 0.25f, 1.0f),
+                WearCat.Bearing => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.85f), 0.10f, 0.85f),
+                WearCat.Subframe => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.80f, 1.0f), 0.40f, 1.0f),
 
-            if (IsExhaust(partId))
-            {
-                if (faults.HasFlag(FaultFlags.ExhaustRusted))
-                    return  UnityEngine.Random.Range(0.0f, 0.15f);
-                else
-                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.05f, 1.0f);
-            }
+                // ── Sprzęgło / koło zamachowe ─────────────────────────────────────────────
+                WearCat.Clutch => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.30f, 0.75f), 0.05f, 0.75f),
+                WearCat.Flywheel => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f),
 
-            if (IsElectrical(partId))
-            {
-                if (faults.HasFlag(FaultFlags.ElectricalFault))
-                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.15f, 0.40f), 0.02f, 0.40f);
-                else
-                    return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.10f, 1.0f);
-            }
+                // ── Silnik — odpowiada na FaultFlags.HeadGasket ──────────────────────────
+                WearCat.EngineBlock => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.30f, 1.0f),
+                WearCat.Crankshaft => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 0.98f), 0.25f, 1.0f),
+                WearCat.Piston => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.15f, 0.95f),
+                WearCat.CylinderHead => faults.HasFlag(FaultFlags.HeadGasket) ? UnityEngine.Random.Range(0f, 0.08f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 0.95f), 0.20f, 0.95f),
+                WearCat.CamValve => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.92f), 0.15f, 0.92f),
 
-            if (faults.HasFlag(FaultFlags.HeadGasket) && IsHeadGasketRelated(partId))
-                return UnityEngine.Random.Range(0.0f, 0.10f);
+                // ── Układ wydechowy — odpowiada na FaultFlags.ExhaustRusted ─────────────
+                WearCat.Muffler => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.12f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.85f), 0.05f, 0.85f),
+                WearCat.Catalyst => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.15f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.90f), 0.10f, 0.90f),
+                WearCat.ExhaustPipe => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.18f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.80f), 0.05f, 0.80f),
+                WearCat.ExhaustManifold => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0.05f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
 
-            // ── GRUPA IV — Twarda mechanika (domyślna) ────────────────────────
-            // Minimum 25% — silnik fizycznie istnieje, tylko wrecker może zejść niżej
-            float hardMin = 0.25f;
-            return Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.85f, 1.0f), hardMin, 1.0f);
-        }
+                // ── Chłodzenie ────────────────────────────────────────────────────────────
+                WearCat.Radiator => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.95f), 0.10f, 0.95f),
+                WearCat.CoolingFan => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 1.0f), 0.20f, 1.0f),
+                WearCat.WaterPump => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.90f), 0.10f, 0.90f),
+                WearCat.CoolantSystem => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 1.0f), 0.25f, 1.0f),
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  KLASYFIKATORY CZĘŚCI — słowa kluczowe z silnika gry
-        // ══════════════════════════════════════════════════════════════════════
+                // ── Elektryka — odpowiada na FaultFlags.ElectricalFault ──────────────────
+                WearCat.Alternator => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 1.0f), 0.15f, 1.0f),
+                WearCat.Battery => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.15f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.85f), 0.05f, 0.85f),
+                WearCat.Starter => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0.05f, 0.30f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 1.0f), 0.20f, 1.0f),
+                WearCat.Ecu => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.30f, 1.0f),
+                WearCat.Relay => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.25f, 1.0f),
+                WearCat.Fuse => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.30f, 1.0f),
+                WearCat.IgnitionCoil => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.18f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.10f, 0.90f),
+                WearCat.Distributor => faults.HasFlag(FaultFlags.ElectricalFault) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.10f, 0.90f),
 
-        private static bool IsTimingBelt(string id) =>
-            id.Contains("pasek") || id.Contains("lancuch") ||
-            id.Contains("belt") || id.Contains("chain") ||
-            id.Contains("timing");
+                // ── Napęd ─────────────────────────────────────────────────────────────────
+                WearCat.Gearbox => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.20f, 0.95f),
+                WearCat.DriveShaft => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.92f), 0.15f, 0.92f),
+                WearCat.Differential => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 1.0f), 0.25f, 1.0f),
+                WearCat.TransferCase => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 1.0f), 0.25f, 1.0f),
 
-        private static bool IsExhaustable(string id) =>
-            IsTimingBelt(id) ||
-            id.Contains("filtr") || id.Contains("filter") ||
-            id.Contains("swieca") || id.Contains("spark") ||
-            id.Contains("olej") || id.Contains("oil") ||
-            id.Contains("pasek") || id.Contains("klinowy");
+                // ── Układ dolotowy / paliwowy ─────────────────────────────────────────────
+                WearCat.Intake => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f),
+                WearCat.Throttle => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.20f, 0.95f),
+                WearCat.Injector => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.88f), 0.10f, 0.88f),
+                WearCat.FuelPump => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.90f), 0.10f, 0.90f),
+                WearCat.FuelTank => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.35f, 1.0f),
+                WearCat.Turbo => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.85f), 0.05f, 0.85f),
 
-        private static bool IsBrakePart(string id) =>
-            id.Contains("klocek") || id.Contains("brake_pad") || id.Contains("pad") ||
-            id.Contains("tarcza") && (id.Contains("ham") || id.Contains("brake")) ||
-            id.Contains("zacisk") || id.Contains("caliper");
+                // ── Wspomaganie kierownicy ────────────────────────────────────────────────
+                WearCat.PowerSteering => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
 
-        private static bool IsSuspension(string id) =>
-            id.Contains("amortyzator") || id.Contains("shock") || id.Contains("strut") ||
-            id.Contains("tuleja") || id.Contains("bushing") ||
-            id.Contains("wahacz") || id.Contains("control_arm") ||
-            id.Contains("draze") || id.Contains("tie_rod") ||
-            id.Contains("stabilizator") || id.Contains("sway") || id.Contains("link") ||
-            id.Contains("sprezyna") || id.Contains("spring");
-
-        private static bool IsExhaust(string id) =>
-            id.Contains("tlumik") || id.Contains("muffler") || id.Contains("exhaust") ||
-            id.Contains("rura") || id.Contains("katalizator") || id.Contains("catalyst");
-
-        private static bool IsElectrical(string id) =>
-            id.Contains("alternator") || id.Contains("akumulator") || id.Contains("battery") ||
-            id.Contains("rozrusznik") || id.Contains("starter") ||
-            id.Contains("cewka") || id.Contains("coil") ||
-            id.Contains("lambda") || id.Contains("sensor") || id.Contains("czujnik");
-
-        private static bool IsHeadGasketRelated(string id) =>
-            id.Contains("uszczelka") || id.Contains("gasket") ||
-            id.Contains("glowica") || id.Contains("head") ||
-            id.Contains("blok") || id.Contains("block");
-
-        private static bool IsGlass(string id, bool isBodyPart)
-        {
-            if (!isBodyPart) return false;
-            return id.Contains("window") || id.Contains("szyba") ||
-                   id.Contains("mirror") || id.Contains("lusterko") ||
-                   id.Contains("reflektor") || id.Contains("headlight") ||
-                   id.Contains("lamp") || id.Contains("klosz") ||
-                   id.Contains("glass");
+                // ── Fallback — nieznana kategoria, twarda mechanika, minimum 25% ─────────
+                _ => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.85f, 1.0f), 0.25f, 1.0f),
+            };
         }
 
         // ══════════════════════════════════════════════════════════════════════
         //  HELPERS
         // ══════════════════════════════════════════════════════════════════════
+
+        /// <summary>Czy część karoserii to szkło/optyka — obsługiwane binarnie, nie przez PartCatalog.</summary>
+        private static bool IsGlass(string id)
+        {
+            string low = id.ToLower();
+            return low.Contains("window") || low.Contains("mirror") || low.Contains("headlight") ||
+                   low.Contains("taillight") || low.Contains("szyba") || low.Contains("lusterko") ||
+                   low.Contains("reflektor") || low.Contains("lamp") || low.Contains("glass");
+        }
 
         private static Il2CppCMS.Core.Car.CarLoader[] GetLoaders()
         {
