@@ -58,6 +58,19 @@
       <HintPath>$(InteropDir)\UnityEngine.UIElementsModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+	<Reference Include="UnityEngine.UI">
+  <HintPath>$(InteropDir)\UnityEngine.UI.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+<Reference Include="UnityEngine.ImageConversionModule">
+  <HintPath>$(InteropDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+<Reference Include="UnityEngine.EventSystemsModule">
+  <HintPath>$(InteropDir)\UnityEngine.EventSystemsModule.dll</HintPath>
+  <Private>false</Private>
+</Reference>
+	
 
     <!-- ── GAME ASSEMBLIES ── -->
 	<Reference Include="Assembly-CSharp">
@@ -83,5 +96,13 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+  
+   <Target Name="CopyToMods" AfterTargets="Build">
+    <Copy
+      SourceFiles="$(OutputPath)$(AssemblyName).dll"
+      DestinationFolder="$(GameDir)\Mods"
+      OverwriteReadOnlyFiles="true"
+    />
+  </Target>
 
 </Project>

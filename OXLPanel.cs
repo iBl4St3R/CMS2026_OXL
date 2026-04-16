@@ -2272,6 +2272,7 @@ namespace CMS2026_OXL
             if (_panel == null) return;
             _panel.SetVisible(true);
             _isVisible = true;
+            SetPlayerInput(false);
         }
 
         public void Close()
@@ -2279,7 +2280,52 @@ namespace CMS2026_OXL
             if (_panel == null) return;
             _panel.SetVisible(false);
             _isVisible = false;
+            SetPlayerInput(true);
         }
+
+        private static void SetPlayerInput(bool enabled)
+{
+    try
+    {
+        var pi = UnityEngine.Object.FindObjectOfType<Il2CppCMS.Player.Controller.PlayerInput>();
+        if (pi != null) pi.enabled = enabled;
+    }
+    catch (Exception ex)
+    {
+        OXLPlugin.Log.Warning($"[OXL] SetPlayerInput({enabled}): {ex.Message}");
+    }
+
+    try
+    {
+        // Blokuj też InputActionAsset — to samo co robi konsola
+        var assetType = System.Type.GetType(
+            "UnityEngine.InputSystem.InputActionAsset, Unity.InputSystem");
+        if (assetType == null) return;
+
+        var all = UnityEngine.Resources.FindObjectsOfTypeAll(
+            Il2CppInterop.Runtime.Il2CppType.From(assetType));
+
+        foreach (var raw in all)
+        {
+            var asset = Activator.CreateInstance(assetType, new object[] { raw.Pointer });
+            var maps  = assetType.GetProperty("actionMaps")?.GetValue(asset);
+            if (maps == null) continue;
+
+            int count  = (int)maps.GetType().GetProperty("Count").GetValue(maps);
+            var indexer = maps.GetType().GetProperty("Item");
+
+            for (int i = 0; i < count; i++)
+            {
+                var m    = indexer.GetValue(maps, new object[] { i });
+                var name = (string)m.GetType().GetProperty("name").GetValue(m);
+                if (name != "UI Common") continue;
+                m.GetType().GetMethod(enabled ? "Enable" : "Disable").Invoke(m, null);
+                break;
+            }
+        }
+    }
+    catch { /* InputSystem może nie być dostępny */ }
+}
 
 
         // ── Console API helpers ───────────────────────────────────────────────────
