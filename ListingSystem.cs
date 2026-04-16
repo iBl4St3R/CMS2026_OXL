@@ -815,21 +815,23 @@ namespace CMS2026_OXL
 
         // ── Kolory — te same co poprzednio ────────────────────────────────────
         private static readonly Dictionary<string, string[]> ActiveColors = new()
-        {
-            { "car_dnb_censor",          new[] { "white", "black", "red", "silver", "gray", "darkblue" } },
-            { "car_katagiri_tamago",     new[] { "white", "silver", "red", "black", "blue", "green" } },
-            { "car_luxor_streamliner",   new[] { "white", "black", "cream", "darkblue", "maroon", "silver" } },
-            { "car_mayen_m5",            new[] { "white", "black", "silver", "red", "gray", "darkblue" } },
-            { "car_salem_aries",         new[] { "white", "silver", "black", "red", "teal", "darkgreen" } },
-        };
+{
+    // Tylko kolory które faktycznie mają zdjęcia i są sensowne do losowania
+    { "car_dnb_censor",        new[] { "black", "darkred", "silver", "white", "darkgreen", "cyan", "lightblue", "darkblue", "purple", "red" } },
+    { "car_katagiri_tamago",   new[] { "black", "white", "beige", "gold", "darkteal", "gray", "gray2", "silver", "blue", "darkblue", "purple", "red", "maroon" } },
+    { "car_luxor_streamliner", new[] { "nearblack", "cream", "beige", "offwhite", "gray", "teal", "darkblue", "lightblue", "darkblue", "nearblack", "charcoal", "silver", "darkmaroon", "maroon" } },
+    { "car_mayen_m5",          new[] { "black", "white", "darkgreen", "charcoal", "darkgray", "gray2", "darkblue", "navy", "darkred", "red2", "red" } },
+    { "car_salem_aries",       new[] { "red", "darkred", "red2", "gold", "green", "white", "lightblue", "lightblue2", "silver", "nearblack" } },
+};
 
         private static readonly Dictionary<string, string[]> AllColors = new()
-        {
-            { "car_dnb_censor",          new[] { "white", "black", "red", "darkred", "silver", "gray", "cyan", "lightblue", "blue", "darkblue", "navy", "green", "darkgreen", "gold", "beige" } },
-            { "car_katagiri_tamago",     new[] { "white", "silver", "red", "black", "blue", "green", "orange", "purple", "gray", "darkblue" } },
-            { "car_luxor_streamliner",   new[] { "white", "black", "cream", "offwhite", "beige", "darkblue", "maroon", "darkmaroon", "silver", "gray", "teal", "darkteal", "rust" } },
-            { "car_mayen_m5",            new[] { "white", "black", "silver", "red", "gray", "darkblue", "darkgreen", "gold", "charcoal", "nearblack", "darkgray", "gray2" } },
-            { "car_salem_aries",         new[] { "white", "silver", "black", "red", "darkred", "teal", "darkgreen", "blue", "maroon", "beige", "gray", "pink" } },
-        };
+{
+    // Kolejność MUSI odpowiadać color_map.txt (idx 0, 1, 2...)
+    { "car_dnb_censor",        new[] { "black", "darkred", "silver", "white", "darkgreen", "cyan", "lightblue", "darkblue", "purple", "red" } },
+    { "car_katagiri_tamago",   new[] { "black", "white", "beige", "gold", "darkteal", "gray", "gray2", "silver", "blue", "darkblue", "purple", "red", "maroon" } },
+    { "car_luxor_streamliner", new[] { "nearblack", "cream", "beige", "offwhite", "gray", "teal", "darkblue", "lightblue2", "navy", "nearblack2", "charcoal", "silver", "darkmaroon", "maroon" } },
+    { "car_mayen_m5",          new[] { "black", "white", "darkgreen", "charcoal", "darkgray", "gray2", "darkblue", "navy", "darkred", "maroon", "red" } },
+    { "car_salem_aries",       new[] { "red", "darkred", "maroon", "gold", "green", "white", "lightblue", "lightblue2", "silver", "nearblack" } },
+};
     }
 }

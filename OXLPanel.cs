@@ -1900,41 +1900,42 @@ namespace CMS2026_OXL
             return new Color(0.22f, 0.75f, 0.40f, 1f);     // zielony default
         }
 
-        private static Color HexColor(string colorName)
+        public static Color HexColor(string colorName)
         {
-            // Approximate swatch colours for ActiveColors
             return colorName?.ToLower() switch
             {
                 "white" => new Color(0.93f, 0.93f, 0.93f),
                 "black" => new Color(0.08f, 0.08f, 0.08f),
                 "red" => new Color(0.80f, 0.10f, 0.10f),
+                "red2" => new Color(0.80f, 0.07f, 0.12f),
                 "darkred" => new Color(0.50f, 0.05f, 0.05f),
                 "silver" => new Color(0.70f, 0.72f, 0.74f),
                 "gray" => new Color(0.45f, 0.45f, 0.45f),
+                "gray2" => new Color(0.53f, 0.55f, 0.55f),
+                "darkgray" => new Color(0.30f, 0.30f, 0.30f),
+                "charcoal" => new Color(0.22f, 0.22f, 0.22f),
+                "nearblack" => new Color(0.10f, 0.10f, 0.10f),
+                "nearblack2" => new Color(0.12f, 0.13f, 0.14f),
                 "cyan" => new Color(0.10f, 0.75f, 0.80f),
                 "lightblue" => new Color(0.50f, 0.70f, 0.90f),
-                "lightblue2" => new Color(0.55f, 0.75f, 0.93f),
+                "lightblue2" => new Color(0.62f, 0.79f, 0.87f),
                 "blue" => new Color(0.10f, 0.20f, 0.80f),
                 "darkblue" => new Color(0.05f, 0.10f, 0.50f),
                 "navy" => new Color(0.05f, 0.08f, 0.38f),
                 "green" => new Color(0.10f, 0.60f, 0.20f),
                 "darkgreen" => new Color(0.05f, 0.35f, 0.10f),
+                "teal" => new Color(0.10f, 0.55f, 0.52f),
+                "darkteal" => new Color(0.05f, 0.35f, 0.32f),
                 "gold" => new Color(0.85f, 0.68f, 0.10f),
                 "beige" => new Color(0.90f, 0.85f, 0.72f),
                 "cream" => new Color(0.95f, 0.92f, 0.80f),
                 "offwhite" => new Color(0.92f, 0.90f, 0.86f),
-                "teal" => new Color(0.10f, 0.55f, 0.52f),
-                "darkteal" => new Color(0.05f, 0.35f, 0.32f),
                 "maroon" => new Color(0.50f, 0.05f, 0.15f),
                 "darkmaroon" => new Color(0.32f, 0.02f, 0.08f),
                 "rust" => new Color(0.70f, 0.28f, 0.05f),
-                "darkpurple" => new Color(0.35f, 0.05f, 0.50f),
                 "purple" => new Color(0.55f, 0.10f, 0.80f),
+                "darkpurple" => new Color(0.35f, 0.05f, 0.50f),
                 "pink" => new Color(0.90f, 0.45f, 0.65f),
-                "charcoal" => new Color(0.22f, 0.22f, 0.22f),
-                "nearblack" => new Color(0.10f, 0.10f, 0.10f),
-                "darkgray" => new Color(0.30f, 0.30f, 0.30f),
-                "gray2" => new Color(0.50f, 0.50f, 0.52f),
                 _ => new Color(0.55f, 0.55f, 0.55f),
             };
         }

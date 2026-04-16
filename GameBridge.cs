@@ -117,8 +117,28 @@ namespace CMS2026_OXL
             try
             {
                 var allowedColors = cl.AllowedColors;
-                if (allowedColors != null && listing.ColorIndex >= 0 && listing.ColorIndex < allowedColors.Count)
-                    Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(cl, allowedColors[listing.ColorIndex], false);
+                if (allowedColors != null && allowedColors.Count > 0)
+                {
+                    Color targetColor = OXLPanel.HexColor(listing.Color); // potrzebujesz public
+
+                    // Znajdź closest color z AllowedColors
+                    int bestIdx = 0;
+                    float bestDist = float.MaxValue;
+                    for (int ci = 0; ci < allowedColors.Count; ci++)
+                    {
+                        var c = allowedColors[ci].Color;
+                        float r = c.r > 1f ? c.r / 255f : c.r;
+                        float g = c.g > 1f ? c.g / 255f : c.g;
+                        float b = c.b > 1f ? c.b / 255f : c.b;
+                        float dist = Mathf.Abs(r - targetColor.r)
+                                   + Mathf.Abs(g - targetColor.g)
+                                   + Mathf.Abs(b - targetColor.b);
+                        if (dist < bestDist) { bestDist = dist; bestIdx = ci; }
+                    }
+
+                    Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(
+                        cl, allowedColors[bestIdx], false);
+                }
             }
             catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetColor failed: {ex.Message}"); }
 
@@ -140,6 +160,7 @@ namespace CMS2026_OXL
                 (SellerArchetype.Dealer, 3) => 0.28f,  // Criminal: musi odpalić żeby przekonać ofiarę
                 _ => 0.0f,
             };
+
 
             // ── IndexedParts — mechanika ──────────────────────────────────────
             var ip = cl.indexedParts;
