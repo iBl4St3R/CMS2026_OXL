@@ -1,7 +1,8 @@
-﻿namespace CMS2026_OXL
-{
+﻿// CarListing.cs
+using System.Collections.Generic;
 
-   
+namespace CMS2026_OXL
+{
     public enum SellerArchetype
     {
         Honest,    // A — uczciwy, cena = stan
@@ -14,18 +15,18 @@
     public enum FaultFlags
     {
         None = 0,
-        TimingBelt = 1 << 0, // pasek/łańcuch rozrządu — pułapka
-        HeadGasket = 1 << 1, // uszczelka głowicy — katastrofa
-        SuspensionWorn = 1 << 2, // amortyzatory + tuleje
-        BrakesGone = 1 << 3, // klocki + tarcze na 0
-        ExhaustRusted = 1 << 4, // tłumik
-        ElectricalFault = 1 << 5, // alternator / akumulator
-        GlassDamage = 1 << 6, // szyby / reflektory / lusterka
+        TimingBelt = 1 << 0,
+        HeadGasket = 1 << 1,
+        SuspensionWorn = 1 << 2,
+        BrakesGone = 1 << 3,
+        ExhaustRusted = 1 << 4,
+        ElectricalFault = 1 << 5,
+        GlassDamage = 1 << 6,
     }
 
     public class CarListing
     {
-        public int ColorIndex { get; set; } = 0; // indeks w AllowedColors
+        public int ColorIndex { get; set; } = 0;
         public List<string> PhotoFiles { get; set; } = new();
         public string Make { get; set; } = "";
         public string Model { get; set; } = "";
@@ -40,29 +41,18 @@
         public string Location { get; set; } = "";
         public int DeliveryHours { get; set; }
 
-        // ── Kondycja ──────────────────────────────────────────────────────────
-        /// <summary>Co widać w ogłoszeniu — dyktuje cenę.</summary>
         public float ApparentCondition { get; set; } = 1.0f;
-
-        /// <summary>Stan faktyczny mechaniki — używany przez ApplyWear.</summary>
         public float ActualCondition { get; set; } = 1.0f;
 
-        // ── Sprzedawca ────────────────────────────────────────────────────────
         public SellerArchetype Archetype { get; set; } = SellerArchetype.Honest;
 
-        /// <summary>Ocena sprzedawcy 1–5. Generowana z archetypu + szum.</summary>
-        public int SellerRating { get; set; } = 3;
+        /// <summary>1 = Novice/Casual/Backyard/Amateur, 2 = Experienced/Busy/Pro/Intermediate, 3 = Veteran/Hoarder/Criminal/Expert</summary>
+        public int ArchetypeLevel { get; set; } = 1;
 
-        // ── Ukryte usterki ────────────────────────────────────────────────────
+        public int SellerRating { get; set; } = 3;
         public FaultFlags Faults { get; set; } = FaultFlags.None;
 
-        // ── Alias wstecznej kompatybilności ───────────────────────────────────
-        public float Condition
-        {
-            get => ActualCondition;
-            set => ActualCondition = value;
-        }
-
+        public float Condition { get => ActualCondition; set => ActualCondition = value; }
         public string Color { get; set; } = "white";
     }
 }

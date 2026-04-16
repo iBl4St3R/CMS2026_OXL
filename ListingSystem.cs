@@ -1,4 +1,5 @@
-﻿using System;
+﻿// ListingSystem.cs
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -8,7 +9,6 @@ namespace CMS2026_OXL
 {
     public class ListingSystem
     {
-
         private readonly CarPhotoLoader _photoLoader;
 
         public ListingSystem(CarPhotoLoader photoLoader)
@@ -16,7 +16,6 @@ namespace CMS2026_OXL
             _photoLoader = photoLoader;
         }
 
-        // ── Car definitions — nowe widełki skalibrowane do cen skupu ─────────
         private class CarDef
         {
             public string Make, Model, ImageFolder, InternalId;
@@ -24,460 +23,19 @@ namespace CMS2026_OXL
         }
 
         private static readonly CarDef[] CarDefs =
- {
-    new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",
-                 InternalId = "car_dnb_censor",
-                 MinYear = 1991, MaxYear = 1992, MinPrice = 3500,  MaxPrice = 12000 },
-    new CarDef { Make = "Katagiri", Model = "Tamago BP",       ImageFolder = "Katagiri Tamago BP",
-                 InternalId = "car_katagiri_tamago",
-                 MinYear = 2000, MaxYear = 2005, MinPrice = 3500,  MaxPrice = 12000 },
-    new CarDef { Make = "Luxor",    Model = "Streamliner Mk3", ImageFolder = "Luxor Streamliner Mk3",
-                 InternalId = "car_luxor_streamliner",
-                 MinYear = 1992, MaxYear = 1996, MinPrice = 4000,  MaxPrice = 14000 },
-    new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",
-                 InternalId = "car_mayen_m5",
-                 MinYear = 2008, MaxYear = 2015, MinPrice = 10000, MaxPrice = 26000 },
-    new CarDef { Make = "Salem",    Model = "Aries MK3",       ImageFolder = "Salem Aries MK3",
-                 InternalId = "car_salem_aries",
-                 MinYear = 1994, MaxYear = 1999, MinPrice = 3000,  MaxPrice = 11000 },
-};
-
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  KOLORY — 4 aktywne per auto, reszta w komentarzu do przyszłego użycia
-        // ══════════════════════════════════════════════════════════════════════
-
-        // GetColorRegistry przekazuje AllColors — loader używa ich jako fallback
-        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry()
         {
-            var result = new Dictionary<string, (string, string[])>();
-            foreach (var def in CarDefs)
-            {
-                if (AllColors.TryGetValue(def.InternalId, out var colors))
-                    result[def.ImageFolder] = (def.InternalId, colors);
-            }
-            return result;
-        }
-
-
-        // ── Pełna paleta — kolejność = AllowedColors w grze = color_map.txt ──────
-        private static readonly Dictionary<string, string[]> AllColors =
-            new Dictionary<string, string[]>
-        {
-    { "car_dnb_censor", new[] {
-        "black","darkred","gray","white","darkgreen","cyan","lightblue","blue","purple","pink","red" } },
-    { "car_katagiri_tamago", new[] {
-        "black","white","beige","gold","darkgreen","gray","gray2","silver","teal","navy","blue","red","darkred" } },
-    { "car_luxor_streamliner", new[] {
-        "darkgray","beige","cream","offwhite","gray","teal","darkblue","lightblue","navy","nearblack","charcoal","silver","darkmaroon","maroon" } },
-    { "car_mayen_m5", new[] {
-        "black","white","green","darkgray","darkteal","silver","darkblue","navy","maroon","darkmaroon","red" } },
-    { "car_salem_aries", new[] {
-        "red","darkred","rust","gold","green","white","lightblue","lightblue2","silver","darkpurple" } },
+            new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",          InternalId = "car_dnb_censor",          MinYear = 1991, MaxYear = 1992, MinPrice = 3500,  MaxPrice = 12000 },
+            new CarDef { Make = "Katagiri", Model = "Tamago BP",       ImageFolder = "Katagiri Tamago BP",  InternalId = "car_katagiri_tamago",      MinYear = 2000, MaxYear = 2005, MinPrice = 3500,  MaxPrice = 12000 },
+            new CarDef { Make = "Luxor",    Model = "Streamliner Mk3", ImageFolder = "Luxor Streamliner Mk3", InternalId = "car_luxor_streamliner",  MinYear = 1992, MaxYear = 1996, MinPrice = 4000,  MaxPrice = 14000 },
+            new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",            InternalId = "car_mayen_m5",             MinYear = 2008, MaxYear = 2015, MinPrice = 5000,  MaxPrice = 18000 },
+            new CarDef { Make = "Salem",    Model = "Aries MK3",       ImageFolder = "Salem Aries MK3",     InternalId = "car_salem_aries",          MinYear = 2003, MaxYear = 2008, MinPrice = 4500,  MaxPrice = 15000 },
         };
-
-
-
-
-
-        // ── Aktywne w listingach — nazwy muszą być z AllColors ───────────────────
-        private static readonly Dictionary<string, string[]> ActiveColors =
-            new Dictionary<string, string[]>
-        {
-    { "car_dnb_censor",        new[] { "black", "white", "cyan", "gray" } },
-    { "car_katagiri_tamago",   new[] { "white", "silver", "black", "red" } },
-    { "car_luxor_streamliner", new[] { "silver", "cream", "navy", "gray" } },
-    { "car_mayen_m5",          new[] { "black", "white", "darkblue", "silver" } },
-    { "car_salem_aries",       new[] { "white", "red", "silver", "lightblue" } },
-        };
-
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  PULE OPISÓW — pogrupowane per archetyp
-        //  Kilka jest "awaryjnych" — nadpisują losowanie gdy wystąpi konkretna flaga
-        // ══════════════════════════════════════════════════════════════════════
-
-        // ── Archetype A — Uczciwy ─────────────────────────────────────────────
-        private static readonly string[] NotesHonest =
-{
-    
-    "Selling because I'm upgrading. Condition as shown in photos, nothing to hide.",
-    "Good runner, price is lower because it needs some work. I've described everything honestly.",
-    "Garage kept, single owner. Minor faults accounted for in the price.",
-    "No time to fix it myself — selling with known issues, hence the below-market price.",
-    "Solid car, just need the cash. Condition matches the photos perfectly.",
-    "Not going to pretend it's perfect. What you see is what you get.",
-    "Priced honestly. I'd rather sell it cheap than waste your time with nonsense.",
-    "Everything I know about this car is in the description. No surprises.",
-    "Bought it as a daily, never got around to fixing the small stuff. Price reflects that.",
-    "I'm a mechanic myself — I know what this car needs. Hence the fair price.",
-
-    // ── Nowe ────────────────────────────────────────────────────────
-
-    // Rzadka uczciowść
-    "I could lie but I'm tired. It needs work. The price reflects this. That's the whole listing.",
-
-    // Mechanik uczciwy
-    "Just had it on the ramp. Here's what it needs: rear bushings, front pads, coolant flush. Price adjusted accordingly.",
-
-    // Filosof
-    "Every used car is a project. This one more than most. At least I'm telling you up front.",
-
-    // Spokojny tata-sprzedawca
-    "Bought it for my son. He didn't want it. I don't need it. You might. It runs, it stops, it turns. Priced fair.",
-
-    // Bez BS
-    "No 'one careful owner', no 'drives like new'. It's used. It shows. Price is honest.",
-
-    // Czas na emeryturę
-    "She's served me well for twelve years. Nothing left to give her. Time to let someone else love her back to health.",
-
-    // Mechanik V2
-    "I itemised every fault and priced the parts on the big site. Subtracted that from market value. Here we are.",
-
-    // Zbyt uczciwy na swoje dobro
-    "The car has three things wrong with it. I wrote all three in the title. Yes, all three. Read the title.",
-
-    // Filozofia używanego auta
-    "There is no such thing as a perfect used car. This one is honest about being imperfect. That's worth something.",
-
-    // Sprzedaje z ciężkim sercem
-    "Hate selling it. Good memories. But the gearbox isn't getting better on its own and I don't have the time.",
-
-    // Suchy humor
-    "Running, driving, stopping. Three for three. Anything beyond that is your problem now. Price is fair for what it is.",
-
-    // Certyfikat uczciwości
-    "I have described this car accurately because I am an adult and this is a transaction between adults. No drama.",
-
-    // Emocje kontrolowane
-    "Will not pretend there is no rust. There is rust. It is visible in photos 4, 7, and 9. Price accounts for rust.",
-
-    // Tata mechanik
-    "My father taught me: price it honest or don't sell it. Following his advice. Car has issues. Price shows that.",
-
-    // Na walizkach
-    "Moving country in three weeks. No time to fix it, no point shipping it. Honest price for a quick sale.",
-
-    // Odpowiedzialny sprzedawca
-    "Test drive before you buy. Bring your own mechanic if you want. I have nothing to hide and nowhere to be.",
-
-    // Prosto z serca
-    "It's not pretty. It runs fine. Priced for what it is, not what I wish it was.",
-
-    // Dokumenty w porządku
-    "All paperwork present. Service history has some gaps but the gaps are honest — I just forgot to stamp it.",
-
-    // Naprawdę uczciwy
-    "You will find worse cars at higher prices. You will find better cars at higher prices. This is the honest middle.",
-
-    // Klasyczny uczciwy zakończenie
-    "If I was keeping it I would fix those three things and drive it another ten years. I am not keeping it. You do the maths.",
-};
-
-        // Notki awaryjne dla Honest — aktywowane przez FaultFlags
-        private static readonly Dictionary<FaultFlags, string> NotesHonestFault =
-            new Dictionary<FaultFlags, string>
-        {
-            { FaultFlags.TimingBelt,
-        "Full disclosure: timing belt needs replacement soon. Price adjusted accordingly." },
-    { FaultFlags.HeadGasket,
-        "Engine needs a rebuild — head gasket is gone. Selling as a project car, priced as such." },
-    { FaultFlags.SuspensionWorn,
-        "Suspension needs attention, slight knocking from the front over bumps. Price reflects this." },
-    { FaultFlags.BrakesGone,
-        "Pads and discs need immediate replacement — braking is not where it should be." },
-    { FaultFlags.ElectricalFault,
-        "Electrical gremlin somewhere, possibly alternator. Haven't chased it — price accounts for the risk." },
-        };
-
-        // ── Archetype B — Zaniedbany właściciel ──────────────────────────────
-        private static readonly string[] NotesNeglected =
-        {
-    "Drives fine. Did the services myself when I remembered to.",
-    "Solid car, knocks a bit when cold but settles after a minute or two.",
-    "Selling because I have no time to look after it. Starts every time.",
-    "Used it daily, no major drama. Might smoke a little on cold starts.",
-    "Cheap to run, never asked for much over the years. Moving on to something newer.",
-    "Drove it to work every day for years. It's a tool, not a show car.",
-    "Nothing catastrophic ever went wrong with it. Small things here and there.",
-    "Honestly can't remember the last full service but it never let me down.",
-    "Ran it hard for a few years. Tyres are newer, rest is as-is.",
-    "It's not pretty but it always got me where I needed to go.",
-    "Previous owner kept receipts, I did not. Still runs well though.",
-    "A few warning lights but the mechanic I asked said to just ignore them.",
-
-    // ── Nowe ────────────────────────────────────────────────────────
-
-    // Ran when parked klasyk
-    "Ran when parked. Has not been started since 2021 but I'm sure it's fine.",
-
-    // Olej z dyskontu
-    "Ran it on supermarket own-brand oil for six years. Still runs. Probably fine.",
-
-    // Check engine vibe
-    "Service light has been on so long I think it's just the vibe now. Aesthetic.",
-
-    // Skręt w lewo
-    "Makes a noise when turning left. I just don't turn left anymore. Problem solved.",
-
-    // MOT advisory
-    "MOT man said 'advisory'. I chose not to look up what that word means.",
-
-    // Okno
-    "Been meaning to fix the window seal for two years. Great opportunity for someone more motivated than me.",
-
-    // Sprzęgło
-    "Clutch feels a bit chewy. You get used to it after about a week.",
-
-    // Trzeci bieg
-    "Third gear is more of a suggestion than a requirement. Second and fourth are perfect.",
-
-    // Klima motywuje
-    "Air con doesn't work but that's just motivation to drive faster. Free performance upgrade.",
-
-    // Gary
-    "Engine makes a ticking noise but my mate Gary says that's just character. I trust Gary.",
-
-    // Poprzedni przegląd
-    "Technically passed its last inspection. The one before that is none of your business.",
-
-    // Zimny rozruch
-    "Cold starts can be dramatic but once it warms up it forgets everything. Like me on a Monday.",
-
-    // Olej
-    "I top up the oil every few weeks. Might be burning it, might be leaking it. Either way it's topped up.",
-
-    // Zderzak
-    "Small cosmetic damage to the front bumper. The tree came out of nowhere. Fully its fault.",
-
-    // Serwis ustny
-    "Service history is verbal. I remember most of it.",
-
-    // Cały czas jeździło
-    "It's been my daily for four years. Never once left me stranded. The three times it left me stranded don't count.",
-
-    // Telefon z grillem
-    "The stereo sometimes changes station by itself. I've started to think of it as a feature. Radio Russian Roulette.",
-
-    // Hamulce
-    "Brakes work but they're more of an 'eventually' situation. Plan your stops in advance. Good life skill.",
-
-    // Filtr
-    "Air filter probably needs doing. Or maybe it doesn't. We are both finding out together.",
-
-    // Serwis roczny
-    "I service it every year whether it needs it or not. Last service was 2019.",
-
-    // Dym
-    "Bit of smoke on startup but it clears after thirty seconds. Perfect time to check your phone.",
-
-    // Bateria
-    "Battery is the original from the factory. I think that counts as a feature at this point.",
-
-    // Rezonans
-    "There is a vibration above 90 km/h. I just don't go above 90. Simple lifestyle adjustment.",
-
-    // Szczerość przez przypadek
-    "I was going to say it's in great condition but then I looked at it again. It's in fair condition. Maybe fair-to-good.",
-
-    // Kierunek sprzedaży
-    "Selling as-is. What 'as-is' means specifically I would prefer to discuss in person after you've already driven here.",
-};
-
-        // ── Archetype C — Handlarz ────────────────────────────────────────────
-        private static readonly string[] NotesDealer =
-       {
-    // ── Oryginalne ──────────────────────────────────────────────────
-    "Freshly serviced, everything 100% functional, ready for the road today.",
-    "One owner from new, garage kept, drives like it just rolled off the line.",
-    "Just finished a full inspection — everything checked and passed without issue.",
-    "Professional detailing done. Looks and drives like new.",
-    "Selling due to family expansion. Viewing will not disappoint, serious buyers only.",
-    "Drives like it's on rails, handling is perfect. First to see will buy.",
-    "Regularly maintained by specialists. Nothing to worry about here.",
-    "Immaculate example. Price is firm because the car speaks for itself.",
-    "Bought it, didn't end up needing it. Stored dry, runs perfectly.",
-    "Full history, all stamps, nothing to hide. A genuinely clean example.",
-    "Turn key ready. Not a project — everything works as it should.",
-    "Private sale from a careful, experienced driver. Condition is exceptional.",
-
-    // ── Nowe ────────────────────────────────────────────────────────
-
-    // I know what I have
-    "I know what I have. Price is firm. Timewasters and lowballers will be blocked.",
-
-    // Staranna pani właściciel
-    "One careful lady owner from new. She never checked the oil but she drove very gently.",
-
-    // Historia serwisowa mokra
-    "Full service history in a dedicated folder. Some pages are slightly water damaged but the intention is there.",
-
-    // Mój rynek
-    "Priced to reflect current market value. The market I'm referring to is my own independent research.",
-
-    // Rysy
-    "Not a scratch on the bodywork that I am prepared to acknowledge in writing.",
-
-    // Nie projekt
-    "This is not a project car. Do not buy this if you want a project. This is finished. Move on.",
-
-    // Tylko poważni
-    "Serious buyers only. If your opening message is 'is it still available' I will not respond.",
-
-    // Detailing
-    "Just had a full professional valet. Smells like new car. What was underneath is now sealed away.",
-
-    // Zdjęcia kłamią
-    "Condition is honestly better than the photos suggest. The photos were taken in poor lighting. In the rain.",
-
-    // Cena mówi sama
-    "Price reflects the quality. If it seems high, that means you haven't seen it in person yet.",
-
-    // Wyjazd
-    "Selling only because I'm upgrading. If I wasn't upgrading, this car would never leave my possession.",
-
-    // Pieczątki
-    "All stamps present and correct. I have not counted them personally but they are all there, I'm fairly sure.",
-
-    // Mechanicznie idealne
-    "Mechanically sound in every way that I was able to test without specialist equipment.",
-
-    // Czas nagli
-    "Price has been reduced for quick sale. Quick meaning within the next three weeks. No rush but do rush.",
-
-    // Silnik
-    "Engine runs beautifully. Checked it myself with my ears, which are experienced ears.",
-
-    // Klasyk dealerski
-    "This car will sell today. If not today, tomorrow. If not tomorrow, I will lower the price slightly. But today.",
-
-    // Bardzo poważne ogłoszenie
-    "I don't normally sell cars. That's why this one is in such exceptional condition. No trader miles, genuine sale.",
-
-    // Odbiór osobisty
-    "Cash on collection only. I don't do bank transfers for security reasons. My security, specifically.",
-
-    // Wypolerowane
-    "Freshly polished to a mirror shine. I would encourage you to focus on the shine during the viewing.",
-
-    // Historycznie pewny
-    "I can trace the full ownership history of this vehicle. Two previous owners: myself and the one before me, probably.",
-};
-
-        // ── Archetype D — Złomiarz ────────────────────────────────────────────
-        private static readonly string[] NotesWrecker =
-        {
-    "Sir go to Farget and reedem the code please and i send you the car rocket fast. God bless.",
-    "Buy, buy, I happy me happy. Car very good. Happy day :) Send money now.",
-    "Hemu very good speed delivery through desert. Pay for gas and I ship car now. Very fast!",
-    "My mother car, very little use. Like new. Please pay with fruit cards or Farget codes.",
-    "Hemu shipping 24h. Very fast delivery from overseas. Best price for you friend.",
-    "I am currently out of country but my brother ship car if you send code from Farget.",
-    "Very good car. I cry when I sell. Please send gift card and I cry less.",
-    "Car run like cheetah. I am honest man. My cousin verify. Send deposit, we talk.",
-    "Sir this is not scam. I am engineer. The smoke is normal for this model. Buy now.",
-    "Me and car very close friend. You buy, you also become close friend. PalPal only.",
-    "I ship from overseas. You pay shipping + gas + small fee for my time. Very reasonable.",
-    "First person to send Farget code get special price. Very limited offer. God is watching.",
-    "Engine very quiet because it is calm. This is feature not problem. Trust the process.",
-    "I not respond to lowball. I respond to Farget, Amaz, or Steem card. God bless you.",
-    "My uncle was mechanic before the incident. He says car is fine. I trust him.",
-
-    "Dear beloved buyer. I am Prince Adebayo, currently overseas. My late father left me this vehicle. Send small processing fee and car is yours. God of Abraham bless you.",
-    "I am currently deployed with the military. Car is in safe storage. Send gift cards and my trusted agent delivers. I have medal. Very legitimate.",
-    "Accepting Bitcoin, Ethereum, or Farget codes ONLY. No banks — banks are the real scam. This car will moon. Do your own research. WAGMI.",
-    "WARNING: This is NOT a scam. I say this so you know. Scammers never say it is not a scam. Therefore I am not scammer. Simple logic. Please send code.",
-    "My cousin Dmitri look at car and say everything perfect. Dmitri is not mechanic by profession but he has seen many cars. I trust Dmitri. You trust Dmitri.",
-    "VERY URGENT SALE. I am relocating to another country next week. No time for test drive. Price already too low. First to transfer wins car. Act now.",
-    "Car is currently held in customs. You only need to pay small release fee and car is shipped same day. Very easy.",
-    "Hello dear. I saw you were looking for car. I think we have connection. Please buy car and maybe we talk more. I am real person. I am not cat.",
-    "Several lights on dashboard but they make car look like spaceship cockpit at night. Very cool. Engine light means engine is working.",
-    "I am certified mechanic from University of Car. I personally inspect this vehicle. Diploma is on wall. You cannot see wall but trust me.",
-    "Elon Musk himself would buy this car. He has not, but he would. Probably. Price going up soon like Bitcoin. Buy now before I change mind.",
-    "I am legitimate seller from good family. My father was king of regional car dealership. He has passed. The car is his legacy. Please send deposit to claim.",
-    "God bless you for viewing this listing. God bless this car. God bless the engine. God bless the gearbox. God bless the tyres. Price is firm. God bless.",
-    "I already sent the car before you paid. Please send payment now to confirm delivery. Car is on its way. This is how trust works. Very normal process.",
-    "My other uncle was also mechanic before different incident. Both say car is fine. I have two uncle opinions. Very confident.",
-    "I know price seems too good. That is because I am too good. I just want car to go to nice home. Send half now, half when car arrives.",
-    "Some rust but rust is just car's skin doing extra work. Shows character. Like wrinkles but for metal. This is premium patina.",
-    "The smoke from exhaust is white which means it is clean smoke. Black smoke bad, white smoke good. I am not chemist but this is my understanding.",
-    "Car has full MOT until last year. I know what this means but choose not to explain. Price is price. God willing, she run.",
-
-    // ── Nowe ────────────────────────────────────────────────────────
-
-    // Klasyczny 419 z duszą
-    "CONFIDENTIAL: I am contacting you privately regarding vehicle inheritance. Government trying to seize. Must sell quickly and quietly. Please be my trusted partner in this matter.",
-
-    // Jeff Bezos energy
-    "Jeff Bezos has similar car. His has more features but spiritually this is same car. You feel powerful driving this. Very CEO energy.",
-
-    // Zaufany mechanik który jest nim
-    "I inspect car myself this morning. I am not mechanic but I have YouTube. Watched three videos. Very thorough inspection. Everything pass.",
-
-    // Ogłoszenie pisane przez bota
-    "Excellent vehicle in perfect condition. Runs smoothly and efficiently. All features functional. Great investment opportunity. Contact now for more informations.",
-
-    // Logika odwrócona
-    "If car was bad I would not sell it. I would keep bad car. I am selling this car. Therefore car is good. This is logic. Please send deposit.",
-
-    // Modlitwa przed zakupem
-    "Before you buy please say short prayer for safe delivery. God rewards those who pray and also those who send Steem card. Both options available.",
-
-    // Tłumaczenie Google
-    "Is very good automobile with four wheel and one engine inside. Move forward also backward. Has chair for sit. Mirror for look. Price fair.",
-
-    // Świadek
-    "My neighbour has seen this car. He say it looks fine from window. He is retired and has good eyes. Third party verification complete.",
-
-    // Nieświadomy ARG
-    "DO NOT LOOK UNDER THE PASSENGER SEAT. Everything else is fine. Great car. Please do not ask about the passenger seat.",
-
-    // Escort mission
-    "Car located in village two hours from city. I cannot bring to you but my associate will meet you at highway rest stop at night. Very normal.",
-
-    // Elon V2
-    "This car was once parked near a Tesla. Some of the energy transferred. You can feel it in the throttle response. Very electric vibe. Price reflects this.",
-
-    // Kosmiczne przeznaczenie
-    "Stars aligned when this car was manufactured. Astrologist friend confirm: this vehicle destined for great owner. Are you the great owner? Send deposit to find out.",
-
-    // Auto blockchain
-    "This car is now also NFT. You are buying both physical car and digital soul of car on blockchain. Very exclusive. Only one exist. Farget code for discount.",
-
-    // Support hotline
-    "If any problem with car after purchase please call my cousin. He will not answer but the intention is there. Five star seller.",
-
-    // Záhadná pojízdka
-    "Car sometimes starts by itself at 3am. I think it just misses me. This is not electrical fault, this is emotional bond. Very rare feature.",
-
-    // Delivery company
-    "I use my own delivery company: Hemu Express. Very fast. Five star rating on my personal website which I made yesterday. Very established company.",
-
-    // Warranty void
-    "Car comes with full warranty. Warranty provided by me personally. Does not cover engine, gearbox, bodywork, or other parts. Covers good vibes only.",
-
-    // Deepest lore
-    "Previous owner was scientist. He drove only to work and back. His work was four hundred kilometres away. He drove every day. But very carefully.",
-
-    // Filozofia scammera
-    "In this world there are givers and takers. I am giver. I give you this car for small price. You give me Farget code. This is balance. This is harmony.",
-
-    // Masterpiece zakończenia
-    "I will not be reachable after purchase. Not because scam. I am just very busy man. Extremely busy. Please do not try to reach me. God bless and good luck.",
-};
 
         // ══════════════════════════════════════════════════════════════════════
         //  ACTIVE LISTINGS
         // ══════════════════════════════════════════════════════════════════════
 
-        /// <summary>Manually trigger generation of one new listing.</summary>
-        public void ForceGenerate()
-        {
-            ActiveListings.Add(GenerateListing());
-        }
         public List<CarListing> ActiveListings { get; private set; } = new();
-
         private float _gameTime = 0f;
         public float GameTime => _gameTime;
 
@@ -493,6 +51,11 @@ namespace CMS2026_OXL
                 ActiveListings.Add(GenerateListing());
         }
 
+        public void ForceGenerate()
+        {
+            ActiveListings.Add(GenerateListing());
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         //  GENEROWANIE LISTINGU
         // ══════════════════════════════════════════════════════════════════════
@@ -501,71 +64,44 @@ namespace CMS2026_OXL
         {
             var rng = new Random();
             var def = CarDefs[rng.Next(CarDefs.Length)];
-            var ttl = UnityEngine.Random.Range(120f, 600f);
             int year = rng.Next(def.MinYear, def.MaxYear + 1);
 
-            // Kolor — losowany z aktywnej puli dla danego auta
-            string[] colorPool = ActiveColors.TryGetValue(def.InternalId.Split('_')[0] + "_" +
-                string.Join("_", def.InternalId.Split('_').Skip(1).Take(2)), out var cp)
-                ? cp : new[] { "white" };
-
-            // prostsze podejście — wyciągamy base ID bez numeru losowego
-            string baseId = def.InternalId; // np. "car_mayen_m5"
+            string baseId = def.InternalId;
             string[] pool = ActiveColors.ContainsKey(baseId) ? ActiveColors[baseId] : new[] { "white" };
             string color = pool[rng.Next(pool.Length)];
-
-            // Znajdź indeks koloru w AllColors
             int colorIndex = 0;
             if (AllColors.TryGetValue(def.InternalId, out var allColorNames))
                 colorIndex = Array.IndexOf(allColorNames, color);
 
-
-            // 1. Archetyp sprzedawcy
             var archetype = RollArchetype(rng);
+            int level = RollLevel(archetype, rng);
 
-            int rating = RollSellerRating(archetype, rng);
+            // ── ApparentCondition — co gracz widzi ────────────────────────────
+            float apparent = RollApparent(archetype, level, rng);
 
-            // 2. ApparentCondition — co gracz widzi (dyktuje cenę)
-            //    Dealer wystawia auto wypolerowane (wysoka pozorna kondycja)
-            //    Wrecker może wystawić auto w dowolnym stanie z dobrym opisem
-            float apparent = archetype switch
-            {
-                SellerArchetype.Dealer => Mathf.Clamp((float)BetaSample(rng, 2.5, 1.5), 0.45f, 0.95f),
-                SellerArchetype.Wrecker => Mathf.Clamp((float)BetaSample(rng, 1.5, 2.5), 0.15f, 0.75f),
-                _ => Mathf.Clamp((float)BetaSample(rng, 1.8, 3.5), 0.08f, 0.95f),
-            };
-
-            // 3. ActualCondition — rzeczywisty stan mechaniki
-            float honesty = RollHonesty(archetype, rng);
+            // ── ActualCondition — prawdziwy stan mechaniki ────────────────────
+            float honesty = RollHonesty(archetype, level, rng);
             float noise = (float)(rng.NextDouble() * 0.06 - 0.03);
             float actual = Mathf.Clamp(apparent * honesty + noise, 0.02f, 0.97f);
 
-            // 4. Ukryte usterki — losowane z puli właściwej dla archetypu i actual
-            FaultFlags faults = RollFaults(archetype, actual, rng);
+            // ── Usterki ────────────────────────────────────────────────────────
+            FaultFlags faults = RollFaults(archetype, level, actual, rng);
 
-            // 5. Cena — bazuje na ApparentCondition
-            float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, apparent);
-            float priceNoise = 1f + (float)(rng.NextDouble() * 0.16 - 0.08);
-            int price = Mathf.RoundToInt(basePricef * priceNoise * OXLSettings.PriceMultiplier / 50f) * 50;
+            // ── Cena ───────────────────────────────────────────────────────────
+            int price = RollPrice(def, archetype, level, apparent, faults, rng);
 
-            // Clamp PRZED rabatem — trudność wyznacza widełki, rabat może zejść poniżej i to OK
-            int scaledMin = Mathf.RoundToInt(def.MinPrice * OXLSettings.PriceMultiplier);
-            int scaledMax = Mathf.RoundToInt(def.MaxPrice * OXLSettings.PriceMultiplier);
-            price = Mathf.Clamp(price, scaledMin, scaledMax);
+            // ── TTL — czas życia aukcji ────────────────────────────────────────
+            float ttl = RollTTL(archetype, level, rng);
 
-            // Uczciwy sprzedawca z usterkami daje rabat — celowo może zejść poniżej scaledMin
-            if (archetype == SellerArchetype.Honest && faults != FaultFlags.None)
-                price = Mathf.RoundToInt(price * 0.78f / 50f) * 50;
+            // ── Rating sprzedawcy ──────────────────────────────────────────────
+            int rating = RollSellerRating(archetype, level, rng);
 
-            // 6. Przebieg — z ActualCondition (bardziej prawdziwy)
-            int mileage = Mathf.RoundToInt(
-                Mathf.Lerp(180000, 4000, actual) * (1f + (float)(rng.NextDouble() * 0.30 - 0.15)));
+            // ── Przebieg ───────────────────────────────────────────────────────
+            int mileage = Mathf.RoundToInt(Mathf.Lerp(180000, 4000, actual) * (1f + (float)(rng.NextDouble() * 0.30 - 0.15)));
             mileage = Mathf.Max(500, mileage);
 
-            // 7. Nota sprzedawcy
-            string note = SelectNote(archetype, faults, rng);
-
-
+            // ── Nota sprzedawcy ────────────────────────────────────────────────
+            string note = SelectNote(archetype, level, faults, rng);
 
             var listing = new CarListing
             {
@@ -578,6 +114,7 @@ namespace CMS2026_OXL
                 ApparentCondition = apparent,
                 ActualCondition = actual,
                 Archetype = archetype,
+                ArchetypeLevel = level,
                 Faults = faults,
                 SellerNote = note,
                 ExpiresAt = _gameTime + ttl,
@@ -587,95 +124,362 @@ namespace CMS2026_OXL
                 DeliveryHours = rng.Next(1, 37),
                 SellerRating = rating,
                 Color = color,
+                ColorIndex = colorIndex,
             };
-
-            listing.Color = color;//hmm mam mind fucka
-            listing.ColorIndex = colorIndex;
 
             listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
 
-            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | " +$"Arch={archetype} | Rating={rating}★ | " +$"Apparent={apparent:P0} Actual={actual:P0} | " +$"Price=${price:N0} | Faults={faults} | " +$"Color={color} | TTL={ttl:F0}s | ID={def.InternalId}");
+            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} | Price=${price:N0} | Faults={faults} | Color={color} | TTL={ttl:F0}s");
 
             return listing;
+        }
 
+        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry()
+        {
+            var result = new Dictionary<string, (string, string[])>();
+            foreach (var def in CarDefs)
+            {
+                if (AllColors.TryGetValue(def.InternalId, out var colors))
+                    result[def.ImageFolder] = (def.InternalId, colors);
+            }
+            return result;
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  ARCHETYP — rozkład i uczciwość
+        //  ARCHETYPE + LEVEL ROLLS
         // ══════════════════════════════════════════════════════════════════════
 
         private static SellerArchetype RollArchetype(Random rng)
         {
             double r = rng.NextDouble();
-            if (r < 0.20) return SellerArchetype.Honest;    // 20%
-            if (r < 0.55) return SellerArchetype.Neglected; // 35%
-            if (r < 0.85) return SellerArchetype.Dealer;    // 30%
-            return SellerArchetype.Wrecker;                  // 15%
+            if (r < 0.20) return SellerArchetype.Honest;
+            if (r < 0.55) return SellerArchetype.Neglected;
+            if (r < 0.85) return SellerArchetype.Dealer;
+            return SellerArchetype.Wrecker;
         }
 
-        private static float RollHonesty(SellerArchetype arch, Random rng)
+        // Poziomy: 1=novice/casual/backyard/amateur, 2=experienced/busy/pro/intermediate, 3=veteran/hoarder/criminal/expert
+        // Wyższy poziom = bardziej charakterystyczny dla archetypu (bardziej wiarygodny uczciwy, głębszy scam dealera)
+        private static int RollLevel(SellerArchetype arch, Random rng)
+        {
+            double r = rng.NextDouble();
+            return arch switch
+            {
+                // Honest: większość to doświadczeni, weterani rzadcy (wysoka reputacja = rzadkość)
+                SellerArchetype.Honest => r < 0.40 ? 1 : r < 0.75 ? 2 : 3,
+                // Neglected: rozkład równomierny — każdy typ się trafia
+                SellerArchetype.Neglected => r < 0.35 ? 1 : r < 0.70 ? 2 : 3,
+                // Dealer: pro to norma, criminal rzadki ale niebezpieczny
+                SellerArchetype.Dealer => r < 0.30 ? 1 : r < 0.70 ? 2 : 3,
+                // Wrecker: amatorzy części, eksperci rzadcy ale najgroźniejsi
+                SellerArchetype.Wrecker => r < 0.45 ? 1 : r < 0.75 ? 2 : 3,
+                _ => 1,
+            };
+        }
+
+        // ── ApparentCondition — co gracz widzi w ogłoszeniu ──────────────────
+        // Dealer i Wrecker kłamią na poziomie apparent (zdjęcia, opis)
+        // Honest i Neglected — apparent ≈ actual (bez manipulacji)
+
+        private static float RollApparent(SellerArchetype arch, int level, Random rng)
         {
             return arch switch
             {
-                SellerArchetype.Honest => (float)(0.90 + rng.NextDouble() * 0.10), // 0.90–1.00
-                SellerArchetype.Neglected => (float)(0.78 + rng.NextDouble() * 0.17), // 0.78–0.95
-                SellerArchetype.Dealer => (float)(0.42 + rng.NextDouble() * 0.33), // 0.42–0.75
-                SellerArchetype.Wrecker => (float)(0.07 + rng.NextDouble() * 0.28), // 0.07–0.35
-                _ => 1.0f
+                SellerArchetype.Honest => level switch
+                {
+                    1 => Mathf.Clamp((float)BetaSample(rng, 1.5, 3.5), 0.08f, 0.80f),  // nowicjusz — często gorszy stan
+                    2 => Mathf.Clamp((float)BetaSample(rng, 2.0, 3.0), 0.20f, 0.90f),  // doświadczony — średni/dobry
+                    _ => Mathf.Clamp((float)BetaSample(rng, 2.5, 2.0), 0.40f, 0.95f),  // weteran — dobry stan, zasłużony
+                },
+                SellerArchetype.Neglected => level switch
+                {
+                    1 => Mathf.Clamp((float)BetaSample(rng, 1.5, 3.0), 0.10f, 0.75f),  // casual — losowo
+                    2 => Mathf.Clamp((float)BetaSample(rng, 1.2, 3.5), 0.08f, 0.70f),  // busy — trochę gorzej, nie ma czasu
+                    _ => Mathf.Clamp((float)BetaSample(rng, 1.0, 4.0), 0.05f, 0.65f),  // hoarder — zaniedbane, sprzedaje byle co
+                },
+                SellerArchetype.Dealer => level switch
+                {
+                    1 => Mathf.Clamp((float)BetaSample(rng, 3.0, 1.5), 0.50f, 0.88f),  // backyard — wypolerowane, widać że amator
+                    2 => Mathf.Clamp((float)BetaSample(rng, 3.5, 1.2), 0.65f, 0.95f),  // pro — prawie idealne, bardzo przekonujące
+                    _ => Mathf.Clamp((float)BetaSample(rng, 5.0, 1.0), 0.80f, 1.00f),  // criminal — perfekcyjne, nie do odróżnienia
+                },
+                SellerArchetype.Wrecker => level switch
+                {
+                    1 => Mathf.Clamp((float)BetaSample(rng, 1.5, 2.5), 0.15f, 0.65f),  // amateur — opis pełen błędów, łatwy do wykrycia
+                    2 => Mathf.Clamp((float)BetaSample(rng, 2.5, 2.0), 0.35f, 0.80f),  // intermediate — lepszy storytelling
+                    _ => Mathf.Clamp((float)BetaSample(rng, 4.0, 1.5), 0.65f, 0.98f),  // expert — auto wygląda dobrze, w środku katastrofa
+                },
+                _ => 0.5f,
+            };
+        }
+
+        // ── Honesty — stosunek actual do apparent ─────────────────────────────
+        // 1.0 = pełna uczciwość, 0.1 = kłamstwo na 10% apparent
+
+        private static float RollHonesty(SellerArchetype arch, int level, Random rng)
+        {
+            return arch switch
+            {
+                SellerArchetype.Honest => level switch
+                {
+                    1 => (float)(0.88 + rng.NextDouble() * 0.10),  // 0.88–0.98 — uczciwy ale może nie wiedzieć wszystkiego
+                    2 => (float)(0.92 + rng.NextDouble() * 0.07),  // 0.92–0.99
+                    _ => (float)(0.96 + rng.NextDouble() * 0.04),  // 0.96–1.00 — weteran zna auto w 100%
+                },
+                SellerArchetype.Neglected => level switch
+                {
+                    1 => (float)(0.75 + rng.NextDouble() * 0.20),  // 0.75–0.95 — nie kłamie, po prostu nie wie
+                    2 => (float)(0.65 + rng.NextDouble() * 0.25),  // 0.65–0.90 — nie sprawdzał od lat
+                    _ => (float)(0.50 + rng.NextDouble() * 0.30),  // 0.50–0.80 — hoarder zgaduje stan
+                },
+                SellerArchetype.Dealer => level switch
+                {
+                    1 => (float)(0.35 + rng.NextDouble() * 0.20),  // 0.35–0.55 — backyard: polakierował i tyle
+                    2 => (float)(0.20 + rng.NextDouble() * 0.20),  // 0.20–0.40 — pro: głęboki scam
+                    _ => (float)(0.05 + rng.NextDouble() * 0.15),  // 0.05–0.20 — criminal: auto to atrapa
+                },
+                SellerArchetype.Wrecker => level switch
+                {
+                    1 => (float)(0.25 + rng.NextDouble() * 0.25),  // 0.25–0.50 — amator nie umie zbudować dobrego kłamstwa
+                    2 => (float)(0.12 + rng.NextDouble() * 0.18),  // 0.12–0.30 — intermediate: więcej kłamstwa
+                    _ => (float)(0.03 + rng.NextDouble() * 0.10),  // 0.03–0.13 — expert: totalna fikcja
+                },
+                _ => 0.8f,
             };
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  FAULT ROLLING
+        //  PRICE
         // ══════════════════════════════════════════════════════════════════════
 
-        private static FaultFlags RollFaults(SellerArchetype arch, float actual, Random rng)
+        private static int RollPrice(CarDef def, SellerArchetype arch, int level, float apparent, FaultFlags faults, Random rng)
+        {
+            // Baza cenowa z apparent — wszystkie archetypy startują od tego
+            float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, apparent);
+
+            // Mnożnik per archetype+level
+            float mult = (arch, level) switch
+            {
+                // Honest: nowicjusz wycenia za nisko, weteran lekko premium za zaufanie
+                (SellerArchetype.Honest, 1) => (float)(0.82 + rng.NextDouble() * 0.10),  // 0.82–0.92 — za tani, nie wie co ma
+                (SellerArchetype.Honest, 2) => (float)(0.96 + rng.NextDouble() * 0.08),  // 0.96–1.04 — rynkowa
+                (SellerArchetype.Honest, 3) => (float)(1.03 + rng.NextDouble() * 0.08),  // 1.03–1.11 — premium za reputację
+
+                // Neglected: cena losowa, często oderwana od rzeczywistości
+                (SellerArchetype.Neglected, 1) => (float)(0.78 + rng.NextDouble() * 0.30),  // 0.78–1.08 — losowo
+                (SellerArchetype.Neglected, 2) => (float)(0.70 + rng.NextDouble() * 0.40),  // 0.70–1.10 — jeszcze bardziej losowo
+                (SellerArchetype.Neglected, 3) => (float)(0.60 + rng.NextDouble() * 0.55),  // 0.60–1.15 — hoarder: albo byle zejść albo wygórowana cena
+
+                // Dealer: wycenia wyżej niż rynek bo "perfekcyjny stan"
+                (SellerArchetype.Dealer, 1) => (float)(1.05 + rng.NextDouble() * 0.15),  // 1.05–1.20 — backyard: lekko ponad rynek
+                (SellerArchetype.Dealer, 2) => (float)(1.15 + rng.NextDouble() * 0.20),  // 1.15–1.35 — pro: sporo ponad
+                (SellerArchetype.Dealer, 3) => (float)(1.30 + rng.NextDouble() * 0.30),  // 1.30–1.60 — criminal: mocno ponad, auto "idealne"
+
+                // Wrecker: cena bywa atrakcyjna żeby skusić, lub zawyżona dla nieuwważnych
+                (SellerArchetype.Wrecker, 1) => (float)(0.75 + rng.NextDouble() * 0.25),  // 0.75–1.00 — niska, łatwy do wykrycia
+                (SellerArchetype.Wrecker, 2) => (float)(0.90 + rng.NextDouble() * 0.30),  // 0.90–1.20 — rynkowa lub lekko ponad
+                (SellerArchetype.Wrecker, 3) => (float)(1.10 + rng.NextDouble() * 0.40),  // 1.10–1.50 — expert każe płacić premium za nic
+
+                _ => 1.0f,
+            };
+
+            float noise = 1f + (float)(rng.NextDouble() * 0.08 - 0.04);
+            int price = Mathf.RoundToInt(basePricef * mult * noise * OXLSettings.PriceMultiplier / 50f) * 50;
+
+            int scaledMin = Mathf.RoundToInt(def.MinPrice * OXLSettings.PriceMultiplier);
+            int scaledMax = Mathf.RoundToInt(def.MaxPrice * OXLSettings.PriceMultiplier * 1.8f); // Dealer L3 może przekroczyć normalny max
+            price = Mathf.Clamp(price, scaledMin, scaledMax);
+
+            // Uczciwy z usterkami daje rabat — głębszy rabat dla nowicjusza który nie rozumie rynku
+            if (arch == SellerArchetype.Honest && faults != FaultFlags.None)
+            {
+                float discount = level switch { 1 => 0.72f, 2 => 0.78f, _ => 0.82f };
+                price = Mathf.RoundToInt(price * discount / 50f) * 50;
+            }
+
+            return Mathf.Max(price, 500);
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  TTL — czas życia aukcji
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static float RollTTL(SellerArchetype arch, int level, Random rng)
+        {
+            // Neglected sprzedaje szybko (krótkie TTL), Dealer cierpliwy (długie TTL)
+            // Wyższy poziom = bardziej skrajne zachowanie
+            return (arch, level) switch
+            {
+                (SellerArchetype.Honest, 1) => UnityEngine.Random.Range(200f, 500f),
+                (SellerArchetype.Honest, 2) => UnityEngine.Random.Range(250f, 600f),
+                (SellerArchetype.Honest, 3) => UnityEngine.Random.Range(300f, 700f),  // weteran nie śpieszy się
+
+                (SellerArchetype.Neglected, 1) => UnityEngine.Random.Range(90f, 300f),   // casual: sprzedam to szybko
+                (SellerArchetype.Neglected, 2) => UnityEngine.Random.Range(60f, 200f),   // busy: nie ma czasu czekać
+                (SellerArchetype.Neglected, 3) => UnityEngine.Random.Range(40f, 150f),   // hoarder: wystawia na chwilę, usuwa, wystawia znowu
+
+                (SellerArchetype.Dealer, 1) => UnityEngine.Random.Range(300f, 600f),
+                (SellerArchetype.Dealer, 2) => UnityEngine.Random.Range(400f, 700f),
+                (SellerArchetype.Dealer, 3) => UnityEngine.Random.Range(500f, 900f),  // criminal: cierpliwy, czeka na ofiarę
+
+                (SellerArchetype.Wrecker, 1) => UnityEngine.Random.Range(120f, 350f),
+                (SellerArchetype.Wrecker, 2) => UnityEngine.Random.Range(200f, 500f),
+                (SellerArchetype.Wrecker, 3) => UnityEngine.Random.Range(300f, 650f),  // expert: wystawia na długo, wygląda pewnie
+
+                _ => UnityEngine.Random.Range(120f, 600f),
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  RATING
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static int RollSellerRating(SellerArchetype arch, int level, Random rng)
+        {
+            return (arch, level) switch
+            {
+                (SellerArchetype.Honest, 1) => rng.Next(0, 10) < 5 ? 3 : 4,           // 50% = 3★, 50% = 4★ — nowicjusz, mało opinii
+                (SellerArchetype.Honest, 2) => rng.Next(0, 10) < 7 ? 4 : 5,           // 70% = 4★, 30% = 5★
+                (SellerArchetype.Honest, 3) => rng.Next(0, 10) < 8 ? 5 : 4,           // 80% = 5★ — weteran z reputacją
+
+                (SellerArchetype.Neglected, 1) => rng.Next(0, 10) < 6 ? 3 : 4,           // 60% = 3★
+                (SellerArchetype.Neglected, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // 50% = 2★ — buyers complained
+                (SellerArchetype.Neglected, 3) => rng.Next(0, 10) < 6 ? 2 : 1,           // 60% = 2★, 40% = 1★ — hoarder: niezadowoleni klienci
+
+                (SellerArchetype.Dealer, 1) => rng.Next(0, 10) < 5 ? 3 : 4,           // backyard: ok ale nie imponujący
+                (SellerArchetype.Dealer, 2) => rng.Next(0, 10) < 6 ? 4 : 5,           // pro: kupiony / wypracowany rating
+                (SellerArchetype.Dealer, 3) => rng.Next(0, 10) < 8 ? 5 : 4,           // criminal: sfałszowany 5★, prawie zawsze
+
+                (SellerArchetype.Wrecker, 1) => rng.Next(0, 10) < 7 ? 1 : 2,           // amator: widać że oszust
+                (SellerArchetype.Wrecker, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // intermediate: trochę lepiej
+                (SellerArchetype.Wrecker, 3) => rng.Next(0, 10) < 7 ? 4 : 5,           // expert: sfałszowany rating, wygląda jak Dealer
+
+                _ => 3,
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  FAULTS
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static FaultFlags RollFaults(SellerArchetype arch, int level, float actual, Random rng)
         {
             var f = FaultFlags.None;
 
-            // Pasek rozrządu — pułapka nr 1, najważniejsza
-            double timingChance = arch switch
+            // Bazowe prawdopodobieństwa per archetyp+poziom przy złym stanie (actual < 0.4)
+            // Dealer L3 i Wrecker L3 mogą mieć usterki nawet przy "dobrym" apparent
+            // bo actual jest bardzo niski względem apparent
+
+            // Szansa na TimingBelt — klasyczna pułapka dla wszystkich
+            double timingChance = (arch, level) switch
             {
-                SellerArchetype.Wrecker => 0.55,
-                SellerArchetype.Neglected => 0.35,
-                SellerArchetype.Dealer => 0.12,
-                _ => 0.04, // Honest rzadko zatai
+                (SellerArchetype.Honest, _) => actual < 0.40 ? 0.30 : 0.08,  // Honest ujawni usterkę w opisie
+                (SellerArchetype.Neglected, 1) => actual < 0.45 ? 0.20 : 0.05,
+                (SellerArchetype.Neglected, 2) => actual < 0.45 ? 0.28 : 0.08,
+                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.35 : 0.12,  // hoarder nie wie kiedy ostatnio wymieniony
+                (SellerArchetype.Dealer, 1) => actual < 0.35 ? 0.25 : 0.10,
+                (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.35 : 0.18,  // pro ukrywa
+                (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.50 : 0.30,  // criminal: pasek wymieniony licznikiem nie stanem
+                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.30 : 0.10,
+                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.40 : 0.18,
+                (SellerArchetype.Wrecker, 3) => 0.55,  // expert: prawie zawsze rozrząd to bomba zegarowa
+                _ => 0.10,
             };
             if (rng.NextDouble() < timingChance) f |= FaultFlags.TimingBelt;
 
-            // Uszczelka głowicy — tylko zły stan + wrecker
-            if (actual < 0.30 && arch == SellerArchetype.Wrecker && rng.NextDouble() < 0.30)
-                f |= FaultFlags.HeadGasket;
-
-            // Zawieszenie — dealer ukrywa, neglected ignoruje
-            double suspChance = arch switch
+            // HeadGasket — bardzo poważna, rzadka, wyższy poziom dealera/wreckera = większa szansa
+            double headChance = (arch, level) switch
             {
-                SellerArchetype.Dealer => 0.62,
-                SellerArchetype.Wrecker => 0.50,
-                SellerArchetype.Neglected => 0.38,
-                _ => 0.12,
+                (SellerArchetype.Honest, _) => actual < 0.25 ? 0.15 : 0.02,
+                (SellerArchetype.Neglected, _) => actual < 0.30 ? 0.12 : 0.03,
+                (SellerArchetype.Dealer, 1) => actual < 0.30 ? 0.08 : 0.02,
+                (SellerArchetype.Dealer, 2) => actual < 0.30 ? 0.18 : 0.06,
+                (SellerArchetype.Dealer, 3) => actual < 0.25 ? 0.35 : 0.15,  // criminal: główna atrakcja
+                (SellerArchetype.Wrecker, 1) => actual < 0.20 ? 0.10 : 0.03,
+                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.22 : 0.08,
+                (SellerArchetype.Wrecker, 3) => 0.45,  // expert: prawdopodobnie głowica jest skończona
+                _ => 0.03,
+            };
+            if (rng.NextDouble() < headChance) f |= FaultFlags.HeadGasket;
+
+            // SuspensionWorn — powszechna, rośnie z zaniedbaniem i poziomem
+            double suspChance = (arch, level) switch
+            {
+                (SellerArchetype.Honest, _) => actual < 0.50 ? 0.35 : 0.10,
+                (SellerArchetype.Neglected, 1) => actual < 0.55 ? 0.40 : 0.15,
+                (SellerArchetype.Neglected, 2) => actual < 0.55 ? 0.50 : 0.22,
+                (SellerArchetype.Neglected, 3) => actual < 0.55 ? 0.62 : 0.30,
+                (SellerArchetype.Dealer, 1) => actual < 0.40 ? 0.30 : 0.08,
+                (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.40 : 0.12,
+                (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.55 : 0.20,  // ukryte za świeżymi amortyzatorami z przodu
+                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.35 : 0.12,
+                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.50 : 0.22,
+                (SellerArchetype.Wrecker, 3) => 0.65,
+                _ => 0.15,
             };
             if (rng.NextDouble() < suspChance) f |= FaultFlags.SuspensionWorn;
 
-            // Hamulce — powszechne u neglected/wrecker
-            double brakeChance = arch switch
+            // BrakesGone — typowe dla Neglected i Wrecker
+            double brakeChance = (arch, level) switch
             {
-                SellerArchetype.Honest => 0.18,
-                SellerArchetype.Neglected => 0.48,
-                SellerArchetype.Dealer => 0.30, // zatuszowane
-                SellerArchetype.Wrecker => 0.55,
-                _ => 0.20
+                (SellerArchetype.Honest, _) => actual < 0.40 ? 0.25 : 0.05,
+                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.35 : 0.10,
+                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.45 : 0.18,
+                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.55 : 0.25,
+                (SellerArchetype.Dealer, 1) => actual < 0.35 ? 0.15 : 0.04,
+                (SellerArchetype.Dealer, 2) => actual < 0.30 ? 0.20 : 0.06,
+                (SellerArchetype.Dealer, 3) => actual < 0.25 ? 0.30 : 0.10,  // nowe klocki z przodu, tył = katastrofa
+                (SellerArchetype.Wrecker, 1) => actual < 0.25 ? 0.30 : 0.10,
+                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.42 : 0.18,
+                (SellerArchetype.Wrecker, 3) => 0.55,
+                _ => 0.10,
             };
             if (rng.NextDouble() < brakeChance) f |= FaultFlags.BrakesGone;
 
-            // Tłumik — korozja, zależna od actual
-            if (actual < 0.50 && rng.NextDouble() < 0.45) f |= FaultFlags.ExhaustRusted;
+            // ExhaustRusted — wiek + zaniedbanie
+            double exhaustChance = (arch, level) switch
+            {
+                (SellerArchetype.Honest, _) => actual < 0.45 ? 0.30 : 0.08,
+                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.35 : 0.12,
+                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.45 : 0.18,
+                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.55 : 0.25,
+                (SellerArchetype.Dealer, _) => actual < 0.35 ? 0.20 : 0.05,  // dealer wymienia tłumik żeby nie słyszałeś
+                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.28 : 0.10,
+                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.40 : 0.18,
+                (SellerArchetype.Wrecker, 3) => 0.50,
+                _ => 0.12,
+            };
+            if (rng.NextDouble() < exhaustChance) f |= FaultFlags.ExhaustRusted;
 
-            // Elektryka — losowe, każdy archetyp
-            if (rng.NextDouble() < 0.14) f |= FaultFlags.ElectricalFault;
+            // ElectricalFault — typowe dla starszych aut i Wrecker
+            double elecChance = (arch, level) switch
+            {
+                (SellerArchetype.Honest, _) => actual < 0.45 ? 0.20 : 0.05,
+                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.22 : 0.07,
+                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.30 : 0.12,
+                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.40 : 0.18,
+                (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.22 : 0.08,
+                (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.35 : 0.15,
+                (SellerArchetype.Wrecker, 1) => actual < 0.25 ? 0.25 : 0.08,
+                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.38 : 0.15,
+                (SellerArchetype.Wrecker, 3) => 0.55,
+                _ => 0.07,
+            };
+            if (rng.NextDouble() < elecChance) f |= FaultFlags.ElectricalFault;
 
-            // Szyby / reflektory — zależne od actual
-            double glassChance = actual < 0.35 ? 0.35 : 0.07;
+            // GlassDamage — widoczna, Dealer i Wrecker L3 ukrywają przez dobre zdjęcia
+            double glassChance = (arch, level) switch
+            {
+                (SellerArchetype.Honest, _) => actual < 0.45 ? 0.25 : 0.05,
+                (SellerArchetype.Neglected, _) => actual < 0.50 ? 0.30 : 0.08,
+                (SellerArchetype.Dealer, 1) => actual < 0.40 ? 0.10 : 0.02,  // backyard naprawia szyby żeby wyglądało
+                (SellerArchetype.Dealer, 2) => 0.02,
+                (SellerArchetype.Dealer, 3) => 0.01,  // criminal: auto wygląda doskonale
+                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.35 : 0.12,
+                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.25 : 0.10,
+                (SellerArchetype.Wrecker, 3) => 0.05,  // expert: czyste szyby, wszystko inne do wymiany
+                _ => 0.08,
+            };
             if (rng.NextDouble() < glassChance) f |= FaultFlags.GlassDamage;
 
             return f;
@@ -685,31 +489,33 @@ namespace CMS2026_OXL
         //  SELEKCJA OPISU
         // ══════════════════════════════════════════════════════════════════════
 
-        private static string SelectNote(SellerArchetype arch, FaultFlags faults, Random rng)
+        private static string SelectNote(SellerArchetype arch, int level, FaultFlags faults, Random rng)
         {
-            // Uczciwy sprzedawca z krytyczną usterką — nota musi to odzwierciedlać
+            // Uczciwy zawsze ujawnia usterkę jeśli ją ma
             if (arch == SellerArchetype.Honest)
             {
-                // Priorytet: HeadGasket > TimingBelt > Suspension > Brakes > Electrical
-                foreach (var flag in new[] {
-                    FaultFlags.HeadGasket,
-                    FaultFlags.TimingBelt,
-                    FaultFlags.SuspensionWorn,
-                    FaultFlags.BrakesGone,
-                    FaultFlags.ElectricalFault })
+                foreach (var flag in new[] { FaultFlags.HeadGasket, FaultFlags.TimingBelt, FaultFlags.SuspensionWorn, FaultFlags.BrakesGone, FaultFlags.ElectricalFault })
                 {
                     if (faults.HasFlag(flag) && NotesHonestFault.TryGetValue(flag, out var specific))
                         return specific;
                 }
             }
 
-            // Dla pozostałych — losuj z puli archetypu
-            string[] pool = arch switch
+            // Per archetype+level — osobne pule dla każdego poziomu
+            string[] pool = (arch, level) switch
             {
-                SellerArchetype.Honest => NotesHonest,
-                SellerArchetype.Neglected => NotesNeglected,
-                SellerArchetype.Dealer => NotesDealer,
-                SellerArchetype.Wrecker => NotesWrecker,
+                (SellerArchetype.Honest, 1) => NotesHonestNovice,
+                (SellerArchetype.Honest, 2) => NotesHonest,
+                (SellerArchetype.Honest, 3) => NotesHonestVeteran,
+                (SellerArchetype.Neglected, 1) => NotesNeglected,
+                (SellerArchetype.Neglected, 2) => NotesNeglectedBusy,
+                (SellerArchetype.Neglected, 3) => NotesNeglectedHoarder,
+                (SellerArchetype.Dealer, 1) => NotesDealer,
+                (SellerArchetype.Dealer, 2) => NotesDealerPro,
+                (SellerArchetype.Dealer, 3) => NotesDealerCriminal,
+                (SellerArchetype.Wrecker, 1) => NotesWrecker,
+                (SellerArchetype.Wrecker, 2) => NotesWreckerIntermediate,
+                (SellerArchetype.Wrecker, 3) => NotesWreckerExpert,
                 _ => NotesNeglected,
             };
 
@@ -726,55 +532,168 @@ namespace CMS2026_OXL
             spawnCar(listing.InternalId);
             deductMoney(listing.Price);
             ActiveListings.Remove(listing);
-            OXLPlugin.Log.Msg(
-                $"[OXL] Purchased: {listing.Make} {listing.Model} " +
-                $"| Arch={listing.Archetype} " +
-                $"| Apparent={listing.ApparentCondition:P0} Actual={listing.ActualCondition:P0} " +
-                $"| Faults={listing.Faults}");
+            OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} | Arch={listing.Archetype} L{listing.ArchetypeLevel} | Apparent={listing.ApparentCondition:P0} Actual={listing.ActualCondition:P0} | Faults={listing.Faults}");
             return true;
         }
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  NOTES — wszystkie pule opisów
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static readonly Dictionary<FaultFlags, string> NotesHonestFault = new()
+        {
+            { FaultFlags.HeadGasket,    "Coolant mixing with oil, head gasket is gone. Priced accordingly, engine needs full work." },
+            { FaultFlags.TimingBelt,    "Timing belt has not been changed in a long time. Needs doing before driving, hence the price." },
+            { FaultFlags.SuspensionWorn,"Suspension is tired — shocks are soft and bushings are cracked. Nothing structural, but it needs money spent." },
+            { FaultFlags.BrakesGone,    "Brakes are worn down to nothing. Pads need replacing before this goes on a road, hence the price." },
+            { FaultFlags.ElectricalFault,"Battery keeps dying and alternator is not charging right. Sold as-is, fault is known." },
+        };
+
+        // ── Honest L1 — Novice ────────────────────────────────────────────────
+        private static readonly string[] NotesHonestNovice =
+        {
+            "First time selling a car. Not sure if this is a good price but it feels right.",
+            "I think everything works. I drove it to work every day and it always started.",
+            "Bought it, didn't end up using it much. Selling as it is. I hope it is ok.",
+            "Not sure what to write here. Car runs. Has wheels. Starts most times.",
+            "My mechanic said it needs a few things but didn't say what exactly. Priced low just in case.",
+            "I am not very car savvy. The dashboard lights are mostly off which is probably good.",
+            "Honest sale. I don't know much about cars but I tried to describe it truthfully.",
+        };
+
+        // ── Honest L2 — Experienced ───────────────────────────────────────────
+        private static readonly string[] NotesHonest =
+        {
+            "What you see is what you get. No hidden issues, priced to reflect actual condition.",
+            "Selling because upgrading. Everything disclosed, nothing hidden. Straightforward sale.",
+            "Had it serviced regularly. Recent oil change, tyres have decent tread. Runs well.",
+            "Honest private sale. Viewing welcome, no pressure. Ask anything and I will tell you.",
+            "Full service history available. Nothing to hide — I kept records of everything done.",
+            "Minor cosmetic scratches as shown in photos. Mechanically sound, no warning lights.",
+            "Reluctant sale. Good car, just no longer needed. Priced fairly for the condition.",
+        };
+
+        // ── Honest L3 — Veteran ───────────────────────────────────────────────
+        private static readonly string[] NotesHonestVeteran =
+        {
+            "Fifty-two cars sold over twenty years, all described exactly as they are. This is no different.",
+            "Full documented service history, every stamp present. Price reflects genuine condition — not aspirational.",
+            "I know what I have and I know what it is worth. Viewing encouraged. Lowballers ignored politely.",
+            "If something needs doing I will tell you before you ask. Nothing worse than wasting someone's time.",
+            "Genuine sale, no rush, no games. I would rather it go to someone who appreciates it than sell it fast.",
+            "Sold with the same honesty I would want if I were buying. Priced at market, not above it.",
+        };
+
+        // ── Neglected L1 — Casual ─────────────────────────────────────────────
+        private static readonly string[] NotesNeglected =
+        {
+            "Good runner, selling as-is. A few things probably need attention but drives fine.",
+            "Been sitting more than driving lately. Starts fine, just needs someone to use it.",
+            "Owned for years, no major problems. Oil probably needs changing, I'll be honest.",
+            "Bit dusty inside. Mechanically it's ok I think. No warning lights on... most of the time.",
+            "Air filter probably needs doing. Or maybe it doesn't. We are both finding out together.",
+            "I service it every year whether it needs it or not. Last service was 2019.",
+            "There is a vibration above 90 km/h. I just don't go above 90. Simple lifestyle adjustment.",
+            "Battery is the original from the factory. I think that counts as a feature at this point.",
+        };
+
+        // ── Neglected L2 — Busy ───────────────────────────────────────────────
+        private static readonly string[] NotesNeglectedBusy =
+        {
+            "Selling quickly, no time for viewings. What you see is what you get, photos are recent enough.",
+            "Listed three cars this week. Don't ask me which service was done on which. Price is price.",
+            "Works. Drives. Stops. That covers the basics. I have four kids and no time for more detail.",
+            "If it needs anything doing you'll find out when you buy it. I certainly haven't checked.",
+            "Condition: it exists and moves. Everything else is a discovery process for the new owner.",
+            "Selling fast, no negotiation, no sob stories. Collect this week or I relist.",
+            "I drove it yesterday and it was fine. Two days ago also fine. Before that I can't recall.",
+        };
+
+        // ── Neglected L3 — Hoarder ───────────────────────────────────────────
+        private static readonly string[] NotesNeglectedHoarder =
+        {
+            "One of eleven. Selling a few to make room. This one starts — I checked last Tuesday I think.",
+            "Been under a tarp for a while. Exact duration unclear. Everything original, nothing replaced ever.",
+            "I have too many. This was the overflow. Priced to clear space not to make money.",
+            "Did it run when parked? Almost certainly yes. Does it run now? Probably yes. One way to find out.",
+            "Stored dry. Mostly dry. A corner of the garage leaks but that side of the car looks fine.",
+            "Selling the collection in parts. This is part seven. No history, no paperwork, no problem.",
+        };
+
+        // ── Dealer L1 — Backyard ─────────────────────────────────────────────
+        private static readonly string[] NotesDealer =
+        {
+            "Freshly detailed, cleaned inside and out. Drives well, no issues noticed.",
+            "Touched up the paint and gave it a good wash. Looks and feels much better than before.",
+            "Picked it up, sorted it out, passing it on. Drives fine, nothing rattling.",
+            "Gave it a full clean and checked the basics. Presentable car at a fair price.",
+            "Not a project — I took care of the obvious stuff. Ready to drive away today.",
+        };
+
+        // ── Dealer L2 — Pro ───────────────────────────────────────────────────
+        private static readonly string[] NotesDealerPro =
+        {
+            "Full professional valet, recent service, drives like new. First to see will buy.",
+            "One owner history sourced, garage kept, every service stamp present. Exceptional example.",
+            "Just finished a full inspection — brakes checked, fluid levels topped, all lights functional.",
+            "Selling due to family expansion. Viewing will not disappoint, serious buyers only.",
+            "Immaculate example. Price is firm because the car speaks for itself. No lowballers.",
+            "Turn key ready. Not a project — everything verified and professionally presented.",
+            "Private sale from a careful owner. Full documentation available on viewing.",
+        };
+
+        // ── Dealer L3 — Criminal ─────────────────────────────────────────────
+        private static readonly string[] NotesDealerCriminal =
+        {
+            "Dealer maintained, full electronic history check passed, mileage verified and correct.",
+            "Former company vehicle, low-stress usage. All original components, nothing substituted.",
+            "Professionally restored interior and exterior. Mechanicals fully rebuilt to specification.",
+            "One of the cleanest examples currently available. Priced below comparable listings for quick sale.",
+            "WBAC valued at significantly more. Genuine price drop for this week only. Viewing essential.",
+            "I stand behind every car I sell. This is the best I have had in years. Come and see.",
+            "Full AA inspection report available on request. Nothing to hide — everything documented.",
+        };
+
+        // ── Wrecker L1 — Amateur ─────────────────────────────────────────────
+        private static readonly string[] NotesWrecker =
+        {
+            "Selling fast, no return, cash only, I leave the country on Wednesday.",
+            "Small issues but nothing major i think. Price negotiable with Farget gift code.",
+            "Please no time wasters. Genuine buyers only. Send bank transfer first for viewing slot.",
+            "Good car for the money. Small smoke on start but goes away. Normal for the age.",
+            "Warranty provided by me personally. Does not cover engine, gearbox, bodywork, or other parts.",
+            "Previous owner was scientist. He drove only to work. His work was four hundred kilometres away.",
+            "I will not be reachable after purchase. Not because scam. I am just very busy man.",
+        };
+
+        // ── Wrecker L2 — Intermediate ─────────────────────────────────────────
+        private static readonly string[] NotesWreckerIntermediate =
+        {
+            "Selling on behalf of family member who is currently overseas. They authorised me to handle everything.",
+            "Just had a full service done last month — all receipts available at collection.",
+            "Minor oil seep from valve cover, normal for age, not a problem. Priced to reflect.",
+            "Car is in storage, photos taken this morning. Collection only, no delivery.",
+            "Bought at auction, selling privately. No history but runs and drives well.",
+            "Owner relocated abroad. I have power of attorney and all relevant paperwork.",
+            "Photos are accurate. A few small things to sort but nothing a competent buyer can't handle.",
+        };
+
+        // ── Wrecker L3 — Expert ───────────────────────────────────────────────
+        private static readonly string[] NotesWreckerExpert =
+        {
+            "Reluctant sale of a genuinely excellent car. Full service history, zero hidden faults.",
+            "Owned for six years, maintained obsessively, selling only due to relocation abroad.",
+            "One careful private owner from new. Priced at market — no games, no drama.",
+            "Had this independently inspected last week. Report shows everything within spec. Available on viewing.",
+            "Priced below what I paid because I need it gone this week. This does not happen often.",
+            "Will not be undersold. You will not find a better example at this price. Come and verify.",
+            "Sold with full documentation. Nothing to disclose because nothing is wrong. Simple as that.",
+        };
 
         // ══════════════════════════════════════════════════════════════════════
         //  HELPERS
         // ══════════════════════════════════════════════════════════════════════
 
-
-        // ── Helper: gwiazdki sprzedawcy ──────────────────────────────────────────
-        private static string FormatStars(int rating)
-        {
-            // Wypełnione ★ + puste ☆ żeby zawsze było 5 znaków — czytelna skala
-            return new string('★', rating) + new string('☆', 5 - rating);
-        }
-
-        private static Color StarColor(int rating) => rating switch
-        {
-            5 => new Color(0.22f, 0.75f, 0.40f, 1f), // zielony  — godny zaufania
-            4 => new Color(0.55f, 0.80f, 0.30f, 1f), // żółtozielony
-            3 => new Color(0.85f, 0.72f, 0.20f, 1f), // żółty    — uważaj
-            2 => new Color(0.90f, 0.45f, 0.15f, 1f), // pomarańcz
-            _ => new Color(0.90f, 0.20f, 0.20f, 1f), // czerwony — uciekaj
-        };
-
-
-
-        private static int RollSellerRating(SellerArchetype arch, Random rng)
-        {
-            // Losujemy z przedziału właściwego dla archetypu
-            // Dealer celowo może dostać wysoką ocenę — to jest pułapka
-            return arch switch
-            {
-                SellerArchetype.Honest => rng.Next(0, 10) < 8 ? 5 : 4,        // 80% = 5★, 20% = 4★
-                SellerArchetype.Neglected => rng.Next(0, 10) < 6 ? 4 : 3,        // 60% = 4★, 40% = 3★
-                SellerArchetype.Dealer => rng.Next(0, 10) switch               // pułapka
-                {
-                    < 3 => 5,   // 30% = 5★ — bardzo przekonujący
-                    < 7 => 4,   // 40% = 4★
-                    _ => 3    // 30% = 3★
-                },
-                SellerArchetype.Wrecker => rng.Next(0, 10) < 7 ? 1 : 2,        // 70% = 1★, 30% = 2★
-                _ => 3
-            };
-        }
         private static double BetaSample(Random rng, double alpha, double beta)
         {
             double x = GammaSample(rng, alpha);
@@ -784,8 +703,7 @@ namespace CMS2026_OXL
 
         private static double GammaSample(Random rng, double shape)
         {
-            if (shape < 1.0)
-                return GammaSample(rng, shape + 1.0) * Math.Pow(rng.NextDouble(), 1.0 / shape);
+            if (shape < 1.0) return GammaSample(rng, shape + 1.0) * Math.Pow(rng.NextDouble(), 1.0 / shape);
             double d = shape - 1.0 / 3.0, c = 1.0 / Math.Sqrt(9.0 * d);
             while (true)
             {
@@ -809,20 +727,13 @@ namespace CMS2026_OXL
         {
             const string L = "ABCDEFGHJKLMNPRSTVWXYZ";
             const string N = "0123456789";
-
-            // Format: 2 litery + 2-4 cyfry + 1-2 litery = 5-8 znaków
-            int digitCount = rng.Next(2, 5);     // 2–4 cyfry
+            int digitCount = rng.Next(2, 5);
             int trailCount = rng.Next(2, 3);
-
             var sb = new System.Text.StringBuilder();
-            // 2 litery prefix
             sb.Append(L[rng.Next(L.Length)]);
             sb.Append(L[rng.Next(L.Length)]);
-            // cyfry
             for (int i = 0; i < digitCount; i++) sb.Append(N[rng.Next(N.Length)]);
-            // litery suffix
             for (int i = 0; i < trailCount; i++) sb.Append(L[rng.Next(L.Length)]);
-
             return sb.ToString();
         }
 
@@ -833,6 +744,25 @@ namespace CMS2026_OXL
             "Fenwick Hollow", "Clarendon Rise", "Saltbury", "Wexmoor",
             "Hadleigh Point", "Thorngate", "Ivybridge End", "Coldwater Bluff",
             "Elmshire", "Brackenford", "Southmere", "Galloway Reach"
+        };
+
+        // ── Kolory — te same co poprzednio ────────────────────────────────────
+        private static readonly Dictionary<string, string[]> ActiveColors = new()
+        {
+            { "car_dnb_censor",          new[] { "white", "black", "red", "silver", "gray", "darkblue" } },
+            { "car_katagiri_tamago",     new[] { "white", "silver", "red", "black", "blue", "green" } },
+            { "car_luxor_streamliner",   new[] { "white", "black", "cream", "darkblue", "maroon", "silver" } },
+            { "car_mayen_m5",            new[] { "white", "black", "silver", "red", "gray", "darkblue" } },
+            { "car_salem_aries",         new[] { "white", "silver", "black", "red", "teal", "darkgreen" } },
+        };
+
+        private static readonly Dictionary<string, string[]> AllColors = new()
+        {
+            { "car_dnb_censor",          new[] { "white", "black", "red", "darkred", "silver", "gray", "cyan", "lightblue", "blue", "darkblue", "navy", "green", "darkgreen", "gold", "beige" } },
+            { "car_katagiri_tamago",     new[] { "white", "silver", "red", "black", "blue", "green", "orange", "purple", "gray", "darkblue" } },
+            { "car_luxor_streamliner",   new[] { "white", "black", "cream", "offwhite", "beige", "darkblue", "maroon", "darkmaroon", "silver", "gray", "teal", "darkteal", "rust" } },
+            { "car_mayen_m5",            new[] { "white", "black", "silver", "red", "gray", "darkblue", "darkgreen", "gold", "charcoal", "nearblack", "darkgray", "gray2" } },
+            { "car_salem_aries",         new[] { "white", "silver", "black", "red", "darkred", "teal", "darkgreen", "blue", "maroon", "beige", "gray", "pink" } },
         };
     }
 }
