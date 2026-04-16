@@ -52,6 +52,12 @@ namespace CMS2026_OXL
         public int SellerRating { get; set; } = 3;
         public FaultFlags Faults { get; set; } = FaultFlags.None;
 
+        /// <summary>Uczciwa wartość rynkowa na podstawie actual condition + roku. Niezależna od archetype.</summary>
+        public int FairValue { get; set; }
+
+        /// <summary>Faktyczna kondycja karoserii/nadwozia/wnętrza po spawnowaniu. Dealer ustawia ją wysoko niezależnie od ActualCondition.</summary>
+        public float BodyCondition { get; set; }
+
         public float Condition { get => ActualCondition; set => ActualCondition = value; }
         public string Color { get; set; } = "white";
     }

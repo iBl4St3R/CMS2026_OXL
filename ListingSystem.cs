@@ -87,8 +87,12 @@ namespace CMS2026_OXL
             // ── Usterki ────────────────────────────────────────────────────────
             FaultFlags faults = RollFaults(archetype, level, actual, rng);
 
+            // ── Kondycja karoserii — Dealer naprawia wygląd niezależnie od mechaniki ──
+            float bodyCondition = RollBodyCondition(archetype, level, actual, rng);
+
             // ── Cena ───────────────────────────────────────────────────────────
-            int price = RollPrice(def, archetype, level, apparent, faults, rng);
+            int price = RollPrice(def, archetype, level, apparent, actual, year, faults, rng);
+            int fairValue = CalcFairValue(def, actual, year);
 
             // ── TTL — czas życia aukcji ────────────────────────────────────────
             float ttl = RollTTL(archetype, level, rng);
@@ -111,7 +115,9 @@ namespace CMS2026_OXL
                 ImageFolder = def.ImageFolder,
                 Year = year,
                 Price = price,
+                FairValue = fairValue,
                 ApparentCondition = apparent,
+                BodyCondition = bodyCondition,
                 ActualCondition = actual,
                 Archetype = archetype,
                 ArchetypeLevel = level,
@@ -129,7 +135,7 @@ namespace CMS2026_OXL
 
             listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
 
-            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} | Price=${price:N0} | Faults={faults} | Color={color} | TTL={ttl:F0}s");
+            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} Body={bodyCondition:P0} | Price=${price:N0} Fair=${fairValue:N0} ({(fairValue > 0 ? (float)price / fairValue : 0):F2}x) | Faults={faults} | Color={color} | TTL={ttl:F0}s");
 
             return listing;
         }
@@ -249,56 +255,117 @@ namespace CMS2026_OXL
         }
 
         // ══════════════════════════════════════════════════════════════════════
+        //  BODY CONDITION — wygląd fizyczny karoserii/wnętrza po spawnowaniu
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static float RollBodyCondition(SellerArchetype arch, int level, float actual, Random rng)
+        {
+            return arch switch
+            {
+                // Honest: karoseria odzwierciedla stan faktyczny — bez manipulacji
+                SellerArchetype.Honest => Mathf.Clamp(actual * (float)(0.92 + rng.NextDouble() * 0.12), 0.05f, 0.95f),
+
+                // Neglected: zaniedbana karoseria — ciut gorsza niż actual
+                SellerArchetype.Neglected => level switch
+                {
+                    1 => Mathf.Clamp(actual * (float)(0.78 + rng.NextDouble() * 0.22), 0.03f, 0.85f),
+                    2 => Mathf.Clamp(actual * (float)(0.68 + rng.NextDouble() * 0.25), 0.02f, 0.78f),
+                    _ => Mathf.Clamp(actual * (float)(0.55 + rng.NextDouble() * 0.30), 0.02f, 0.72f),
+                },
+
+                // Dealer: karoseria naprawiona niezależnie od mechaniki — to jest ich "produkt"
+                SellerArchetype.Dealer => level switch
+                {
+                    1 => (float)(0.60 + rng.NextDouble() * 0.15),  // 0.60–0.75 — Backyard: umył, podmalował
+                    2 => (float)(0.75 + rng.NextDouble() * 0.15),  // 0.75–0.90 — Pro: profesjonalny detailing
+                    _ => (float)(0.90 + rng.NextDouble() * 0.09),  // 0.90–0.99 — Criminal: perfekcyjne, nie do odróżnienia
+                },
+
+                // Wrecker: próbuje ukryć — L3 wygląda OK, L1 łatwy do wykrycia
+                SellerArchetype.Wrecker => level switch
+                {
+                    1 => Mathf.Clamp(actual * (float)(0.90 + rng.NextDouble() * 0.20), 0.05f, 0.75f),
+                    2 => (float)(0.40 + rng.NextDouble() * 0.25),  // 0.40–0.65 — średni wygląd, trudniejszy do wykrycia
+                    _ => (float)(0.62 + rng.NextDouble() * 0.25),  // 0.62–0.87 — Expert: posprzątany, odmalowany
+                },
+
+                _ => actual,
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
         //  PRICE
         // ══════════════════════════════════════════════════════════════════════
 
-        private static int RollPrice(CarDef def, SellerArchetype arch, int level, float apparent, FaultFlags faults, Random rng)
+        private static int RollPrice(CarDef def, SellerArchetype arch, int level, float apparent, float actual, int year, FaultFlags faults, Random rng)
         {
-            // Baza cenowa z apparent — wszystkie archetypy startują od tego
-            float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, apparent);
+            // Deprecjacja roczna — starsze auta wychodzą taniej z założenia
+            float ageFactor = YearFactor(year);
+
+            // Baza: Dealer/Wrecker kłamią więc ich baza to apparent (widoczna jakość)
+            // Honest/Neglected wyceniają bliżej tego co faktycznie mają (actual)
+            float baseCondition = (arch == SellerArchetype.Dealer || arch == SellerArchetype.Wrecker) ? apparent : actual;
+            float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, baseCondition) * ageFactor;
 
             // Mnożnik per archetype+level
             float mult = (arch, level) switch
             {
-                // Honest: nowicjusz wycenia za nisko, weteran lekko premium za zaufanie
-                (SellerArchetype.Honest, 1) => (float)(0.82 + rng.NextDouble() * 0.10),  // 0.82–0.92 — za tani, nie wie co ma
-                (SellerArchetype.Honest, 2) => (float)(0.96 + rng.NextDouble() * 0.08),  // 0.96–1.04 — rynkowa
-                (SellerArchetype.Honest, 3) => (float)(1.03 + rng.NextDouble() * 0.08),  // 1.03–1.11 — premium za reputację
+                // Honest: nowicjusz wycenia za nisko (nie zna rynku), weteran lekko premium za zaufanie
+                (SellerArchetype.Honest, 1) => (float)(0.78 + rng.NextDouble() * 0.12),  // 0.78–0.90 — za tani, nie wie co ma
+                (SellerArchetype.Honest, 2) => (float)(0.93 + rng.NextDouble() * 0.13),  // 0.93–1.06 — rynkowa
+                (SellerArchetype.Honest, 3) => (float)(1.05 + rng.NextDouble() * 0.11),  // 1.05–1.16 — premium za reputację
 
-                // Neglected: cena losowa, często oderwana od rzeczywistości
-                (SellerArchetype.Neglected, 1) => (float)(0.78 + rng.NextDouble() * 0.30),  // 0.78–1.08 — losowo
-                (SellerArchetype.Neglected, 2) => (float)(0.70 + rng.NextDouble() * 0.40),  // 0.70–1.10 — jeszcze bardziej losowo
-                (SellerArchetype.Neglected, 3) => (float)(0.60 + rng.NextDouble() * 0.55),  // 0.60–1.15 — hoarder: albo byle zejść albo wygórowana cena
+                // Neglected: Casual losowo, Busy chce się pozbyć (nisko), Hoarder skrajności
+                (SellerArchetype.Neglected, 1) => (float)(0.72 + rng.NextDouble() * 0.28),  // 0.72–1.00 — losowo, nie dba
+                (SellerArchetype.Neglected, 2) => (float)(0.58 + rng.NextDouble() * 0.28),  // 0.58–0.86 — Busy: chce zejść szybko
+                (SellerArchetype.Neglected, 3) => (float)(0.45 + rng.NextDouble() * 0.75),  // 0.45–1.20 — Hoarder: albo za darmo albo absurd
 
-                // Dealer: wycenia wyżej niż rynek bo "perfekcyjny stan"
-                (SellerArchetype.Dealer, 1) => (float)(1.05 + rng.NextDouble() * 0.15),  // 1.05–1.20 — backyard: lekko ponad rynek
-                (SellerArchetype.Dealer, 2) => (float)(1.15 + rng.NextDouble() * 0.20),  // 1.15–1.35 — pro: sporo ponad
-                (SellerArchetype.Dealer, 3) => (float)(1.30 + rng.NextDouble() * 0.30),  // 1.30–1.60 — criminal: mocno ponad, auto "idealne"
+                // Dealer: wycenia znacznie wyżej — płacisz za scenografię nie za auto
+                (SellerArchetype.Dealer, 1) => (float)(1.35 + rng.NextDouble() * 0.25),  // 1.35–1.60 — Backyard: podstawowa nadwyżka
+                (SellerArchetype.Dealer, 2) => (float)(1.55 + rng.NextDouble() * 0.30),  // 1.55–1.85 — Pro: znaczna nadwyżka
+                (SellerArchetype.Dealer, 3) => (float)(1.85 + rng.NextDouble() * 0.35),  // 1.85–2.20 — Criminal: premium za idealnie ukryty scam
 
-                // Wrecker: cena bywa atrakcyjna żeby skusić, lub zawyżona dla nieuwważnych
-                (SellerArchetype.Wrecker, 1) => (float)(0.75 + rng.NextDouble() * 0.25),  // 0.75–1.00 — niska, łatwy do wykrycia
-                (SellerArchetype.Wrecker, 2) => (float)(0.90 + rng.NextDouble() * 0.30),  // 0.90–1.20 — rynkowa lub lekko ponad
-                (SellerArchetype.Wrecker, 3) => (float)(1.10 + rng.NextDouble() * 0.40),  // 1.10–1.50 — expert każe płacić premium za nic
+                // Wrecker: Amateur tanio żeby złowić, Expert wygląda jak dobry Dealer
+                (SellerArchetype.Wrecker, 1) => (float)(0.65 + rng.NextDouble() * 0.25),  // 0.65–0.90 — tania przynęta
+                (SellerArchetype.Wrecker, 2) => (float)(0.88 + rng.NextDouble() * 0.30),  // 0.88–1.18 — rynkowa, trudniej wykryć
+                (SellerArchetype.Wrecker, 3) => (float)(1.08 + rng.NextDouble() * 0.40),  // 1.08–1.48 — Expert: premium, nie do odróżnienia od Dealera
 
                 _ => 1.0f,
             };
 
-            float noise = 1f + (float)(rng.NextDouble() * 0.08 - 0.04);
+            float noise = 1f + (float)(rng.NextDouble() * 0.06 - 0.03);
             int price = Mathf.RoundToInt(basePricef * mult * noise * OXLSettings.PriceMultiplier / 50f) * 50;
 
-            int scaledMin = Mathf.RoundToInt(def.MinPrice * OXLSettings.PriceMultiplier);
-            int scaledMax = Mathf.RoundToInt(def.MaxPrice * OXLSettings.PriceMultiplier * 1.8f); // Dealer L3 może przekroczyć normalny max
+            // Min: 25% of MinPrice — pozwala na naprawdę tanie auta od Neglected/Wrecker
+            int scaledMin = Math.Max(300, Mathf.RoundToInt(def.MinPrice * OXLSettings.PriceMultiplier * 0.25f));
+            // Max: 2.2x MaxPrice — Dealer L3 wycenia sporo ponad normalny rynek
+            int scaledMax = Mathf.RoundToInt(def.MaxPrice * OXLSettings.PriceMultiplier * 2.2f);
             price = Mathf.Clamp(price, scaledMin, scaledMax);
 
-            // Uczciwy z usterkami daje rabat — głębszy rabat dla nowicjusza który nie rozumie rynku
+            // Honest z usterkami: rabat skalowany per liczba usterek — więcej problemów = głębszy rabat
             if (arch == SellerArchetype.Honest && faults != FaultFlags.None)
             {
-                float discount = level switch { 1 => 0.72f, 2 => 0.78f, _ => 0.82f };
+                int faultCount = CountBits((int)faults);
+                float discountPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
+                float discount = Mathf.Clamp(1.0f - faultCount * discountPerFault, 0.52f, 0.93f);
                 price = Mathf.RoundToInt(price * discount / 50f) * 50;
             }
 
-            return Mathf.Max(price, 500);
+            return Mathf.Max(price, 300);
         }
+
+        // Uczciwa wartość rynkowa — ile auto NAPRAWDĘ jest warte, niezależnie od archetypu
+        private static int CalcFairValue(CarDef def, float actual, int year)
+        {
+            float val = Mathf.Lerp(def.MinPrice, def.MaxPrice, actual) * YearFactor(year) * OXLSettings.PriceMultiplier;
+            return Mathf.Max(300, Mathf.RoundToInt(val / 50f) * 50);
+        }
+
+        // ~1.2% deprecjacji rocznie — max 50% wartości bazowej (nawet 40-letnie auto ma swój floor)
+        private static float YearFactor(int year) =>
+            Mathf.Clamp(1.0f - (2026 - year) * 0.012f, 0.50f, 1.0f);
+
+        private static int CountBits(int v) { int c = 0; while (v != 0) { c += v & 1; v >>= 1; } return c; }
 
         // ══════════════════════════════════════════════════════════════════════
         //  TTL — czas życia aukcji

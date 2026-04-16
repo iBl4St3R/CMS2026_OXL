@@ -298,8 +298,8 @@ namespace CMS2026_OXL
                 foreach (var l in listings)
                 {
                     float rem = l.ExpiresAt - _panel.GetGameTime();
-                    Print($"  [{l.Archetype,-9}] {l.Make} {l.Model} {l.Year} | ${l.Price:N0} | " +
-                          $"{l.SellerRating}★ | Cond={l.ApparentCondition:P0}/{l.ActualCondition:P0} | " +
+                    Print($"  [{l.Archetype,-9} L{l.ArchetypeLevel}] {l.Make} {l.Model} {l.Year} | ${l.Price:N0} | " +
+                          $"{l.SellerRating}★ | Cond={l.ApparentCondition:P0}/{l.ActualCondition:P0} Body={l.BodyCondition:P0} | " +
                           $"Expires in {(int)(rem/60f)}:{(int)(rem%60f):D2}");
                 }
             })
@@ -354,7 +354,7 @@ namespace CMS2026_OXL
                 Print($"  Mileage:    {l.Mileage:N0} mi");
                 Print($"  Location:   {l.Location}  (~{l.DeliveryHours}h delivery)");
                 Print($"──────────────────────────────────────────");
-                Print($"  Archetype:  {l.Archetype}");
+                Print($"  Archetype:  {l.Archetype} L{l.ArchetypeLevel}");
                 Print($"  Rating:     {l.SellerRating}★");
                 Print($"  Apparent:   {l.ApparentCondition:P0}  (what buyer sees)");
                 Print($"  Actual:     {l.ActualCondition:P0}  (real condition)");
