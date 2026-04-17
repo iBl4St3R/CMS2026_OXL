@@ -155,6 +155,9 @@ namespace CMS2026_OXL
             // Dealer przygotowuje auto do jazdy próbnej — krytyczne części startowe mają minimalny floor
             float startFloor = (listing.Archetype, listing.ArchetypeLevel) switch
             {
+                // Honest: auto zawsze odpala — sprzedawca nie sprzedaje nieodpalaczy bez ostrzeżenia
+                (SellerArchetype.Honest, _) => 0.20f,
+                // Dealer: auto musi odpalić na jazdę próbną
                 (SellerArchetype.Dealer, 1) => 0.40f,
                 (SellerArchetype.Dealer, 2) => 0.40f,
                 (SellerArchetype.Dealer, 3) => 0.40f,
@@ -177,7 +180,7 @@ namespace CMS2026_OXL
             cl.ClearEnginePartsConditionCache();
 
 
-            if (listing.Archetype == SellerArchetype.Dealer && startFloor > 0f)
+            if (startFloor > 0f)
             {
                 var startCritical = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -190,8 +193,10 @@ namespace CMS2026_OXL
     // Wtrysk
     "v6_231_listwa_wtryskowa",
     "v8_350_listwa_wtryskowa",
-    // Filtry oleju
+     // Filtry oleju
     "v8_filtr_oleju", "r4_filtr_oleju",
+    // Filtr paliwa — przy 0.000 auto nie odpala
+    "filtr_paliwa_1",
     // Pompa paliwa
     "pompa_1",
     // Rozdzielacze
@@ -242,6 +247,8 @@ namespace CMS2026_OXL
                 const float EngineFloor = 0.22f;
                 var startCats = new HashSet<WearCat>
                 {
+                    WearCat.SparkPlug,      // świece muszą działać
+                    WearCat.FilterFuel,     // filtr paliwa musi przepuszczać
                     WearCat.CylinderHead,
                     WearCat.CamValve,
                     WearCat.Crankshaft,

@@ -104,8 +104,12 @@ namespace CMS2026_OXL
             int mileage = Mathf.RoundToInt(Mathf.Lerp(180000, 4000, actual) * (1f + (float)(rng.NextDouble() * 0.30 - 0.15)));
             mileage = Mathf.Max(500, mileage);
 
+            // ── L3 Veteran nigdy nie sprzedaje złomu ──────────────────────────
+            if (archetype == SellerArchetype.Honest && level == 3)
+                actual = Mathf.Max(actual, 0.32f);
+
             // ── Nota sprzedawcy ────────────────────────────────────────────────
-            string note = SelectNote(archetype, level, faults, rng);
+            string note = SelectNote(archetype, level, faults, actual, rng);
 
             var listing = new CarListing
             {
@@ -556,24 +560,52 @@ namespace CMS2026_OXL
         //  SELEKCJA OPISU
         // ══════════════════════════════════════════════════════════════════════
 
-        private static string SelectNote(SellerArchetype arch, int level, FaultFlags faults, Random rng)
+        private static string SelectNote(SellerArchetype arch, int level, FaultFlags faults, float actual, Random rng)
         {
-            // Uczciwy zawsze ujawnia usterkę jeśli ją ma
             if (arch == SellerArchetype.Honest)
             {
-                foreach (var flag in new[] { FaultFlags.HeadGasket, FaultFlags.TimingBelt, FaultFlags.SuspensionWorn, FaultFlags.BrakesGone, FaultFlags.ElectricalFault })
+                // Priorytet 1: znana poważna usterka — zawsze ujawniana wprost
+                foreach (var flag in new[]
+                {
+                FaultFlags.HeadGasket, FaultFlags.TimingBelt,
+                FaultFlags.ElectricalFault, FaultFlags.SuspensionWorn, FaultFlags.BrakesGone
+        })
                 {
                     if (faults.HasFlag(flag) && NotesHonestFault.TryGetValue(flag, out var specific))
                         return specific;
                 }
+
+                // Priorytet 2: auto nie odpala (L1/L2 mogą sprzedawać nieodpalające, L3 nigdy)
+                bool likelyNonStarting = actual < 0.12f;
+                if (likelyNonStarting && level < 3)
+                {
+                    string[] pool = level == 1 ? NotesHonestNovice_NonStarting : NotesHonestExperienced_NonStarting;
+                    return pool[rng.Next(pool.Length)];
+                }
+
+                // Priorytet 3: noty tiered wg kondycji × poziom
+                string[] notePool = (level, actual) switch
+                {
+                    (1, < 0.30f) => NotesHonestNovice_Bad,
+                    (1, < 0.60f) => NotesHonestNovice_Mid,
+                    (1, _) => NotesHonestNovice_Good,
+
+                    (2, < 0.30f) => NotesHonestExperienced_Bad,
+                    (2, < 0.60f) => NotesHonestExperienced_Mid,
+                    (2, _) => NotesHonest,                  // istniejąca pula, dobra dla good
+
+                    (3, < 0.60f) => NotesHonestVeteran_Mid,
+                    (3, _) => NotesHonestVeteran,           // istniejąca pula
+
+                    _ => NotesHonest,
+                };
+
+                return notePool[rng.Next(notePool.Length)];
             }
 
-            // Per archetype+level — osobne pule dla każdego poziomu
-            string[] pool = (arch, level) switch
+            // Reszta archetypów — bez zmian
+            string[] otherPool = (arch, level) switch
             {
-                (SellerArchetype.Honest, 1) => NotesHonestNovice,
-                (SellerArchetype.Honest, 2) => NotesHonest,
-                (SellerArchetype.Honest, 3) => NotesHonestVeteran,
                 (SellerArchetype.Neglected, 1) => NotesNeglected,
                 (SellerArchetype.Neglected, 2) => NotesNeglectedBusy,
                 (SellerArchetype.Neglected, 3) => NotesNeglectedHoarder,
@@ -586,7 +618,7 @@ namespace CMS2026_OXL
                 _ => NotesNeglected,
             };
 
-            return pool[rng.Next(pool.Length)];
+            return otherPool[rng.Next(otherPool.Length)];
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -616,19 +648,101 @@ namespace CMS2026_OXL
             { FaultFlags.ElectricalFault,"Battery keeps dying and alternator is not charging right. Sold as-is, fault is known." },
         };
 
-        // ── Honest L1 — Novice ────────────────────────────────────────────────
-        private static readonly string[] NotesHonestNovice =
+        // ── Honest — Non-starting (L1 / L2 wiedzą że auto nie odpala) ─────────────
+        private static readonly string[] NotesHonestNovice_NonStarting =
         {
-            "First time selling a car. Not sure if this is a good price but it feels right.",
-            "I think everything works. I drove it to work every day and it always started.",
-            "Bought it, didn't end up using it much. Selling as it is. I hope it is ok.",
-            "Not sure what to write here. Car runs. Has wheels. Starts most times.",
-            "My mechanic said it needs a few things but didn't say what exactly. Priced low just in case.",
-            "I am not very car savvy. The dashboard lights are mostly off which is probably good.",
-            "Honest sale. I don't know much about cars but I tried to describe it truthfully.",
-        };
+    "Car does not start. Tried jumping it, nothing happened. Selling as-is.",
+    "Has not started in a while. No idea what is wrong. Priced cheap for someone who knows.",
+    "Engine turns over but will not fire. I give up trying to fix it. Yours if you want it.",
+    "Does not run. Was working two years ago then just stopped one day. I am not a mechanic.",
+    "Non-runner. I bought it like this thinking I could sort it. I could not. Honest price.",
+};
 
-        // ── Honest L2 — Experienced ───────────────────────────────────────────
+        private static readonly string[] NotesHonestExperienced_NonStarting =
+        {
+    "Car does not start — fault is known, priced accordingly. Not a hidden surprise.",
+    "Non-runner. Has not started since the fault developed. Selling transparently — no games.",
+    "Engine cranks but will not fire. I have not diagnosed further. Price reflects a non-runner.",
+    "Does not start. Repair estimate was more than the car is worth to me. Someone else's project.",
+    "Non-runner, priced as such. Everything I know about the fault is in the listing.",
+};
+
+        // ── Honest L1 Novice — Bad (0–30%) ────────────────────────────────────────
+        private static readonly string[] NotesHonestNovice_Bad =
+        {
+    "Starts but barely. Something is wrong, I just cannot figure out what.",
+    "Runs, but not great. Has some issues I cannot properly describe.",
+    "Drove it a few times and problems kept appearing. Selling before more things go wrong.",
+    "Not in good shape but it moves. I tried to price it honestly for what it is.",
+    "Makes noises I cannot explain. Not sure if it is serious. Priced low just in case.",
+    "Had my uncle look at it and he said it needs work. He did not say what exactly.",
+    "Rough around the edges but it has been mostly reliable. Probably needs attention soon.",
+};
+
+        // ── Honest L1 Novice — Mid (30–60%) ──────────────────────────────────────
+        private static readonly string[] NotesHonestNovice_Mid =
+        {
+    "Starts and drives fine. Some wear but nothing obvious that needs fixing right now.",
+    "Been reliable for me. Not perfect but never let me down. Selling because I got a new one.",
+    "Runs well day to day. I am not very car savvy so I cannot say much more than that.",
+    "Daily driver for two years. Never broke down. Probably needs a service at some point.",
+    "Good enough I think. A mechanic friend said it needs a few small things but nothing urgent.",
+    "Not sure what to write. Car works, drives fine, never had big problems with it.",
+    "Bought it two years ago from a private sale. Has done me well. Time to move on.",
+};
+
+        // ── Honest L1 Novice — Good (60–100%) ─────────────────────────────────────
+        private static readonly string[] NotesHonestNovice_Good =
+        {
+    "Pretty good condition I think. Always started, never gave me trouble.",
+    "Selling because I do not need two cars. This one has been really good to me.",
+    "I took care of it. Regular oil changes, always garaged. Should be fine for a long time.",
+    "Not sure what else to say. Car works, looks decent, just needs a new owner.",
+    "My parents bought it new and I inherited it. Kept in good condition as far as I know.",
+    "First time selling a car. I think it is in good shape but I could be wrong. Come look.",
+    "Never had a problem with it. A bit sad to sell but I need the money.",
+};
+
+        // ── Honest L2 Experienced — Bad (0–30%) ───────────────────────────────────
+        private static readonly string[] NotesHonestExperienced_Bad =
+        {
+    "Rough condition — I will not pretend otherwise. Good project car priced to match.",
+    "Mechanically tired. Everything I know about its condition is disclosed. No hidden surprises.",
+    "Several things need attention. Drives but needs work — price reflects that honestly.",
+    "Not in great shape. Full disclosure: it has issues. Priced for what it actually is.",
+    "Worn but salvageable. The right buyer with the right tools will get good value here.",
+    "I have owned worse and fixed them. This one needs money spent, price set accordingly.",
+    "Honest about the condition — it is rough. But it is what it is and the price shows that.",
+};
+
+        // ── Honest L2 Experienced — Mid (30–60%) ──────────────────────────────────
+        private static readonly string[] NotesHonestExperienced_Mid =
+        {
+    "Standard condition for the age. Nothing critical needed, routine maintenance due.",
+    "Decent runner. A few small things to sort but nothing that will leave you stranded.",
+    "Used regularly, serviced when needed. What you see is what you get.",
+    "Fair example. Not perfect but everything works as it should. Sensible asking price.",
+    "Had it serviced last year. Running well. Selling because I am upgrading.",
+    "Solid daily driver. Shows its age a little but mechanically sound where it counts.",
+    "Honest private sale. Some wear expected at this mileage. Nothing that surprises me.",
+};
+
+        // ── Honest L3 Veteran — Mid (30–60%) ──────────────────────────────────────
+        private static readonly string[] NotesHonestVeteran_Mid =
+        {
+    "Fair condition — I have documented everything done to it. Nothing hidden, price reflects reality.",
+    "Not concourse, but maintained properly. Full service history, every receipt. No surprises.",
+    "Selling with complete paperwork. Some wear for the age, all accounted for and priced in.",
+    "I know what this car needs and the price reflects it. Receipts available on viewing.",
+    "Honest assessment: fair condition, fair price. Fifty-odd cars sold and I have never misled a buyer.",
+    "Has done good miles. Service history complete. The wear you see is the wear there is — nothing more.",
+    "Priced at market for the actual condition, not the aspirational one. Viewing encouraged.",
+};
+
+
+
+
+        // ── Honest L2 Experienced — Good (60–100%) — zachowana stara pula ────
         private static readonly string[] NotesHonest =
         {
             "What you see is what you get. No hidden issues, priced to reflect actual condition.",
@@ -640,7 +754,7 @@ namespace CMS2026_OXL
             "Reluctant sale. Good car, just no longer needed. Priced fairly for the condition.",
         };
 
-        // ── Honest L3 — Veteran ───────────────────────────────────────────────
+        // ── Honest L3 Veteran — Good (60–100%) — zachowana stara pula ─────────
         private static readonly string[] NotesHonestVeteran =
         {
             "Fifty-two cars sold over twenty years, all described exactly as they are. This is no different.",
