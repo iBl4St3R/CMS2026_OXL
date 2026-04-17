@@ -155,9 +155,9 @@ namespace CMS2026_OXL
             // Dealer przygotowuje auto do jazdy próbnej — krytyczne części startowe mają minimalny floor
             float startFloor = (listing.Archetype, listing.ArchetypeLevel) switch
             {
-                (SellerArchetype.Dealer, 1) => 0.40f,  // Backyard: sprawdzone podstawy
-                (SellerArchetype.Dealer, 2) => 0.33f,  // Pro: niezawodny na test drive
-                (SellerArchetype.Dealer, 3) => 0.28f,  // Criminal: musi odpalić żeby przekonać ofiarę
+                (SellerArchetype.Dealer, 1) => 0.40f,
+                (SellerArchetype.Dealer, 2) => 0.40f,
+                (SellerArchetype.Dealer, 3) => 0.40f,
                 _ => 0.0f,
             };
 
@@ -175,6 +175,107 @@ namespace CMS2026_OXL
                 }
             }
             cl.ClearEnginePartsConditionCache();
+
+
+            if (listing.Archetype == SellerArchetype.Dealer && startFloor > 0f)
+            {
+                var startCritical = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    // Akumulator / rozrusznik / alternator
+    "akumulator", "akumulator_4", "akumulator_5",
+    "v8_rozrusznik_1", "r4_rozrusznik_1",
+    "alternator", "i6_old_alternator",
+    // ECU
+    "ecu_1", "ecu_3", "ecu_4",
+    // Wtrysk
+    "v6_231_listwa_wtryskowa",
+    "v8_350_listwa_wtryskowa",
+    // Filtry oleju
+    "v8_filtr_oleju", "r4_filtr_oleju",
+    // Pompa paliwa
+    "pompa_1",
+    // Rozdzielacze
+    "v6_231_rozdzielaczZaplonu",
+    "v8_350_rozdzielaczZaplonu",
+    // Rozrząd V6/231 + V8_ZZ (Salem, DNB)
+    "v8_zz_lancuch", "v6_231_pasek",
+    // Rozrząd V8/350 (Luxor) — NOWE
+    "v8_350_lancuch",
+    "v8_350_pasek_1", "v8_350_pasek_2",
+    "v8_350_napinacz",
+    "v8_350_rolkaWalka",
+    // Rozrząd inne
+    "i4_lancuch",
+    // Pompy wody
+    "v6_231_pompa_wody",
+    "v8_350_pompa_wody",
+    "r4_pompa_wody",
+    // Bezpieczniki i przekaźniki (ElectricalFault) — NOWE
+    "fuseMedium_1", "fuseMedium_2", "fuseMedium_3",
+    "relay_1", "relay_2", "relay_3",
+    "fuseBox_1_bottom", "fuseBox_1_top",
+    "fuseBox_2_bottom", "fuseBox_2_top",
+};
+
+                if (ip != null)
+                {
+                    for (int i = 0; i < ip.Count; i++)
+                    {
+                        if (ip[i] == null) continue;
+                        string id = ip[i].id ?? "";
+                        if (!startCritical.Contains(id)) continue;
+
+                        float current = ip[i].condition;
+                        float minVal = startFloor;
+
+                        if (current < minVal)
+                        {
+                            float guaranteed = minVal +
+                                UnityEngine.Random.Range(0f, 0.08f);
+                            try { ip[i].SetCondition(guaranteed); }
+                            catch { ip[i].condition = guaranteed; }
+                        }
+                    }
+                }
+
+                // ── Pass 2: category-based engine floor ──────────────────────
+                const float EngineFloor = 0.22f;
+                var startCats = new HashSet<WearCat>
+                {
+                    WearCat.CylinderHead,
+                    WearCat.CamValve,
+                    WearCat.Crankshaft,
+                    WearCat.Piston,
+                    WearCat.Throttle,
+                    WearCat.Injector,
+                    WearCat.Relay,
+                    WearCat.Fuse,
+                    WearCat.TimingChain,
+                    WearCat.TimingTensioner,
+                    WearCat.TimingRoller,
+                    WearCat.WaterPump,
+                    WearCat.Radiator,
+                    WearCat.CoolingFan,
+                    WearCat.Clutch,
+                    WearCat.Flywheel,
+                };
+                if (ip != null)
+                {
+                    for (int i = 0; i < ip.Count; i++)
+                    {
+                        if (ip[i] == null) continue;
+                        var cat = PartCatalog.Classify(ip[i].id ?? "");
+                        if (!startCats.Contains(cat)) continue;
+                        if (ip[i].condition < EngineFloor)
+                        {
+                            float boosted = EngineFloor + UnityEngine.Random.Range(0f, 0.04f);
+                            try { ip[i].SetCondition(boosted); }
+                            catch { ip[i].condition = boosted; }
+                        }
+                    }
+                }
+                cl.ClearEnginePartsConditionCache();
+            }
 
             // ── CarParts — karoseria + wizualia ───────────────────────────────
             cl.Dev_RepairAllBody();
@@ -277,9 +378,11 @@ namespace CMS2026_OXL
             {
                 // ── Materiały eksploatacyjne — startFloor zapewnia że Dealer ma odpalające auto ───
                 WearCat.SparkPlug => Mathf.Max(startFloor, UnityEngine.Random.Range(0f, exhaustableMax)),
-                WearCat.FilterOil => UnityEngine.Random.Range(0f, exhaustableMax),
+                WearCat.FilterOil => Mathf.Max(startFloor * 0.5f,UnityEngine.Random.Range(0f, exhaustableMax)),
                 WearCat.FilterFuel => Mathf.Max(startFloor * 0.6f, UnityEngine.Random.Range(0f, exhaustableMax)),
-                WearCat.FilterAir => UnityEngine.Random.Range(0f, exhaustableMax * 1.5f),
+
+
+                WearCat.FilterAir => Mathf.Max(startFloor * 0.6f,UnityEngine.Random.Range(0f, exhaustableMax * 1.5f)),
 
                 // ── Rozrząd — TRAP, odpowiada na FaultFlags.TimingBelt ───────────────────
                 // startFloor > 0 (Dealer): rozrząd wystarczająco sprawny by odpalić, ale bomba zegarowa
@@ -297,7 +400,8 @@ namespace CMS2026_OXL
                 // ── Zawieszenie — odpowiada na FaultFlags.SuspensionWorn ─────────────────
                 WearCat.Shock => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0f, 0.20f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.80f), 0.05f, 0.80f),
                 WearCat.Spring => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.10f, 0.35f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
-                WearCat.Bushing => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.35f, 0.75f), 0.05f, 0.75f),
+                WearCat.Bushing => faults.HasFlag(FaultFlags.SuspensionWorn)? Mathf.Max(startFloor * 0.1f, UnityEngine.Random.Range(0f, 0.25f))  // min 0.028 dla L2
+                : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.35f, 0.75f), 0.05f, 0.75f),
                 WearCat.Wishbone => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.10f, 0.35f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.20f, 0.90f),
                 WearCat.Stabilizer => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.05f, 0.30f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.85f), 0.10f, 0.85f),
                 WearCat.Steering => faults.HasFlag(FaultFlags.SuspensionWorn) ? UnityEngine.Random.Range(0.05f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
@@ -307,8 +411,8 @@ namespace CMS2026_OXL
                 WearCat.Subframe => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.80f, 1.0f), 0.40f, 1.0f),
 
                 // ── Sprzęgło / koło zamachowe ─────────────────────────────────────────────
-                WearCat.Clutch => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.30f, 0.75f), 0.05f, 0.75f),
-                WearCat.Flywheel => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f),
+                WearCat.Clutch => Mathf.Max(startFloor,Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.30f, 0.75f), 0.05f, 0.75f)),
+                WearCat.Flywheel => Mathf.Max(startFloor,Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f)),
 
                 // ── Silnik — odpowiada na FaultFlags.HeadGasket ──────────────────────────
                 WearCat.EngineBlock => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.30f, 1.0f),
@@ -317,11 +421,16 @@ namespace CMS2026_OXL
                 WearCat.CylinderHead => faults.HasFlag(FaultFlags.HeadGasket) ? Mathf.Max(startFloor * 0.75f, UnityEngine.Random.Range(0f, 0.08f)) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.65f, 0.95f), 0.20f, 0.95f),
                 WearCat.CamValve => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.92f), 0.15f, 0.92f),
 
-                // ── Układ wydechowy — odpowiada na FaultFlags.ExhaustRusted ─────────────
-                WearCat.Muffler => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.12f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.85f), 0.05f, 0.85f),
-                WearCat.Catalyst => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.15f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.90f), 0.10f, 0.90f),
-                WearCat.ExhaustPipe => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0f, 0.18f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.80f), 0.05f, 0.80f),
-                WearCat.ExhaustManifold => faults.HasFlag(FaultFlags.ExhaustRusted) ? UnityEngine.Random.Range(0.05f, 0.25f) : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
+                // Układ wydechowy — rury startowe muszą działać
+                WearCat.ExhaustPipe => faults.HasFlag(FaultFlags.ExhaustRusted)? Mathf.Max(startFloor * 0.5f, UnityEngine.Random.Range(0f, 0.18f))
+                : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.80f), 0.05f, 0.80f),
+
+
+                WearCat.ExhaustManifold => faults.HasFlag(FaultFlags.ExhaustRusted)? Mathf.Max(startFloor * 0.5f, UnityEngine.Random.Range(0.05f, 0.25f))
+                    : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.90f), 0.15f, 0.90f),
+
+                WearCat.Muffler => faults.HasFlag(FaultFlags.ExhaustRusted)? Mathf.Max(startFloor * 0.4f, UnityEngine.Random.Range(0f, 0.12f))
+                    : Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.85f), 0.05f, 0.85f),
 
                 // ── Chłodzenie ────────────────────────────────────────────────────────────
                 WearCat.Radiator => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.55f, 0.95f), 0.10f, 0.95f),
@@ -348,7 +457,7 @@ namespace CMS2026_OXL
                 // ── Układ dolotowy / paliwowy ─────────────────────────────────────────────
                 WearCat.Intake => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.70f, 1.0f), 0.30f, 1.0f),
                 WearCat.Throttle => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.60f, 0.95f), 0.20f, 0.95f),
-                WearCat.Injector => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.88f), 0.10f, 0.88f),
+                WearCat.Injector => Mathf.Max(startFloor * 0.4f,Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.45f, 0.88f), 0.10f, 0.88f)),
                 WearCat.FuelPump => Mathf.Max(startFloor, Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.50f, 0.90f), 0.10f, 0.90f)),
                 WearCat.FuelTank => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.75f, 1.0f), 0.35f, 1.0f),
                 WearCat.Turbo => Mathf.Clamp(baseCondition * UnityEngine.Random.Range(0.40f, 0.85f), 0.05f, 0.85f),

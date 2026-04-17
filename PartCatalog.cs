@@ -202,6 +202,8 @@ namespace CMS2026_OXL
             { "rolka_pompy_wody",           WearCat.TimingRoller },  // water pump idler
             { "rolka_gladka",               WearCat.TimingRoller },  // smooth idler
 
+
+
             // ── SPARK PLUGS ───────────────────────────────────────────────────
             { "swieca",                     WearCat.SparkPlug },     // swieca_1/2/4
 
@@ -273,7 +275,7 @@ namespace CMS2026_OXL
 
             // ── SUSPENSION — Bearings / Hubs ──────────────────────────────────
             { "lozyskozwrotnicyprzod",      WearCat.Bearing },
-            { "pokrywa_lozyska",            WearCat.Bearing },      // conrod bearing caps
+                 
             { "piastaprzod",                WearCat.Hub },
             { "piastatyl",                  WearCat.Hub },          // piastaTyl_1/3
 
@@ -304,6 +306,8 @@ namespace CMS2026_OXL
             { "v8_350_blok",                WearCat.EngineBlock },
             { "r4_blok",                    WearCat.EngineBlock },
             { "i4_blok",                    WearCat.EngineBlock },
+            { "pokrywa_lozyska", WearCat.EngineBlock },
+
             // Oil pans — structural, not a wear item
             { "v6_231_miska_olejowa",       WearCat.Structural },   // _stara stripped by normalize
             { "v8_350_miska_olejowa",       WearCat.Structural },

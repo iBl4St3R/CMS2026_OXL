@@ -24,10 +24,10 @@ namespace CMS2026_OXL
 
         private static readonly CarDef[] CarDefs =
         {
-            new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",          InternalId = "car_dnb_censor",          MinYear = 1991, MaxYear = 1992, MinPrice = 3500,  MaxPrice = 12000 },
+            new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",          InternalId = "car_dnb_censor",          MinYear = 1991, MaxYear = 1992, MinPrice = 8000,  MaxPrice = 28000 },
             new CarDef { Make = "Katagiri", Model = "Tamago BP",       ImageFolder = "Katagiri Tamago BP",  InternalId = "car_katagiri_tamago",      MinYear = 2000, MaxYear = 2005, MinPrice = 3500,  MaxPrice = 12000 },
             new CarDef { Make = "Luxor",    Model = "Streamliner Mk3", ImageFolder = "Luxor Streamliner Mk3", InternalId = "car_luxor_streamliner",  MinYear = 1992, MaxYear = 1996, MinPrice = 4000,  MaxPrice = 14000 },
-            new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",            InternalId = "car_mayen_m5",             MinYear = 2008, MaxYear = 2015, MinPrice = 5000,  MaxPrice = 18000 },
+            new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",            InternalId = "car_mayen_m5",             MinYear = 2008, MaxYear = 2015, MinPrice = 8000,  MaxPrice = 18000 },
             new CarDef { Make = "Salem",    Model = "Aries MK3",       ImageFolder = "Salem Aries MK3",     InternalId = "car_salem_aries",          MinYear = 2003, MaxYear = 2008, MinPrice = 4500,  MaxPrice = 15000 },
         };
 
@@ -321,9 +321,9 @@ namespace CMS2026_OXL
                 (SellerArchetype.Neglected, 3) => (float)(0.45 + rng.NextDouble() * 0.75),  // 0.45–1.20 — Hoarder: albo za darmo albo absurd
 
                 // Dealer: wycenia znacznie wyżej — płacisz za scenografię nie za auto
-                (SellerArchetype.Dealer, 1) => (float)(1.35 + rng.NextDouble() * 0.25),  // 1.35–1.60 — Backyard: podstawowa nadwyżka
-                (SellerArchetype.Dealer, 2) => (float)(1.55 + rng.NextDouble() * 0.30),  // 1.55–1.85 — Pro: znaczna nadwyżka
-                (SellerArchetype.Dealer, 3) => (float)(1.85 + rng.NextDouble() * 0.35),  // 1.85–2.20 — Criminal: premium za idealnie ukryty scam
+                (SellerArchetype.Dealer, 1) => (float)(1.68 + rng.NextDouble() * 0.30),  // 1.68–1.98
+                (SellerArchetype.Dealer, 2) => (float)(1.95 + rng.NextDouble() * 0.35),  // 1.95–2.30
+                (SellerArchetype.Dealer, 3) => (float)(2.30 + rng.NextDouble() * 0.40),  // 2.30–2.70
 
                 // Wrecker: Amateur tanio żeby złowić, Expert wygląda jak dobry Dealer
                 (SellerArchetype.Wrecker, 1) => (float)(0.65 + rng.NextDouble() * 0.25),  // 0.65–0.90 — tania przynęta
