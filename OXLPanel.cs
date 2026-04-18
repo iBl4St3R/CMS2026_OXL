@@ -266,6 +266,7 @@ namespace CMS2026_OXL
 
             // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
             _listings.ApplyConfig(OXLSettings.SavedGenConfig);
+            _listings.LoadSaved();
 
             OXLPlugin.Log.Msg($"[OXL] ListingSystem initialized with saved config" +
                               $" — max={OXLSettings.SavedGenConfig.MaxListings}" +
@@ -2049,6 +2050,7 @@ namespace CMS2026_OXL
 
             // ── Wszystko OK — dopiero teraz usuwamy listing ───────────────────────
             _listings.ActiveListings.Remove(listing);
+            _listings.Save();
 
             OXLLog.Msg($"[OXL:BUY] ══ PURCHASE ══════════════════════");
             OXLLog.Msg($"[OXL:BUY] Car:      {listing.Make} {listing.Model} {listing.Year}");
@@ -3365,5 +3367,7 @@ namespace CMS2026_OXL
             if (IsVisible) Close();
             else Open();
         }
+
+        public void SaveListings() => _listings?.Save();
     }
 }

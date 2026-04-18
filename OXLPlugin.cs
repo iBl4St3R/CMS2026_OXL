@@ -311,12 +311,13 @@ namespace CMS2026_OXL
             "oxl_end_all",
             "End all active auctions immediately",
             (Action<string[]>)(_ =>
-            {
-                if (_panel == null) { Print("OXL panel not initialized."); return; }
-                int count = _panel.GetActiveListings().Count;
-                _panel.GetActiveListings().Clear();
-                Print($"Ended {count} active auction(s).");
-            })
+{
+    if (_panel == null) { Print("OXL panel not initialized."); return; }
+    int count = _panel.GetActiveListings().Count;
+    _panel.GetActiveListings().Clear();
+    _panel.SaveListings();  // ← zapis pustej listy
+    Print($"Ended {count} active auction(s).");
+})
                 });
 
                 // ── oxl_generate — generuje N nowych listingów ───────────────────

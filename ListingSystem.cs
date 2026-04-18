@@ -40,6 +40,9 @@ namespace CMS2026_OXL
         }
 
 
+        private const float AutoSaveInterval = 30f;  // co 30s Unity time
+        private float _lastSaveTime = 0f;
+
 
 
 
@@ -95,6 +98,25 @@ namespace CMS2026_OXL
                 _lastGenCheckTime = _gameTime;
                 TryGenerateBatch();
             }
+
+            if (_gameTime - _lastSaveTime >= AutoSaveInterval)
+            {
+                _lastSaveTime = _gameTime;
+                Save();
+            }
+        }
+
+        public void Save() => ListingPersistence.Save(ActiveListings, _gameTime);
+
+        public void LoadSaved()
+        {
+            var loaded = ListingPersistence.Load(_gameTime);
+            if (loaded.Count == 0) return;
+
+            ActiveListings = loaded;
+            _initialSeeded = true;        // nie seeduj ponownie przy pierwszym Tick()
+            _lastGenCheckTime = _gameTime;   // reset interwału generacji
+            OXLLog.Msg($"[OXL:LGSYS] Restored {loaded.Count} listings from previous session.");
         }
 
         /// <summary>
@@ -104,8 +126,6 @@ namespace CMS2026_OXL
         private void TryGenerateBatch()
         {
             if (ActiveListings.Count >= _config.MaxListings) return;
-
-            // Rzut procentowy
             if (UnityEngine.Random.Range(0, 100) >= _config.GenChancePct) return;
 
             int batchSize = UnityEngine.Random.Range(_config.GenMin, _config.GenMax + 1);
@@ -116,6 +136,8 @@ namespace CMS2026_OXL
 
             for (int i = 0; i < batchSize; i++)
                 ActiveListings.Add(GenerateListing());
+
+            Save();  // ← zapis po każdym batchu
         }
 
         public void ForceGenerate()
@@ -126,6 +148,7 @@ namespace CMS2026_OXL
                 return;
             }
             ActiveListings.Add(GenerateListing());
+            Save();  
         }
 
 
