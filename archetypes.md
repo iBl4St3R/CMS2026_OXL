@@ -174,17 +174,16 @@ mult = L1: 0.85–1.00×  L2: 0.90–1.05×  L3: 0.72–0.85× ("okazja")
 | L3 | 5★ (80%, sfałszowany) | 500–900s |
 
 ### ApplyWear
-Normalny ApplyWear() — StartFloor = 0.20 (auto odpala,
-żeby gracz nie zorientował się od razu).
+Normalny ApplyWear() — StartFloor = 0.20 (auto odpala).
 
 ---
 
-## WRECKER
+## WRECKER (SCAMER)
 
 ### Filozofia
 Totalne kłamstwo. Zdjęcia i opis wiarygodne — auto które
 gracz dostaje to złom. Wszystkie części na 0.02, fluidy
-spuszczone, rama zniszczona.
+spuszczone, rama zniszczona, brak kluczowych elementow np maski, drzwi, pól silnika etc.
 
 ### Apparent (RollApparent)
 | Level | Rozkład | Zakres |
@@ -200,7 +199,7 @@ spuszczone, rama zniszczona.
 | L2 | 0.12–0.30 | lepszy storytelling |
 | L3 | 0.03–0.13 | totalna fikcja |
 
-### Body (RollBodyCondition)
+### Body (RollBodyCondition) (TO NIE MA ZNACZENIA - SCAMER ZAWSZE WYBIERA ZDJECIA DO AUTA NAJLEPSZEJ JAKOSCI A ZAKUPIONE AUTO TO SMIEĆ)
 | Level | Zakres | Sens |
 |---|---|---|
 | L1 | actual × 0.90–1.10 (cap 0.75) | łatwy do wykrycia |
@@ -247,7 +246,7 @@ Fallback do `RollPriceFallback()` jeśli brak pliku JSON.
 
 ---
 
-## FaultFlags — ukryte usterki
+## FaultFlags — ukryte usterki (TO NIE MA ZNACZENIA AUTO TO ZLOM)
 
 ```
 [Flags] public enum FaultFlags
