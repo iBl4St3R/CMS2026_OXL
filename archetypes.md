@@ -1,6 +1,6 @@
 # OXL — Archetype System
 ## Technical Reference v0.3.0
-### Checkpoint dla AI i programistów
+### Checkpoint
 
 ---
 
