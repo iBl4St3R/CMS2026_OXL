@@ -46,6 +46,8 @@ namespace CMS2026_OXL
         private UIPanel _panel;
         private ListingSystem _listings; // nie inicjalizuj tu
 
+        private OXLFilterPanel _filterPanel;
+
         // ── Search & filter state ─────────────────────────────────────────────
         private UITextInputHandle _searchInput;
         private UIDropdownHandle _makeDropdown;
@@ -699,6 +701,38 @@ namespace CMS2026_OXL
             }).ToList();
         }
 
+        /// <summary>
+        /// Filtruje listings wg kryteriów z OXLFilterPanel.
+        /// Zwraca null jeśli żadne filtry nie są aktywne (= pokaż wszystko).
+        /// </summary>
+        private List<CarListing> ApplyFilterCriteria(OXLFilterPanel.FilterCriteria c)
+        {
+            if (c == null || c.IsEmpty) return null;
+
+            return _listings.ActiveListings.Where(l =>
+            {
+                bool makeOk = string.IsNullOrEmpty(c.Make)
+                    || l.Make.Equals(c.Make, StringComparison.OrdinalIgnoreCase);
+
+                bool yearOk = (c.MinYear == 0 || l.Year >= c.MinYear)
+                           && (c.MaxYear == 0 || l.Year <= c.MaxYear);
+
+                bool priceOk = (c.MinPrice == 0 || l.Price >= c.MinPrice)
+                            && (c.MaxPrice == 0 || l.Price <= c.MaxPrice);
+
+                bool condOk = c.CondTier == 0
+                    || (c.CondTier == 1 && l.ApparentCondition < 0.30f)
+                    || (c.CondTier == 2 && l.ApparentCondition >= 0.30f && l.ApparentCondition < 0.70f)
+                    || (c.CondTier == 3 && l.ApparentCondition >= 0.70f);
+
+                bool ratingOk = c.MinRating == 0 || l.SellerRating >= c.MinRating;
+
+                return makeOk && yearOk && priceOk && condOk && ratingOk;
+            }).ToList();
+        }
+
+
+
         /// <summary>Clears filter and shows all listings.</summary>
         private void ShowAllListings()
         {
@@ -862,14 +896,12 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(overlay, topBar);
 
-
-
             // Back
             var backPtr = _panel.AddButtonToContainer(
                 topBar, "\u2190  Back", 12f, 6f, 110f, 32f, BtnDark, HideListingPage);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            // Title — wyśrodkowany między Back a Balance
+            // Title
             var titleLbl = _panel.AddLabelToContainer(
                 topBar, "\U0001F697  Passenger Cars \u2014 active listings",
                 130f, 0f, PanelW - 350f, 44f, OXLGreen);
@@ -877,7 +909,7 @@ namespace CMS2026_OXL
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())),
                 TextAnchor.MiddleCenter);
 
-            // Balance — prawy róg
+            // Balance
             _listingMoneyLbl = _panel.AddLabelToContainer(
                 topBar, "Balance: ---",
                 PanelW - 220f, 0f, 210f, 44f,
@@ -895,10 +927,13 @@ namespace CMS2026_OXL
             S.BgColor(ss, Border);
             UIRuntime.AddChild(overlay, sep);
 
-            // Rows container
+            // ── Stałe layoutu ─────────────────────────────────────────────────────
+            const float FilterBarH = 42f;   // OXLFilterPanel.BarH — zwinięty pasek
+            const float FilterTop = 45f;   // 44 topbar + 1 sep
             const float PaginationH = 46f;
             const float FootH = 32f;
-            float rowsTop = 50f;   // below top bar + separator
+
+            float rowsTop = FilterTop + FilterBarH;  // = 87f
             float availH = PanelH - OverlayTop - rowsTop - PaginationH - FootH;
 
             // ── Rows container ────────────────────────────────────────────────────
@@ -911,12 +946,22 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(overlay, rowsVE);
             _listingRowsContainerPtr = UIRuntime.GetPtr(rowsVE);
 
-            // ── Pagination (ABOVE footer line) ───────────────────────────────────
+            // ── Pagination ────────────────────────────────────────────────────────
             float paginationTop = PanelH - OverlayTop - FootH - PaginationH;
             BuildPaginationBar(overlay, paginationTop);
 
             // ── Footer ────────────────────────────────────────────────────────────
             BuildFooter(overlay, PanelH - OverlayTop - FootH);
+
+            // ── Filter panel OSTATNI → renderuje się nad rowsVE w z-order ────────
+            _filterPanel = new OXLFilterPanel();
+            _filterPanel.Build(_panel, overlay, FilterTop);
+            _filterPanel.OnFiltersApplied += () =>
+            {
+                _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
+                _currentPage = 0;
+                RefreshListings();
+            };
         }
 
         // ── Single auction row ────────────────────────────────────────────────
