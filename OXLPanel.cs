@@ -2119,7 +2119,7 @@ namespace CMS2026_OXL
             var descLbl = _panel.AddLabelToContainer(
                 overlay,
                 "Adjusts listing prices relative to the baseline.\n" +
-                 "Easy = 10% cheaper.  Normal = 30% higher (recommended).  Hard = 60% higher.",
+                "Easy = ceny 15% niższe.  Normal = ceny bazowe (zalecane).  Hard = ceny 20% wyższe.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
                 TextGray);
             descLbl.SetFontSize(12);
@@ -2132,11 +2132,11 @@ namespace CMS2026_OXL
             float totalBtnsW = BtnW * 3 + BtnGap * 2;
             float bx = (PanelW - totalBtnsW) / 2f;
 
-            BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,"EASY", "Cars 10% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
+            BuildDiffButton(overlay, bx, cy, BtnW, BtnH, Difficulty.Easy,"EASY", "Listings 15% cheaper", new Color(0.20f, 0.60f, 0.35f, 1f),
             ref _diffEasyLbl, ref _diffEasyCardPtr);
-            BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,"NORMAL", "Cars 30% more expensive", new Color(0.55f, 0.75f, 0.90f, 1f),
+            BuildDiffButton(overlay, bx + BtnW + BtnGap, cy, BtnW, BtnH, Difficulty.Normal,"NORMAL", "Base prices (recommended)", new Color(0.55f, 0.75f, 0.90f, 1f),
             ref _diffNormalLbl, ref _diffNormalCardPtr);
-            BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,"HARD", "Cars 60% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
+            BuildDiffButton(overlay, bx + (BtnW + BtnGap) * 2, cy, BtnW, BtnH, Difficulty.Hard,"HARD", "Listings 20% more expensive", new Color(0.90f, 0.45f, 0.20f, 1f),
             ref _diffHardLbl, ref _diffHardCardPtr);
 
             cy += BtnH + 32f;
@@ -2145,7 +2145,7 @@ namespace CMS2026_OXL
             var noteLbl = _panel.AddLabelToContainer(
                 overlay,
                 "Change takes effect on the next generated listing.\n" +
-                "Active listings keep their original prices.",
+                "Applies to newly generated listings only.\nActive listings keep their original prices.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
                 new Color(0.30f, 0.38f, 0.34f, 0.80f));
             noteLbl.SetFontSize(11);

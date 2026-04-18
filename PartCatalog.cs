@@ -289,8 +289,8 @@ namespace CMS2026_OXL
             { "sankityl",                   WearCat.Subframe },
 
             // ── SUSPENSION — Solid axle / misc ───────────────────────────────
-            { "mosttylny",                  WearCat.Structural },   // solid rear axle housing
-            { "mosttylnisztywny",           WearCat.Structural },   // mostTylnySztywny → .ToLower()
+            { "mosttylny",                  WearCat.Subframe },   // solid rear axle housing
+            { "mosttylnisztywny",           WearCat.Subframe },   // mostTylnySztywny → .ToLower()
             { "obejmapodstawka",            WearCat.Hardware },     // leaf spring clamps
             { "obejmapret",                 WearCat.Hardware },
             { "dyferprzod",                 WearCat.Differential }, // dyferPrzod_3
@@ -309,10 +309,10 @@ namespace CMS2026_OXL
             { "pokrywa_lozyska", WearCat.EngineBlock },
 
             // Oil pans — structural, not a wear item
-            { "v6_231_miska_olejowa",       WearCat.Structural },   // _stara stripped by normalize
-            { "v8_350_miska_olejowa",       WearCat.Structural },
-            { "r4_miska_olejowa",           WearCat.Structural },
-            { "i4_miska_olejowa",           WearCat.Structural },
+            { "v6_231_miska_olejowa",       WearCat.EngineBlock },   // _stara stripped by normalize
+            { "v8_350_miska_olejowa",       WearCat.EngineBlock },
+            { "r4_miska_olejowa",           WearCat.EngineBlock },
+            { "i4_miska_olejowa",           WearCat.EngineBlock },
 
             // ── CRANKSHAFT ────────────────────────────────────────────────────
             { "v6_231_walkorbowy",          WearCat.Crankshaft },   // v6_231_walKorbowy
@@ -329,14 +329,14 @@ namespace CMS2026_OXL
             { "r4_glowica",                 WearCat.CylinderHead }, // r4_glowica_sohc_1 → strip _1, _sohc
             { "i4_glowica",                 WearCat.CylinderHead },
             // Valve covers — structural
-            { "v6_231_pokrywa_glowicy",     WearCat.Structural },
-            { "v8_350_pokrywa_glowicy",     WearCat.Structural },
-            { "r4_pokrywa_glowicy",         WearCat.Structural },   // _sohc stripped
-            { "i4_pokrywa_glowicy",         WearCat.Structural },
+            { "v6_231_pokrywa_glowicy",     WearCat.EngineBlock },
+            { "v8_350_pokrywa_glowicy",     WearCat.EngineBlock },
+            { "r4_pokrywa_glowicy",         WearCat.EngineBlock },   // _sohc stripped
+            { "i4_pokrywa_glowicy",         WearCat.EngineBlock },
             // Timing covers — structural
-            { "v6_231_oslona_rozrzadu",     WearCat.Structural },
-            { "v8_350_oslona_rozrzadu",     WearCat.Structural },
-            { "i4_oslona_rozrzadu",         WearCat.Structural },   // _tyl variant via progressive
+            { "v6_231_oslona_rozrzadu",     WearCat.EngineBlock },
+            { "v8_350_oslona_rozrzadu",     WearCat.EngineBlock },
+            { "i4_oslona_rozrzadu",         WearCat.EngineBlock },   // _tyl variant via progressive
 
             // ── CAMSHAFT / VALVETRAIN ─────────────────────────────────────────
             { "v6_231_walek_popychaczy",    WearCat.CamValve },
@@ -355,10 +355,10 @@ namespace CMS2026_OXL
             { "korekoleju",                 WearCat.Hardware },     // oil filler cap (korekOleju_1/3)
             { "bagnet",                     WearCat.Hardware },     // dipstick
             { "v8_350_raczka",              WearCat.Hardware },     // crank handle (Luxor)
-            { "v8_kolo_pasowe_walu",        WearCat.Structural },   // harmonic balancer
-            { "r4_kolo_pasowe_walu",        WearCat.Structural },
-            { "v8_350_kolo_pasowe_walu",    WearCat.Structural },
-            { "v8_350_kolo_pasowe_pompy_wspomagania", WearCat.Structural },
+            { "v8_kolo_pasowe_walu",        WearCat.Crankshaft },   // harmonic balancer
+            { "r4_kolo_pasowe_walu",        WearCat.Crankshaft },
+            { "v8_350_kolo_pasowe_walu",    WearCat.Crankshaft },
+            { "v8_350_kolo_pasowe_pompy_wspomagania", WearCat.Crankshaft },
 
             // ── EXHAUST ───────────────────────────────────────────────────────
             { "w_tlumik_koncowy",           WearCat.Muffler },      // _10/11 stripped
