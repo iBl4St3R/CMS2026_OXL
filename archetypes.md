@@ -89,48 +89,84 @@ StartFloor = 0.20 (Dealer i Honest — auto musi odpalaé).
 ## NEGLECTED
 
 ### Filozofia
-Nie kłamie celowo — po prostu nie wie co się dzieje z autem.
-Sprzedaje tanio bo chce się pozbyć. Im wyższy level tym bardziej
-zaniedbane i tańsze.
+Auta to de facto wraki — stojące latami na posesjach, nieużywane.
+Wszystkie części mechaniczne, karoseria i rama zawsze w zakresie 0–0.3.
+Właściciel zamiast oddać na złom wystawia na aukcji.
+Każdy level to inny typ sprzedawcy z inną wiedzą i strategią cenową.
+
+**L1 — Właściciel złomu (nieświadomy)**
+Wystawia auto, nie wie co jest w środku. Wie tylko że nie odpala
+i stoi od lat. Ceny niskie bo się nie zna. Nie kłamie — po prostu
+nie ma pojęcia co sprzedaje.
+Mechanic surprise: szansa 15–20% że 3–4 losowe indexedParts
+dostają kondycję 0.50–0.80 zamiast wyliczonej — właściciel
+nie wiedział że je ma, gracz odkrywa przy demontażu.
+
+**L2 — Właściciel złomu (świadomy)**
+Wie dokładnie co ma i ile to jest warte. Sprawdził, zinwentaryzował.
+Brak szansy na lepsze części jak u L1 — wycenił wszystko.
+Ceny realne za wrak, negocjuje twardo.
+
+**L3 — Handlarz NEGLECTED**
+Skupuje auta od L1 i L2, zabiera lepsze części, wystawia resztę
+drożej. IndexedParts zawsze 0.02 — dobre już zabrał.
+Ceny lekko wyższe niż L2 mimo gorszego stanu mechaniki.
+Nie kłamie wprost ale sprzedaje celowo ogołocone auto.
 
 ### Apparent (RollApparent)
 | Level | Rozkład | Zakres |
 |---|---|---|
-| L1 Casual | Beta(1.5, 3.0) | 0.10–0.75 |
-| L2 Busy | Beta(1.2, 3.5) | 0.08–0.70 |
-| L3 Hoarder | Beta(1.0, 4.0) | 0.05–0.65 |
+| L1 | Beta(1.5, 3.0) | 0.10–0.75 |
+| L2 | Beta(1.2, 3.5) | 0.08–0.70 |
+| L3 | Beta(1.0, 4.0) | 0.05–0.65 |
 
 ### Honesty (RollHonesty)
 | Level | Zakres | Sens |
 |---|---|---|
-| L1 | 0.75–0.95 | nie kłamie, nie sprawdzał |
-| L2 | 0.65–0.90 | nie serwisował od lat |
-| L3 | 0.50–0.80 | zgaduje stan |
+| L1 | 0.75–0.95 | nie kłamie, po prostu nie wie |
+| L2 | 0.65–0.90 | wie co ma, nie ukrywa |
+| L3 | 0.50–0.80 | wie więcej niż mówi (zabrał dobre części) |
 
 ### Body (RollBodyCondition)
-| Level | Wzór |
+Wszystkie levele — zawsze wrak:
+| Level | Zakres |
 |---|---|
-| L1 | actual × 0.78–1.00 |
-| L2 | actual × 0.68–0.93 |
-| L3 | actual × 0.55–0.85 |
+| L1 | 0.00–0.30 |
+| L2 | 0.00–0.30 |
+| L3 | 0.00–0.30 |
 
 ### Cena
 base = CalcFairValue(actual)
-disc = L1: 0.20–0.35×  L2: 0.15–0.28×  L3: 0.08–0.20×
-floor = fair × (L1: 0.62  L2: 0.48  L3: 0.32)  ← instant-flip guard
-
-**Uwaga:** floor per-level zapobiega sytuacji gdzie gracz
-rozbiera auto na części i od razu zarabia bez naprawy.
+disc = L1: 0.20–0.35×   — nie zna wartości, sprzedaje tanio
+L2: 0.40–0.60×   — zna wartość, cena realna za wrak
+L3: 0.50–0.70×   — drożej niż L2 mimo gorszych części
+floor = fair × (L1: 0.32  L2: 0.48  L3: 0.55)  ← instant-flip guard
 
 ### Rating / TTL
 | Level | Rating | TTL |
 |---|---|---|
 | L1 | 3★ lub 4★ | 90–300s |
 | L2 | 2★ lub 3★ | 60–200s |
-| L3 | 1★ lub 2★ | 40–150s |
+| L3 | 2★ lub 3★ | 40–150s |
 
 ### ApplyWear
-Normalny ApplyWear() — brak StartFloor (auto może nie odpalać).
+Wszystkie levele: **auto nie odpala, brak StartFloor.**
+
+**L1 — ApplyWear() + mechanic surprise:**
+Wszystkie indexedParts → 0.00–0.30 (wrak)
+Wszystkie carParts     → 0.00–0.30 (wrak)
+POST-PASS: wylosuj 3–4 indeksy z indexedParts,
+szansa 15–20% → nadpisz kondycję na 0.50–0.80
+(niespodzianki dla gracza, właściciel nie wiedział)
+
+**L2 — ApplyWear():**
+Wszystkie indexedParts → 0.00–0.30 (wrak)
+Wszystkie carParts     → 0.00–0.30 (wrak)
+Brak niespodzianek.
+
+**L3 — ApplyWear():**
+indexedParts → 0.02 (handlarz zabrał wszystko co dobre)
+carParts     → 0.00–0.30 (karoseria nienaruszona — tylko mechanika ogołocona)
 
 ---
 
@@ -182,8 +218,11 @@ Normalny ApplyWear() — StartFloor = 0.20 (auto odpala).
 
 ### Filozofia
 Totalne kłamstwo. Zdjęcia i opis wiarygodne — auto które
-gracz dostaje to złom. Wszystkie części na 0.02, fluidy
-spuszczone, rama zniszczona, brak kluczowych elementow np maski, drzwi, pól silnika etc.
+gracz dostaje to złom. Wszystkie części na 0.02, fluidy spuszczone.
+SalvageCar() wewnętrznie przez silnik gry:
+rama zniszczona, brak kluczowych elementow np maski, drzwi, pól silnika etc.
+(BRAK KONTROLI NAD FUNKCJA SALVAGECAR())
+[FLOW: SpawnCar()-> SalvageCar() >mod: narzut czesci 2%]
 
 ### Apparent (RollApparent)
 | Level | Rozkład | Zakres |
