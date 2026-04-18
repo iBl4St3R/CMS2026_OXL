@@ -10,10 +10,12 @@ namespace CMS2026_OXL
     public class ListingSystem
     {
         private readonly CarPhotoLoader _photoLoader;
+        private readonly CarSpecLoader _specLoader;
 
-        public ListingSystem(CarPhotoLoader photoLoader)
+        public ListingSystem(CarPhotoLoader photoLoader, CarSpecLoader specLoader = null)
         {
             _photoLoader = photoLoader;
+            _specLoader = specLoader;
         }
 
         private class CarDef
@@ -91,8 +93,27 @@ namespace CMS2026_OXL
             float bodyCondition = RollBodyCondition(archetype, level, actual, rng);
 
             // ── Cena ───────────────────────────────────────────────────────────
-            int price = RollPrice(def, archetype, level, apparent, actual, year, faults, rng);
-            int fairValue = CalcFairValue(def, actual, year);
+            // Pobierz dane cenowe ze spec dla tego auta
+            var spec = _specLoader?.Get(def.InternalId);
+            var archetypePrices = spec?.ArchetypePrices;
+            string specSource = (archetypePrices != null && archetypePrices.Count > 0)
+                ? $"JSON ({archetypePrices.Count} keys)"
+                : "FALLBACK (no spec data)";
+
+            int price = RollPrice(def, archetype, level, apparent, actual, year, faults, rng, archetypePrices);
+            int fairValue = CalcFairValue(actual, archetypePrices);
+            if (fairValue <= 0)
+                fairValue = Mathf.Max(300, Mathf.RoundToInt(
+                    Mathf.Lerp(def.MinPrice, def.MaxPrice, actual) * YearFactor(year)
+                    * OXLSettings.PriceMultiplier / 50f) * 50);
+
+            OXLLog.Msg($"[OXL:PRICE] ── PRICE CALC ──────────────────────────────");
+            OXLLog.Msg($"[OXL:PRICE] Car:       {def.Make} {def.Model} {year}");
+            OXLLog.Msg($"[OXL:PRICE] SpecSrc:   {specSource}");
+            OXLLog.Msg($"[OXL:PRICE] Archetype: {archetype} L{level}  key={ArchetypeKey(archetype, level)}");
+            OXLLog.Msg($"[OXL:PRICE] Apparent:  {apparent:P0}  Actual: {actual:P0}");
+            OXLLog.Msg($"[OXL:PRICE] Price:     ${price:N0}   FairValue: ${fairValue:N0}");
+            OXLLog.Msg($"[OXL:PRICE] ─────────────────────────────────────────────");
 
             // ── TTL — czas życia aukcji ────────────────────────────────────────
             float ttl = RollTTL(archetype, level, rng);
@@ -297,71 +318,240 @@ namespace CMS2026_OXL
             };
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  PRICE
-        // ══════════════════════════════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════════════════
+        //  PRICE — oparta na danych z car_spec_*.json
+        //  archetypePrices: null = fallback do starego systemu
+        // ══════════════════════════════════════════════════════════════════════════
 
-        private static int RollPrice(CarDef def, SellerArchetype arch, int level, float apparent, float actual, int year, FaultFlags faults, Random rng)
+        private static readonly Dictionary<string, float> ArchetypeRefActual = new()
+{
+    // Szacowane "typowe" actual condition dla każdego archetypu+poziomu
+    // (odpowiada chassis/body w JSON: Honest L1 = chassis 50, body 45)
+    { "neglectedL1", 0.04f },
+    { "neglectedL2", 0.10f },
+    { "neglectedL3", 0.25f },
+    { "honestL1",    0.38f },
+    { "honestL2",    0.60f },
+    { "honestL3",    0.88f },
+    // Dealer i Wrecker nie skalują — ich cena zależy od narracji, nie od actual
+};
+
+        private static string ArchetypeKey(SellerArchetype arch, int level) =>
+            (arch, level) switch
+            {
+                (SellerArchetype.Neglected, 1) => "neglectedL1",
+                (SellerArchetype.Neglected, 2) => "neglectedL2",
+                (SellerArchetype.Neglected, 3) => "neglectedL3",
+                (SellerArchetype.Dealer, 1) => "dealerL1",
+                (SellerArchetype.Dealer, 2) => "dealerL2",
+                (SellerArchetype.Dealer, 3) => "dealerL3",
+                (SellerArchetype.Honest, 1) => "honestL1",
+                (SellerArchetype.Honest, 2) => "honestL2",
+                (SellerArchetype.Honest, 3) => "honestL3",
+                (SellerArchetype.Wrecker, 1) => "wreckerL1",
+                (SellerArchetype.Wrecker, 2) => "wreckerL2",
+                (SellerArchetype.Wrecker, 3) => "wreckerL3",
+                _ => "honestL2",
+            };
+
+        private static int RollPrice(
+    CarDef def, SellerArchetype arch, int level,
+    float apparent, float actual, int year, FaultFlags faults,
+    Random rng,
+    Dictionary<string, ArchetypePrice> archetypePrices)
         {
-            // Deprecjacja roczna — starsze auta wychodzą taniej z założenia
-            float ageFactor = YearFactor(year);
+            string key = ArchetypeKey(arch, level);
 
-            // Baza: Dealer/Wrecker kłamią więc ich baza to apparent (widoczna jakość)
-            // Honest/Neglected wyceniają bliżej tego co faktycznie mają (actual)
-            float baseCondition = (arch == SellerArchetype.Dealer || arch == SellerArchetype.Wrecker) ? apparent : actual;
+            ArchetypePrice ap = null;
+            archetypePrices?.TryGetValue(key, out ap);
+
+            if (ap == null || ap.Price <= 0)
+            {
+                OXLLog.Msg($"[OXL:PRICE]   → FALLBACK (archetypePrices null={archetypePrices == null}, key={key})");
+                return RollPriceFallback(def, arch, level, apparent, actual, year, faults, rng);
+            }
+
+            OXLLog.Msg($"[OXL:PRICE]   → JSON path: key={key} ap.Price={ap.Price} chassis={ap.Chassis} body={ap.Body}");
+
+            float price;
+
+            // ── HONEST: CalcFairValue × poziomowy mnożnik ──────────────────────────
+            if (arch == SellerArchetype.Honest)
+            {
+                int fair = CalcFairValue(actual, archetypePrices);
+                if (fair <= 0) fair = ap.Price;
+
+                float levelMult = level switch
+                {
+                    1 => (float)(0.75 + rng.NextDouble() * 0.15),
+                    2 => (float)(0.90 + rng.NextDouble() * 0.15),
+                    _ => (float)(1.00 + rng.NextDouble() * 0.15),
+                };
+
+                price = fair * levelMult;
+                OXLLog.Msg($"[OXL:PRICE]   Honest: fair={fair} levelMult={levelMult:F3} → {price:F0}");
+            }
+            // ── NEGLECTED: zawsze tanio ────────────────────────────────────────────
+            else if (arch == SellerArchetype.Neglected)
+            {
+                int fair = CalcFairValue(actual, archetypePrices);
+                if (fair <= 0) fair = ap.Price;
+
+                float neglectedDisc = (level, actual) switch
+                {
+                    (1, < 0.20f) => (float)(0.20 + rng.NextDouble() * 0.15),
+                    (1, < 0.50f) => (float)(0.28 + rng.NextDouble() * 0.17),
+                    (1, _) => (float)(0.35 + rng.NextDouble() * 0.15),
+                    (2, < 0.20f) => (float)(0.15 + rng.NextDouble() * 0.15),
+                    (2, < 0.50f) => (float)(0.22 + rng.NextDouble() * 0.18),
+                    (2, _) => (float)(0.28 + rng.NextDouble() * 0.17),
+                    (_, < 0.20f) => (float)(0.08 + rng.NextDouble() * 0.17),
+                    (_, < 0.50f) => (float)(0.15 + rng.NextDouble() * 0.25),
+                    _ => (float)(0.20 + rng.NextDouble() * 0.30),
+                };
+
+                price = fair * neglectedDisc;
+                OXLLog.Msg($"[OXL:PRICE]   Neglected: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
+            }
+            // ── DEALER / WRECKER: baza = actual, markup = scam premium ────────────
+            else
+            {
+                int fairActual = CalcFairValue(actual, archetypePrices);
+                if (fairActual <= 0) fairActual = ap.Price;
+
+                archetypePrices.TryGetValue("honestL3", out var h3cap);
+                int priceCap = h3cap != null
+                    ? Mathf.RoundToInt(h3cap.Price * 0.70f)
+                    : fairActual * 3;
+
+                float markup = (arch, level) switch
+                {
+                    (SellerArchetype.Dealer, 1) => (float)(1.20 + rng.NextDouble() * 0.20),
+                    (SellerArchetype.Dealer, 2) => (float)(1.50 + rng.NextDouble() * 0.25),
+                    (SellerArchetype.Dealer, 3) => (float)(1.80 + rng.NextDouble() * 0.30),
+                    (SellerArchetype.Wrecker, 1) => (float)(0.70 + rng.NextDouble() * 0.20),
+                    (SellerArchetype.Wrecker, 2) => (float)(0.90 + rng.NextDouble() * 0.20),
+                    (SellerArchetype.Wrecker, 3) => (float)(1.10 + rng.NextDouble() * 0.20),
+                    _ => 1.0f,
+                };
+
+                price = Math.Min(fairActual * markup, priceCap);
+                OXLLog.Msg($"[OXL:PRICE]   {arch} L{level}: fairActual={fairActual} markup={markup:F3} cap={priceCap} → {price:F0}");
+
+                float dwNoise = 1f + (float)(rng.NextDouble() * 0.16 - 0.08);
+                price *= dwNoise;
+
+                int dwRounded = Mathf.RoundToInt(price / 50f) * 50;
+                int dwFloor = Mathf.Max(300, Mathf.RoundToInt(ap.Price * 0.10f / 50f) * 50);
+                int dwFinal = Mathf.Max(dwRounded, dwFloor);
+                OXLLog.Msg($"[OXL:PRICE]   final: rounded={dwRounded} floor={dwFloor} cap={priceCap} → {dwFinal}");
+                return dwFinal;
+            }
+
+            // ── Rabat za znane usterki (tylko Honest) ─────────────────────────────
+            float priceBeforeFaults = price;
+            if (arch == SellerArchetype.Honest && faults != FaultFlags.None)
+            {
+                int faultCount = CountBits((int)faults);
+                float discPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
+                float discount = Mathf.Clamp(1f - faultCount * discPerFault, 0.52f, 0.93f);
+                price *= discount;
+                OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
+            }
+
+            // ── Szum ±8% ──────────────────────────────────────────────────────────
+            float noiseVal = 1f + (float)(rng.NextDouble() * 0.16 - 0.08);
+            float priceBeforeNoise = price;
+            price *= noiseVal;
+            OXLLog.Msg($"[OXL:PRICE]   noise: {noiseVal:F3}  {priceBeforeNoise:F0} → {price:F0}");
+
+            // ── Mnożnik trudności ─────────────────────────────────────────────────
+            float diffMult = OXLSettings.PriceMultiplier;
+            float priceBeforeDiff = price;
+            price *= diffMult;
+            OXLLog.Msg($"[OXL:PRICE]   diffMult: {diffMult:F2} ({OXLSettings.CurrentDifficulty})  {priceBeforeDiff:F0} → {price:F0}");
+
+            int rounded = Mathf.RoundToInt(price / 50f) * 50;
+            int floorPrice = Mathf.Max(300, Mathf.RoundToInt(ap.Price * 0.10f / 50f) * 50);
+            int final = Mathf.Max(rounded, floorPrice);
+            OXLLog.Msg($"[OXL:PRICE]   final: rounded={rounded} floor={floorPrice} → {final}");
+            return final;
+        }
+
+        // Fallback: stary system dla aut bez pliku spec (zabezpieczenie)
+        private static int RollPriceFallback(
+            CarDef def, SellerArchetype arch, int level,
+            float apparent, float actual, int year, FaultFlags faults, Random rng)
+        {
+            float ageFactor = YearFactor(year);
+            float baseCondition = (arch == SellerArchetype.Dealer || arch == SellerArchetype.Wrecker)
+                ? apparent : actual;
             float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, baseCondition) * ageFactor;
 
-            // Mnożnik per archetype+level
             float mult = (arch, level) switch
             {
-                // Honest: nowicjusz wycenia za nisko (nie zna rynku), weteran lekko premium za zaufanie
-                (SellerArchetype.Honest, 1) => (float)(0.78 + rng.NextDouble() * 0.12),  // 0.78–0.90 — za tani, nie wie co ma
-                (SellerArchetype.Honest, 2) => (float)(0.93 + rng.NextDouble() * 0.13),  // 0.93–1.06 — rynkowa
-                (SellerArchetype.Honest, 3) => (float)(1.05 + rng.NextDouble() * 0.11),  // 1.05–1.16 — premium za reputację
-
-                // Neglected: Casual losowo, Busy chce się pozbyć (nisko), Hoarder skrajności
-                (SellerArchetype.Neglected, 1) => (float)(0.72 + rng.NextDouble() * 0.28),  // 0.72–1.00 — losowo, nie dba
-                (SellerArchetype.Neglected, 2) => (float)(0.58 + rng.NextDouble() * 0.28),  // 0.58–0.86 — Busy: chce zejść szybko
-                (SellerArchetype.Neglected, 3) => (float)(0.45 + rng.NextDouble() * 0.75),  // 0.45–1.20 — Hoarder: albo za darmo albo absurd
-
-                // Dealer: wycenia znacznie wyżej — płacisz za scenografię nie za auto
-                (SellerArchetype.Dealer, 1) => (float)(1.68 + rng.NextDouble() * 0.30),  // 1.68–1.98
-                (SellerArchetype.Dealer, 2) => (float)(1.95 + rng.NextDouble() * 0.35),  // 1.95–2.30
-                (SellerArchetype.Dealer, 3) => (float)(2.30 + rng.NextDouble() * 0.40),  // 2.30–2.70
-
-                // Wrecker: Amateur tanio żeby złowić, Expert wygląda jak dobry Dealer
-                (SellerArchetype.Wrecker, 1) => (float)(0.65 + rng.NextDouble() * 0.25),  // 0.65–0.90 — tania przynęta
-                (SellerArchetype.Wrecker, 2) => (float)(0.88 + rng.NextDouble() * 0.30),  // 0.88–1.18 — rynkowa, trudniej wykryć
-                (SellerArchetype.Wrecker, 3) => (float)(1.08 + rng.NextDouble() * 0.40),  // 1.08–1.48 — Expert: premium, nie do odróżnienia od Dealera
-
+                (SellerArchetype.Honest, 1) => (float)(0.78 + rng.NextDouble() * 0.12),
+                (SellerArchetype.Honest, 2) => (float)(0.93 + rng.NextDouble() * 0.13),
+                (SellerArchetype.Honest, 3) => (float)(1.05 + rng.NextDouble() * 0.11),
+                (SellerArchetype.Neglected, 1) => (float)(0.72 + rng.NextDouble() * 0.28),
+                (SellerArchetype.Neglected, 2) => (float)(0.58 + rng.NextDouble() * 0.28),
+                (SellerArchetype.Neglected, 3) => (float)(0.45 + rng.NextDouble() * 0.75),
+                (SellerArchetype.Dealer, 1) => (float)(1.68 + rng.NextDouble() * 0.30),
+                (SellerArchetype.Dealer, 2) => (float)(1.95 + rng.NextDouble() * 0.35),
+                (SellerArchetype.Dealer, 3) => (float)(2.30 + rng.NextDouble() * 0.40),
+                (SellerArchetype.Wrecker, 1) => (float)(0.65 + rng.NextDouble() * 0.25),
+                (SellerArchetype.Wrecker, 2) => (float)(0.88 + rng.NextDouble() * 0.30),
+                (SellerArchetype.Wrecker, 3) => (float)(1.08 + rng.NextDouble() * 0.40),
                 _ => 1.0f,
             };
 
             float noise = 1f + (float)(rng.NextDouble() * 0.06 - 0.03);
             int price = Mathf.RoundToInt(basePricef * mult * noise * OXLSettings.PriceMultiplier / 50f) * 50;
 
-            // Min: 25% of MinPrice — pozwala na naprawdę tanie auta od Neglected/Wrecker
             int scaledMin = Math.Max(300, Mathf.RoundToInt(def.MinPrice * OXLSettings.PriceMultiplier * 0.25f));
-            // Max: 2.2x MaxPrice — Dealer L3 wycenia sporo ponad normalny rynek
             int scaledMax = Mathf.RoundToInt(def.MaxPrice * OXLSettings.PriceMultiplier * 2.2f);
             price = Mathf.Clamp(price, scaledMin, scaledMax);
 
-            // Honest z usterkami: rabat skalowany per liczba usterek — więcej problemów = głębszy rabat
             if (arch == SellerArchetype.Honest && faults != FaultFlags.None)
             {
                 int faultCount = CountBits((int)faults);
-                float discountPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
-                float discount = Mathf.Clamp(1.0f - faultCount * discountPerFault, 0.52f, 0.93f);
+                float discPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
+                float discount = Mathf.Clamp(1f - faultCount * discPerFault, 0.52f, 0.93f);
                 price = Mathf.RoundToInt(price * discount / 50f) * 50;
             }
 
             return Mathf.Max(price, 300);
         }
 
-        // Uczciwa wartość rynkowa — ile auto NAPRAWDĘ jest warte, niezależnie od archetypu
-        private static int CalcFairValue(CarDef def, float actual, int year)
+        // Uczciwa wartość rynkowa — interpolacja między honest cenami z JSON
+        private static int CalcFairValue(float actual,
+    Dictionary<string, ArchetypePrice> prices)
         {
-            float val = Mathf.Lerp(def.MinPrice, def.MaxPrice, actual) * YearFactor(year) * OXLSettings.PriceMultiplier;
+            if (prices == null || prices.Count == 0) return 0;
+
+            bool h1ok = prices.TryGetValue("honestL1", out var h1);
+            bool h2ok = prices.TryGetValue("honestL2", out var h2);
+            bool h3ok = prices.TryGetValue("honestL3", out var h3);
+
+            if (!h1ok || !h2ok || !h3ok) return 0;
+
+            float val;
+            if (actual < 0.38f)
+            {
+                float t = actual / 0.38f;
+                val = Mathf.Lerp(h1.Price * 0.25f, h1.Price, t);
+            }
+            else if (actual < 0.70f)
+            {
+                float t = (actual - 0.38f) / 0.32f;
+                val = Mathf.Lerp(h1.Price, h2.Price, t);
+            }
+            else
+            {
+                float t = (actual - 0.70f) / 0.30f;
+                val = Mathf.Lerp(h2.Price, h3.Price, Mathf.Clamp01(t));
+            }
+
             return Mathf.Max(300, Mathf.RoundToInt(val / 50f) * 50);
         }
 

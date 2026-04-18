@@ -489,7 +489,6 @@ namespace CMS2026_OXL
         private static void TryResolve()
         {
             if (_resolved) return;
-            _resolved = true;
             try
             {
                 var t = System.AppDomain.CurrentDomain.GetAssemblies()
@@ -505,6 +504,10 @@ namespace CMS2026_OXL
                 if (_consolePrint == null)
                     _consolePrint = t?.GetMethod("Print",
                         new[] { typeof(string) });
+
+                // ← tylko gdy faktycznie znalazł — nie blokuj retry
+                if (_consolePrint != null)
+                    _resolved = true;
             }
             catch { }
         }

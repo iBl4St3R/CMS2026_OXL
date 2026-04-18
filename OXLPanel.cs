@@ -191,8 +191,8 @@ namespace CMS2026_OXL
 
             string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
             _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
-            _listings = new ListingSystem(_photoLoader);
-            _specLoader = new CarSpecLoader(modsRoot);
+            _specLoader = new CarSpecLoader(modsRoot);//spec loader musi być gotowy przed listings:
+            _listings = new ListingSystem(_photoLoader, _specLoader);
 
 
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);

@@ -21,11 +21,30 @@ namespace CMS2026_OXL
         public string Rarity { get; set; } = "";
     }
 
+    public class CarPriceModel
+    {
+        public int BaseValue { get; set; }
+        public int MaxParts { get; set; }
+        public int MaxFrame { get; set; }
+        public int MaxBonus { get; set; }
+    }
+
+    public class ArchetypePrice
+    {
+        public int Chassis { get; set; }
+        public int Body { get; set; }
+        public int Km { get; set; }
+        public int Price { get; set; }
+    }
+
     public class CarSpec
     {
         public string CarId { get; set; } = "";
         public string CarName { get; set; } = "";
         public CarSpecData AutoDetected { get; set; } = new();
+        public CarPriceModel PriceModel { get; set; } = new();   
+        public Dictionary<string, ArchetypePrice> ArchetypePrices  
+            = new(StringComparer.OrdinalIgnoreCase);
     }
 
 
@@ -66,7 +85,9 @@ namespace CMS2026_OXL
                     {
                         _specs[spec.CarId] = spec;
                         OXLPlugin.Log.Msg(
-                            $"[CarSpecLoader] Loaded spec for '{spec.CarId}' from {specPath}");
+     $"[CarSpecLoader] Loaded spec for '{spec.CarId}': " +
+     $"priceModel=(base={spec.PriceModel.BaseValue} parts={spec.PriceModel.MaxParts}) " +
+     $"archetypeKeys=[{string.Join(", ", spec.ArchetypePrices.Keys)}]");
                     }
                 }
                 catch (Exception ex)
@@ -127,6 +148,63 @@ namespace CMS2026_OXL
             spec.AutoDetected.TireRear = StripTags(ReadString(block, "tireRear") ?? "");
             spec.AutoDetected.Rarity = StripTags(ReadString(block, "rarity") ?? "");
 
+            // ── priceModel ────────────────────────────────────────────────────────────
+            int pmIdx = json.IndexOf("\"priceModel\"", StringComparison.Ordinal);
+            if (pmIdx >= 0)
+            {
+                int pmOpen = json.IndexOf('{', pmIdx);
+                int pmClose = json.IndexOf('}', pmOpen);
+                if (pmOpen >= 0 && pmClose > pmOpen)
+                {
+                    string pm = json.Substring(pmOpen, pmClose - pmOpen + 1);
+                    spec.PriceModel.BaseValue = ReadInt(pm, "baseValue");
+                    spec.PriceModel.MaxParts = ReadInt(pm, "maxParts");
+                    spec.PriceModel.MaxFrame = ReadInt(pm, "maxFrame");
+                    spec.PriceModel.MaxBonus = ReadInt(pm, "maxBonus");
+                }
+            }
+
+            // ── archetypePrices ───────────────────────────────────────────────────────
+            int apIdx = json.IndexOf("\"archetypePrices\"", StringComparison.Ordinal);
+            if (apIdx >= 0)
+            {
+                // Znajdź zewnętrzny { ... } bloku archetypePrices
+                int apOpen = json.IndexOf('{', apIdx);
+                int depth = 0, apClose = apOpen;
+                for (int i = apOpen; i < json.Length; i++)
+                {
+                    if (json[i] == '{') depth++;
+                    else if (json[i] == '}') { if (--depth == 0) { apClose = i; break; } }
+                }
+                string apBlock = json.Substring(apOpen, apClose - apOpen + 1);
+
+                // Klucze muszą pasować do konwencji JSON — te same co w pliku
+                string[] keys = {
+                "neglectedL1", "neglectedL2", "neglectedL3",
+                "dealerL1",    "dealerL2",    "dealerL3",
+                "honestL1",    "honestL2",    "honestL3",
+                "wreckerL1",   "wreckerL2",   "wreckerL3",
+                };
+
+                foreach (string key in keys)
+                {
+                    int kIdx = apBlock.IndexOf($"\"{key}\"", StringComparison.Ordinal);
+                    if (kIdx < 0) continue;
+                    int innerOpen = apBlock.IndexOf('{', kIdx);
+                    int innerClose = apBlock.IndexOf('}', innerOpen);
+                    if (innerOpen < 0 || innerClose < innerOpen) continue;
+                    string inner = apBlock.Substring(innerOpen, innerClose - innerOpen + 1);
+                    spec.ArchetypePrices[key] = new ArchetypePrice
+                    {
+                        Chassis = ReadInt(inner, "chassis"),
+                        Body = ReadInt(inner, "body"),
+                        Km = ReadInt(inner, "km"),
+                        Price = ReadInt(inner, "price"),
+                    };
+                }
+            }
+
+
             return spec;
         }
 
@@ -136,6 +214,12 @@ namespace CMS2026_OXL
             var m = Regex.Match(json,
                 $@"""{Regex.Escape(key)}""\s*:\s*""([^""\\]*(?:\\.[^""\\]*)*)""");
             return m.Success ? m.Groups[1].Value : null;
+        }
+
+        private static int ReadInt(string json, string key)
+        {
+            var m = Regex.Match(json, $@"""{Regex.Escape(key)}""\s*:\s*(\d+)");
+            return m.Success ? int.Parse(m.Groups[1].Value) : 0;
         }
 
         /// <summary>Strips Unity rich-text tags like &lt;color=#...&gt; and &lt;size=-6&gt;.</summary>
