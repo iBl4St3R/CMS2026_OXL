@@ -443,7 +443,14 @@ namespace CMS2026_OXL
                 // Nasz floor = 70% fair — gracz nie może zarobić bez pracy.
                 // Dla actual=3% fair≈$2k → floor≈$1.4k (OK, gra płaci ~$1.2k)
                 // Dla actual=27% fair≈$21k → floor≈$14.7k (gra płaci ~$12k, marża na naprawie)
-                float instantFlipFloor = fair * 0.70f;
+                float flipFloorMult = level switch
+                {
+                    1 => 0.62f,  // L1 Casual: chce przyzwoitą kasę, lekki rabat
+                    2 => 0.48f,  // L2 Busy: nie ma czasu negocjować
+                    _ => 0.32f,  // L3 Hoarder: chce się pozbyć, cena śmieciowa
+                };
+                float instantFlipFloor = fair * flipFloorMult;
+
                 if (price < instantFlipFloor)
                 {
                     OXLLog.Msg($"[OXL:PRICE]   Neglected instant-flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × 0.70)");

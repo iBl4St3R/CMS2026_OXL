@@ -141,6 +141,15 @@ namespace CMS2026_OXL
 
             yield return new WaitForEndOfFrame();
 
+
+            // ── WRECKER — totalny wrak, pomijamy normalną logikę ─────────────────
+            if (listing.Archetype == SellerArchetype.Wrecker)
+            {
+                yield return ApplyWreckerWear(cl, listing);
+                yield break;  // ← nie idzie dalej do normalnego ApplyWear
+            }
+
+
             float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
             float mechBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.82f, 0.98f), 0.01f, 1.0f);
@@ -344,6 +353,115 @@ namespace CMS2026_OXL
         // ══════════════════════════════════════════════════════════════════════
         // Zamiast 10 metod IsXxx() — jedna ścieżka: Classify → WearCat → float.
         // isBodyPart=true: traktuj jako część karoserii (carParts), nie mechanikę.
+
+
+        private static IEnumerator ApplyWreckerWear(
+    Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        {
+            var flags = System.Reflection.BindingFlags.Public
+                      | System.Reflection.BindingFlags.Instance
+                      | System.Reflection.BindingFlags.NonPublic;
+
+            var dbg = cl.gameObject.GetComponent<Il2Cpp.CarDebug>();
+
+            // ── Krok 1: SalvageCar — bazowa destrukcja ────────────────────────────
+            if (dbg != null)
+            {
+                try
+                {
+                    dbg.GetType().GetMethod("SalvageCar", flags)?.Invoke(dbg, null);
+                    OXLPlugin.Log.Msg("[OXL:WRECKER] SalvageCar() called");
+                }
+                catch (Exception ex)
+                {
+                    OXLPlugin.Log.Msg($"[OXL:WRECKER] SalvageCar failed: {ex.Message}");
+                }
+            }
+
+            yield return new WaitForSeconds(0.2f);
+
+            // ── Krok 2: IndexedParts → 0.02 ──────────────────────────────────────
+            var ip = cl.indexedParts;
+            if (ip != null)
+            {
+                for (int i = 0; i < ip.Count; i++)
+                {
+                    if (ip[i] == null) continue;
+                    try { ip[i].SetCondition(0.02f, false); }
+                    catch { ip[i].condition = 0.02f; }
+                }
+                cl.ClearEnginePartsConditionCache();
+                OXLPlugin.Log.Msg($"[OXL:WRECKER] {ip.Count} indexedParts → 0.02");
+            }
+
+            yield return new WaitForEndOfFrame();
+
+            // ── Krok 3: CarParts → 0.02 ──────────────────────────────────────────
+            var cp = cl.carParts;
+            if (cp != null)
+            {
+                for (int i = 0; i < cp.Count; i++)
+                {
+                    if (cp[i] == null) continue;
+                    try { cl.SetCondition(cp[i], 0.02f); } catch { }
+                }
+                cl.SetConditionOnBody(0.02f);
+                cl.SetConditionOnDetails(0.02f);
+                OXLPlugin.Log.Msg($"[OXL:WRECKER] {cp.Count} carParts → 0.02");
+            }
+
+            yield return new WaitForFixedUpdate();
+
+            // ── Krok 4: Frame + Details → 0.02 ───────────────────────────────────
+            if (dbg != null)
+            {
+                try { dbg.SetFrameCondition(0.02f); } catch { }
+                try { dbg.SetDetailsCondtition(0.02f); } catch { }
+                OXLPlugin.Log.Msg("[OXL:WRECKER] Frame + Details → 0.02");
+            }
+
+            // ── Krok 5: DrainFluids ───────────────────────────────────────────────
+            if (dbg != null)
+            {
+                try
+                {
+                    dbg.GetType()
+                       .GetMethod("DrainFluids", flags)
+                       ?.Invoke(dbg, new object[] { true });
+                    OXLPlugin.Log.Msg("[OXL:WRECKER] DrainFluids called");
+                }
+                catch (Exception ex)
+                {
+                    OXLPlugin.Log.Msg($"[OXL:WRECKER] DrainFluids failed: {ex.Message}");
+                }
+            }
+
+            yield return new WaitForFixedUpdate();
+
+            // ── Krok 6: Historia pojazdu (przebieg, rok, tablica) ─────────────────
+            var cid = cl.CarInfoData;
+            if (cid != null)
+            {
+                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
+                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
+            }
+
+            if (!string.IsNullOrEmpty(listing.Registration))
+            {
+                try
+                {
+                    cl.SetNewLicensePlateNumber(listing.Registration, true);
+                    cl.SetNewLicensePlateNumber(listing.Registration, false);
+                }
+                catch { }
+            }
+
+            OXLPlugin.Log.Msg(
+                $"[OXL:WRECKER] ══ WRECKER WEAR DONE ═══════════════════" +
+                $"\n  Arch={listing.Archetype} L{listing.ArchetypeLevel}" +
+                $"\n  Apparent={listing.ApparentCondition:P0} Actual={listing.ActualCondition:P0}" +
+                $"\n  All parts → 0.02, fluids drained");
+        }
 
         private static float WearForPart(string partId, float baseCondition, float exhaustableMax,
     float startFloor, FaultFlags faults, bool isBodyPart)
