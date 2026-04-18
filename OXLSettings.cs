@@ -22,14 +22,14 @@ namespace CMS2026_OXL
         ? (mileage >= 1000 ? $"{mileage / 1000}k mi" : $"{mileage} mi")
         : (mileage >= 1000 ? $"{mileage * 1609 / 1000 / 1000}k km" : $"{mileage * 1609 / 1000} km");
 
-        /// Easy   = listing prices 10% lower  (slight discount)
-        /// Normal = prices 30% above baseline (intended balance)
-        /// Hard   = listing prices 60% higher (tight margins)
+        /// Easy   = ceny 15% niższe   (większa marża, lepszy start)
+        /// Normal = ceny bazowe z JSON (zamierzony balans)
+        /// Hard   = ceny 20% wyższe   (ciasne marże, kara za błędy)
         public static float PriceMultiplier => CurrentDifficulty switch
         {
-            Difficulty.Easy => 0.90f,  // -10%
-            Difficulty.Hard => 1.60f,  // +60%
-            _ => 1.30f,  // Normal +30%
+            Difficulty.Easy => 0.85f,
+            Difficulty.Hard => 1.20f,
+            _ => 1.00f,   // Normal = baseline, bez korekty
         };
 
         // ── Ścieżka do pliku ──────────────────────────────────────────────────
@@ -113,16 +113,17 @@ namespace CMS2026_OXL
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
 
                 File.WriteAllText(path,
-                    "# OXL — Online eX-Owner Lies — Configuration\n" +
-                    "# \n" +
-                    "# difficulty: Easy | Normal | Hard\n" +
-                    "#   Easy   = listing prices 30% lower  (more profit margin)\n" +
-                    "#   Normal = baseline prices\n" +
-                    "#   Hard   = listing prices 30% higher (tighter margins)\n" +
-                    $"use_miles = {UseMiles}\n" +
-                    "# \n" +
-                   $"difficulty = {CurrentDifficulty}\n");
-                    
+    "# OXL — Online eX-Owner Lies — Configuration\n" +
+    "# \n" +
+    "# difficulty: Easy | Normal | Hard\n" +
+    "#   Easy   = listing prices 15% lower  (higher profit margins)\n" +
+    "#   Normal = base prices from JSON      (intended game balance)\n" +
+    "#   Hard   = listing prices 20% higher (tight margins, less forgiving)\n" +
+    $"use_miles = {UseMiles}\n" +
+    "# \n" +
+    $"difficulty = {CurrentDifficulty}\n"
+);
+
 
                 OXLPlugin.Log.Msg($"[OXL] Config saved — difficulty={CurrentDifficulty}");
             }

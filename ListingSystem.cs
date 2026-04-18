@@ -375,7 +375,7 @@ namespace CMS2026_OXL
 
             float price;
 
-            // ── HONEST: CalcFairValue × poziomowy mnożnik ──────────────────────────
+            // ── HONEST: CalcFairValue × poziomowy mnożnik ─────────────────────────────
             if (arch == SellerArchetype.Honest)
             {
                 int fair = CalcFairValue(actual, archetypePrices);
@@ -383,15 +383,41 @@ namespace CMS2026_OXL
 
                 float levelMult = level switch
                 {
-                    1 => (float)(0.75 + rng.NextDouble() * 0.15),
-                    2 => (float)(0.90 + rng.NextDouble() * 0.15),
-                    _ => (float)(1.00 + rng.NextDouble() * 0.15),
+                    1 => (float)(0.75 + rng.NextDouble() * 0.15),  // 0.75–0.90×
+                    2 => (float)(0.90 + rng.NextDouble() * 0.15),  // 0.90–1.05×
+                    _ => (float)(1.00 + rng.NextDouble() * 0.15),  // 1.00–1.15×
                 };
 
                 price = fair * levelMult;
+
+                // Twardy ceiling: Honest nigdy nie sprzedaje powyżej 75% max Honest L3.
+                // Gwarantuje że gracz zawsze ma ~25% budżetu na części + marżę zysku.
+                // Stosowany PRZED szumem i diffMult żeby ceiling był bezwzględny.
+                archetypePrices.TryGetValue("honestL3", out var h3cap);
+                if (h3cap != null && h3cap.Price > 0)
+                {
+                    float ceiling = h3cap.Price * 0.75f;
+                    if (price > ceiling)
+                    {
+                        OXLLog.Msg($"[OXL:PRICE]   Honest ceiling hit: {price:F0} → {ceiling:F0}  (75% of h3={h3cap.Price})");
+                        price = ceiling;
+                    }
+                }
+
                 OXLLog.Msg($"[OXL:PRICE]   Honest: fair={fair} levelMult={levelMult:F3} → {price:F0}");
+
+                // Rabat za znane usterki — Honest ujawnia je w opisie
+                if (faults != FaultFlags.None)
+                {
+                    int faultCount = CountBits((int)faults);
+                    float discPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
+                    float discount = Mathf.Clamp(1f - faultCount * discPerFault, 0.52f, 0.93f);
+                    float priceBeforeFaults = price;
+                    price *= discount;
+                    OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
+                }
             }
-            // ── NEGLECTED: zawsze tanio ────────────────────────────────────────────
+            // ── NEGLECTED: zawsze tanio — właściciel chce się pozbyć ─────────────────
             else if (arch == SellerArchetype.Neglected)
             {
                 int fair = CalcFairValue(actual, archetypePrices);
@@ -413,67 +439,81 @@ namespace CMS2026_OXL
                 price = fair * neglectedDisc;
                 OXLLog.Msg($"[OXL:PRICE]   Neglected: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
             }
-            // ── DEALER / WRECKER: baza = actual, markup = scam premium ────────────
-            else
+            // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
+            else if (arch == SellerArchetype.Dealer)
             {
-                int fairActual = CalcFairValue(actual, archetypePrices);
-                if (fairActual <= 0) fairActual = ap.Price;
+                // fairApparent = ile gracz zapłaciłby u Honest za auto W TAKIM STANIE WIZUALNYM.
+                // Dealer naprawia karoserię do apparent, więc ta cena jest "uzasadniona" wizualnie.
+                // Pułapka polega na tym że actual (mechanika) jest dużo niższe.
+                int fairApparent = CalcFairValue(apparent, archetypePrices);
+                if (fairApparent <= 0) fairApparent = ap.Price;
 
-                archetypePrices.TryGetValue("honestL3", out var h3cap);
-                int priceCap = h3cap != null
-                    ? Mathf.RoundToInt(h3cap.Price * 0.70f)
-                    : fairActual * 3;
-
-                float markup = (arch, level) switch
+                // L1 Backyard  : lekko poniżej rynku apparent — "uczciwa cena", nic podejrzanego
+                // L2 Pro       : rynkowa, bardzo przekonująca
+                // L3 Criminal  : odrobinę taniej niż fair apparent — "okazja" = przynęta
+                float markup = level switch
                 {
-                    (SellerArchetype.Dealer, 1) => (float)(1.20 + rng.NextDouble() * 0.20),
-                    (SellerArchetype.Dealer, 2) => (float)(1.50 + rng.NextDouble() * 0.25),
-                    (SellerArchetype.Dealer, 3) => (float)(1.80 + rng.NextDouble() * 0.30),
-                    (SellerArchetype.Wrecker, 1) => (float)(0.70 + rng.NextDouble() * 0.20),
-                    (SellerArchetype.Wrecker, 2) => (float)(0.90 + rng.NextDouble() * 0.20),
-                    (SellerArchetype.Wrecker, 3) => (float)(1.10 + rng.NextDouble() * 0.20),
-                    _ => 1.0f,
+                    1 => (float)(0.85 + rng.NextDouble() * 0.15), // 0.85–1.00×
+                    2 => (float)(0.90 + rng.NextDouble() * 0.15), // 0.90–1.05×
+                    _ => (float)(0.72 + rng.NextDouble() * 0.13), // 0.72–0.85× — "trochę taniej od Honest"
                 };
 
-                price = Math.Min(fairActual * markup, priceCap);
-                OXLLog.Msg($"[OXL:PRICE]   {arch} L{level}: fairActual={fairActual} markup={markup:F3} cap={priceCap} → {price:F0}");
-
-                float dwNoise = 1f + (float)(rng.NextDouble() * 0.16 - 0.08);
-                price *= dwNoise;
-
-                int dwRounded = Mathf.RoundToInt(price / 50f) * 50;
-                int dwFloor = Mathf.Max(300, Mathf.RoundToInt(ap.Price * 0.10f / 50f) * 50);
-                int dwFinal = Mathf.Max(dwRounded, dwFloor);
-                OXLLog.Msg($"[OXL:PRICE]   final: rounded={dwRounded} floor={dwFloor} cap={priceCap} → {dwFinal}");
-                return dwFinal;
+                price = fairApparent * markup;
+                OXLLog.Msg($"[OXL:PRICE]   Dealer L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
             }
-
-            // ── Rabat za znane usterki (tylko Honest) ─────────────────────────────
-            float priceBeforeFaults = price;
-            if (arch == SellerArchetype.Honest && faults != FaultFlags.None)
+            // ── WRECKER: wycena od apparent — kłamstwo, różne style na każdym poziomie
+            else
             {
-                int faultCount = CountBits((int)faults);
-                float discPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
-                float discount = Mathf.Clamp(1f - faultCount * discPerFault, 0.52f, 0.93f);
-                price *= discount;
-                OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
+                // Wrecker też wycenia od apparent (kłamie na poziomie zdjęć/opisu).
+                // Różnica vs Dealer: mniej profesjonalne ukrycie, inne sygnały w cenie.
+                int fairApparent = CalcFairValue(apparent, archetypePrices);
+                if (fairApparent <= 0) fairApparent = ap.Price;
+
+                // L1 Amateur      : drożej niż powinno być za ten wygląd → czerwona flaga
+                // L2 Intermediate : rynkowa, podszywa się pod Dealera lub Honest
+                // L3 Expert       : minimalnie taniej niż Honest → "okazja" nie do odróżnienia
+                float markup = level switch
+                {
+                    1 => (float)(1.10 + rng.NextDouble() * 0.30), // 1.10–1.40× — przepłata, sygnał
+                    2 => (float)(0.88 + rng.NextDouble() * 0.22), // 0.88–1.10× — rynkowa, brak sygnału
+                    _ => (float)(0.75 + rng.NextDouble() * 0.15), // 0.75–0.90× — "lekko taniej od Honest"
+                };
+
+                price = fairApparent * markup;
+                OXLLog.Msg($"[OXL:PRICE]   Wrecker L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
             }
 
-            // ── Szum ±8% ──────────────────────────────────────────────────────────
-            float noiseVal = 1f + (float)(rng.NextDouble() * 0.16 - 0.08);
+            // ── Szum ±6% — wszystkie archetypy ───────────────────────────────────────
+            float noiseVal = 1f + (float)(rng.NextDouble() * 0.12 - 0.06);
             float priceBeforeNoise = price;
             price *= noiseVal;
             OXLLog.Msg($"[OXL:PRICE]   noise: {noiseVal:F3}  {priceBeforeNoise:F0} → {price:F0}");
 
-            // ── Mnożnik trudności ─────────────────────────────────────────────────
+            // ── Mnożnik trudności — stosowany do WSZYSTKICH archetypów (spójność) ─────
+            // Normal=1.00 (baseline), Easy=0.85 (tańsze), Hard=1.20 (droższe)
             float diffMult = OXLSettings.PriceMultiplier;
             float priceBeforeDiff = price;
             price *= diffMult;
             OXLLog.Msg($"[OXL:PRICE]   diffMult: {diffMult:F2} ({OXLSettings.CurrentDifficulty})  {priceBeforeDiff:F0} → {price:F0}");
 
+            // ── Zaokrąglenie i floor ──────────────────────────────────────────────────
             int rounded = Mathf.RoundToInt(price / 50f) * 50;
             int floorPrice = Mathf.Max(300, Mathf.RoundToInt(ap.Price * 0.10f / 50f) * 50);
             int final = Mathf.Max(rounded, floorPrice);
+
+            // ── Log oczekiwanej marży — czy aukcja jest opłacalna? ────────────────────
+            // Przybliżone: max sprzedaży gry ≈ honestL3.Price × 1.20 (km=0, pełna naprawa)
+            // Koszt naprawy ≈ 38% różnicy między actual a max (empiryczna estymacja)
+            if (archetypePrices.TryGetValue("honestL3", out var h3log) && h3log != null)
+            {
+                int approxMaxSell = Mathf.RoundToInt(h3log.Price * 1.20f);
+                int approxRepair = Mathf.RoundToInt(approxMaxSell * (1f - Mathf.Clamp(actual, 0f, 1f)) * 0.38f);
+                int approxMargin = approxMaxSell - final - approxRepair;
+                string verdict = approxMargin > 0 ? "OK" : "LOSS";
+                OXLLog.Msg($"[OXL:PRICE]   margin≈{approxMargin} [{verdict}]" +
+                           $"  (sell~{approxMaxSell} − buy {final} − repair~{approxRepair})");
+            }
+
             OXLLog.Msg($"[OXL:PRICE]   final: rounded={rounded} floor={floorPrice} → {final}");
             return final;
         }
