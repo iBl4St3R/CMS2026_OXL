@@ -247,10 +247,31 @@ namespace CMS2026_OXL
         {
             LoadIcons();
 
+            // ── Załaduj draft z zapisanego configu ────────────────────────────────
+            var saved = OXLSettings.SavedGenConfig;
+            _draftMaxListings = saved.MaxListings;
+            _draftGenChancePct = saved.GenChancePct;
+            _draftGenMin = saved.GenMin;
+            _draftGenMax = saved.GenMax;
+            _draftDurMinH = Mathf.RoundToInt(saved.DurMinSec / ListingGenConfig.SecondsPerGameHour);
+            _draftDurMaxH = Mathf.RoundToInt(saved.DurMaxSec / ListingGenConfig.SecondsPerGameHour);
+            Array.Copy(saved.ArchWeights, _draftArchW, 4);
+            for (int a = 0; a < 4; a++)
+                Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
+
             string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
             _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
-            _specLoader = new CarSpecLoader(modsRoot);//spec loader musi być gotowy przed listings:
+            _specLoader = new CarSpecLoader(modsRoot);
             _listings = new ListingSystem(_photoLoader, _specLoader);
+
+            // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
+            _listings.ApplyConfig(OXLSettings.SavedGenConfig);
+
+            OXLPlugin.Log.Msg($"[OXL] ListingSystem initialized with saved config" +
+                              $" — max={OXLSettings.SavedGenConfig.MaxListings}" +
+                              $" chance={OXLSettings.SavedGenConfig.GenChancePct}%");
+
+
 
 
             float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
@@ -3174,13 +3195,27 @@ namespace CMS2026_OXL
 
         private void SaveListingGenSettings()
         {
-            // TODO: podpiąć pod ListingSystem gdy logika będzie gotowa.
-            // Na razie zapisuje tylko do logu — placeholder.
+            var config = new ListingGenConfig
+            {
+                MaxListings = _draftMaxListings,
+                GenChancePct = _draftGenChancePct,
+                GenMin = _draftGenMin,
+                GenMax = _draftGenMax,
+                DurMinSec = _draftDurMinH * ListingGenConfig.SecondsPerGameHour,
+                DurMaxSec = _draftDurMaxH * ListingGenConfig.SecondsPerGameHour,
+                ArchWeights = (int[])_draftArchW.Clone(),
+                LvlWeights = _draftLvlW.Select(w => (int[])w.Clone()).ToArray(),
+            };
+
+            _listings?.ApplyConfig(config);
+            OXLSettings.SaveGenConfig(config);   // ← to jest nowe, reszta bez zmian
+
             OXLLog.Msg($"[OXL:LGSETTINGS] ══ LISTING GEN SETTINGS SAVED ══════════════");
             OXLLog.Msg($"[OXL:LGSETTINGS] MaxListings  : {_draftMaxListings}");
-            OXLLog.Msg($"[OXL:LGSETTINGS] GenChance    : {_draftGenChancePct}% / hour");
-            OXLLog.Msg($"[OXL:LGSETTINGS] GenBatch     : {_draftGenMin}–{_draftGenMax} per roll");
-            OXLLog.Msg($"[OXL:LGSETTINGS] Duration     : {_draftDurMinH}h – {_draftDurMaxH}h");
+            OXLLog.Msg($"[OXL:LGSETTINGS] GenChance    : {_draftGenChancePct}% / {ListingGenConfig.SecondsPerGameHour:F0}s");
+            OXLLog.Msg($"[OXL:LGSETTINGS] GenBatch     : {_draftGenMin}–{_draftGenMax}");
+            OXLLog.Msg($"[OXL:LGSETTINGS] Duration     : {_draftDurMinH}h–{_draftDurMaxH}h" +
+                       $" ({config.DurMinSec:F0}s–{config.DurMaxSec:F0}s)");
             OXLLog.Msg($"[OXL:LGSETTINGS] ArchWeights  : " +
                        $"H={_draftArchW[0]}% N={_draftArchW[1]}% D={_draftArchW[2]}% W={_draftArchW[3]}%");
             for (int a = 0; a < 4; a++)

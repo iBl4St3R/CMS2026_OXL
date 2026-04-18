@@ -12,11 +12,36 @@ namespace CMS2026_OXL
         private readonly CarPhotoLoader _photoLoader;
         private readonly CarSpecLoader _specLoader;
 
+        // ── Konfiguracja — domyślna, nadpisywana przez ApplyConfig() ─────────────
+        private ListingGenConfig _config = new ListingGenConfig();
+
+        /// <summary>Stosuje nową konfigurację. Aktywne ogłoszenia nie są ruszane.</summary>
+        public void ApplyConfig(ListingGenConfig config)
+        {
+            _config = config ?? new ListingGenConfig();
+            OXLLog.Msg($"[OXL:LGSYS] Config applied — max={_config.MaxListings}" +
+                       $" chance={_config.GenChancePct}% batch={_config.GenMin}–{_config.GenMax}" +
+                       $" dur={_config.DurMinSec:F0}s–{_config.DurMaxSec:F0}s" +
+                       $" archW=[{string.Join(",", _config.ArchWeights)}]");
+        }
+
+        // ── Stan tickowania ───────────────────────────────────────────────────────
+        private bool _initialSeeded = false;
+        private float _lastGenCheckTime = 0f;
+
+        // Interwał sprawdzania generacji = 1 "godzina gry" w sekundach Unity
+        private const float GenCheckInterval = ListingGenConfig.SecondsPerGameHour;
+
+        // ── Konstruktor (bez zmian w sygnaturze) ──────────────────────────────────
         public ListingSystem(CarPhotoLoader photoLoader, CarSpecLoader specLoader = null)
         {
             _photoLoader = photoLoader;
             _specLoader = specLoader;
         }
+
+
+
+
 
         private class CarDef
         {
@@ -37,26 +62,74 @@ namespace CMS2026_OXL
         //  ACTIVE LISTINGS
         // ══════════════════════════════════════════════════════════════════════
 
+        // ── Aktywne ogłoszenia ────────────────────────────────────────────────────
         public List<CarListing> ActiveListings { get; private set; } = new();
         private float _gameTime = 0f;
         public float GameTime => _gameTime;
 
+        // ═════════════════════════════════════════════════════════════════════════
+        //  TICK
+        // ═════════════════════════════════════════════════════════════════════════
+
         public void Tick(float deltaTime)
         {
             _gameTime += deltaTime;
+
+            // Usuń wygasłe
             ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
 
-            while (ActiveListings.Count < 4)
-                ActiveListings.Add(GenerateListing());
+            // Jednorazowe seed — wypełnij do min(4, MaxListings) przy starcie
+            if (!_initialSeeded)
+            {
+                int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
+                while (ActiveListings.Count < seedCount)
+                    ActiveListings.Add(GenerateListing());
+                _initialSeeded = true;
+                _lastGenCheckTime = _gameTime;
+                return;
+            }
 
-            if (ActiveListings.Count < 10 && UnityEngine.Random.value < 0.002f)
+            // Okresowa generacja — raz na GenCheckInterval
+            if (_gameTime - _lastGenCheckTime >= GenCheckInterval)
+            {
+                _lastGenCheckTime = _gameTime;
+                TryGenerateBatch();
+            }
+        }
+
+        /// <summary>
+        /// Rzut szansą, potem generacja batcha.
+        /// Wywoływany co GenCheckInterval lub przez ForceGenerate.
+        /// </summary>
+        private void TryGenerateBatch()
+        {
+            if (ActiveListings.Count >= _config.MaxListings) return;
+
+            // Rzut procentowy
+            if (UnityEngine.Random.Range(0, 100) >= _config.GenChancePct) return;
+
+            int batchSize = UnityEngine.Random.Range(_config.GenMin, _config.GenMax + 1);
+            int canAdd = _config.MaxListings - ActiveListings.Count;
+            batchSize = UnityEngine.Mathf.Min(batchSize, canAdd);
+
+            OXLLog.Msg($"[OXL:LGSYS] Batch: +{batchSize} (cap={_config.MaxListings} current={ActiveListings.Count})");
+
+            for (int i = 0; i < batchSize; i++)
                 ActiveListings.Add(GenerateListing());
         }
 
         public void ForceGenerate()
         {
+            if (ActiveListings.Count >= _config.MaxListings)
+            {
+                OXLLog.Msg($"[OXL:LGSYS] ForceGenerate skipped — at cap ({_config.MaxListings})");
+                return;
+            }
             ActiveListings.Add(GenerateListing());
         }
+
+
+
 
         // ══════════════════════════════════════════════════════════════════════
         //  GENEROWANIE LISTINGU
@@ -176,36 +249,40 @@ namespace CMS2026_OXL
             return result;
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  ARCHETYPE + LEVEL ROLLS
-        // ══════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════════
+        //  ARCHETYPE + LEVEL — config-driven
+        // ═════════════════════════════════════════════════════════════════════════
 
-        private static SellerArchetype RollArchetype(Random rng)
+        private SellerArchetype RollArchetype(Random rng)
         {
-            double r = rng.NextDouble();
-            if (r < 0.20) return SellerArchetype.Honest;
-            if (r < 0.55) return SellerArchetype.Neglected;
-            if (r < 0.85) return SellerArchetype.Dealer;
+            int[] w = _config.ArchWeights;
+            int total = w[0] + w[1] + w[2] + w[3];
+            if (total <= 0) return SellerArchetype.Neglected; // guard
+
+            int roll = rng.Next(0, total);
+
+            if (roll < w[0]) return SellerArchetype.Honest;
+            roll -= w[0];
+            if (roll < w[1]) return SellerArchetype.Neglected;
+            roll -= w[1];
+            if (roll < w[2]) return SellerArchetype.Dealer;
             return SellerArchetype.Wrecker;
         }
 
-        // Poziomy: 1=novice/casual/backyard/amateur, 2=experienced/busy/pro/intermediate, 3=veteran/hoarder/criminal/expert
-        // Wyższy poziom = bardziej charakterystyczny dla archetypu (bardziej wiarygodny uczciwy, głębszy scam dealera)
-        private static int RollLevel(SellerArchetype arch, Random rng)
+        private int RollLevel(SellerArchetype arch, Random rng)
         {
-            double r = rng.NextDouble();
-            return arch switch
-            {
-                // Honest: większość to doświadczeni, weterani rzadcy (wysoka reputacja = rzadkość)
-                SellerArchetype.Honest => r < 0.40 ? 1 : r < 0.75 ? 2 : 3,
-                // Neglected: rozkład równomierny — każdy typ się trafia
-                SellerArchetype.Neglected => r < 0.35 ? 1 : r < 0.70 ? 2 : 3,
-                // Dealer: pro to norma, criminal rzadki ale niebezpieczny
-                SellerArchetype.Dealer => r < 0.30 ? 1 : r < 0.70 ? 2 : 3,
-                // Wrecker: amatorzy części, eksperci rzadcy ale najgroźniejsi
-                SellerArchetype.Wrecker => r < 0.45 ? 1 : r < 0.75 ? 2 : 3,
-                _ => 1,
-            };
+            // SellerArchetype enum: Honest=0, Neglected=1, Dealer=2, Wrecker=3
+            int archIdx = (int)arch;
+            int[] w = _config.LvlWeights[archIdx];
+            int total = w[0] + w[1] + w[2];
+            if (total <= 0) return 1; // guard
+
+            int roll = rng.Next(0, total);
+
+            if (roll < w[0]) return 1;
+            roll -= w[0];
+            if (roll < w[1]) return 2;
+            return 3;
         }
 
         // ── ApparentCondition — co gracz widzi w ogłoszeniu ──────────────────
@@ -611,31 +688,46 @@ namespace CMS2026_OXL
         //  TTL — czas życia aukcji
         // ══════════════════════════════════════════════════════════════════════
 
-        private static float RollTTL(SellerArchetype arch, int level, Random rng)
+        private float RollTTL(SellerArchetype arch, int level, Random rng)
         {
-            // Neglected sprzedaje szybko (krótkie TTL), Dealer cierpliwy (długie TTL)
-            // Wyższy poziom = bardziej skrajne zachowanie
-            return (arch, level) switch
+            float lo = _config.DurMinSec;
+            float hi = _config.DurMaxSec;
+
+            // Każdy archetype preferuje inny zakres w obrębie [lo, hi]:
+            //   Neglected — szybko znika (dolne 0–50% zakresu)
+            //   Honest    — środek (30–80%)
+            //   Wrecker   — środek-dolny (20–70%)
+            //   Dealer    — cierpliwy (50–100%)
+            // Wyższy level = bardziej skrajne zachowanie.
+
+            float rangeMid = (lo + hi) * 0.5f;
+            float rangeH = (hi - lo) * 0.5f;
+
+            (float center, float spread) flavor = (arch, level) switch
             {
-                (SellerArchetype.Honest, 1) => UnityEngine.Random.Range(200f, 500f),
-                (SellerArchetype.Honest, 2) => UnityEngine.Random.Range(250f, 600f),
-                (SellerArchetype.Honest, 3) => UnityEngine.Random.Range(300f, 700f),  // weteran nie śpieszy się
+                (SellerArchetype.Neglected, 1) => (lo + rangeH * 0.35f, rangeH * 0.30f),
+                (SellerArchetype.Neglected, 2) => (lo + rangeH * 0.25f, rangeH * 0.25f),
+                (SellerArchetype.Neglected, 3) => (lo + rangeH * 0.15f, rangeH * 0.15f), // hoarder: bardzo krótko
 
-                (SellerArchetype.Neglected, 1) => UnityEngine.Random.Range(90f, 300f),   // casual: sprzedam to szybko
-                (SellerArchetype.Neglected, 2) => UnityEngine.Random.Range(60f, 200f),   // busy: nie ma czasu czekać
-                (SellerArchetype.Neglected, 3) => UnityEngine.Random.Range(40f, 150f),   // hoarder: wystawia na chwilę, usuwa, wystawia znowu
+                (SellerArchetype.Honest, 1) => (rangeMid - rangeH * 0.15f, rangeH * 0.45f),
+                (SellerArchetype.Honest, 2) => (rangeMid, rangeH * 0.40f),
+                (SellerArchetype.Honest, 3) => (rangeMid + rangeH * 0.15f, rangeH * 0.35f),
 
-                (SellerArchetype.Dealer, 1) => UnityEngine.Random.Range(300f, 600f),
-                (SellerArchetype.Dealer, 2) => UnityEngine.Random.Range(400f, 700f),
-                (SellerArchetype.Dealer, 3) => UnityEngine.Random.Range(500f, 900f),  // criminal: cierpliwy, czeka na ofiarę
+                (SellerArchetype.Wrecker, 1) => (lo + rangeH * 0.40f, rangeH * 0.40f),
+                (SellerArchetype.Wrecker, 2) => (rangeMid - rangeH * 0.10f, rangeH * 0.40f),
+                (SellerArchetype.Wrecker, 3) => (rangeMid + rangeH * 0.10f, rangeH * 0.35f),
 
-                (SellerArchetype.Wrecker, 1) => UnityEngine.Random.Range(120f, 350f),
-                (SellerArchetype.Wrecker, 2) => UnityEngine.Random.Range(200f, 500f),
-                (SellerArchetype.Wrecker, 3) => UnityEngine.Random.Range(300f, 650f),  // expert: wystawia na długo, wygląda pewnie
+                (SellerArchetype.Dealer, 1) => (rangeMid + rangeH * 0.10f, rangeH * 0.40f),
+                (SellerArchetype.Dealer, 2) => (rangeMid + rangeH * 0.25f, rangeH * 0.35f),
+                (SellerArchetype.Dealer, 3) => (hi - rangeH * 0.20f, rangeH * 0.20f), // criminal: czeka na ofiarę
 
-                _ => UnityEngine.Random.Range(120f, 600f),
+                _ => (rangeMid, rangeH * 0.50f),
             };
+
+            float result = flavor.center + (float)(rng.NextDouble() * 2.0 - 1.0) * flavor.spread;
+            return UnityEngine.Mathf.Clamp(result, lo, hi);
         }
+
 
         // ══════════════════════════════════════════════════════════════════════
         //  RATING
