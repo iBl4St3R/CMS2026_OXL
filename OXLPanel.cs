@@ -166,6 +166,45 @@ namespace CMS2026_OXL
         public bool IsVisible => _isVisible;
 
 
+        // ── Listing Generation Settings ───────────────────────────────────────────────
+        private IntPtr _listingGenOverlayPtr;
+        private IntPtr _archLevelOverlayPtr;
+        private int _archLevelIdx;   // który archetype jest aktualnie edytowany (0–3)
+
+        // ── Draft state — aplikowany dopiero po Save ──────────────────────────────────
+        private int _draftMaxListings = 20;   // 1–50
+        private int _draftGenChancePct = 50;   // 0–100 %
+        private int _draftGenMin = 1;    // 1–16
+        private int _draftGenMax = 4;    // 1–16
+        private int _draftDurMinH = 12;   // 1–167 h
+        private int _draftDurMaxH = 36;   // 2–168 h
+
+        // [0]=Honest [1]=Neglected [2]=Dealer [3]=Wrecker — linked, sum=100, step=5
+        private readonly int[] _draftArchW = { 20, 35, 30, 15 };
+
+        // [arch][L1/L2/L3] — linked per archetype, sum=100, step=5
+        private readonly int[][] _draftLvlW =
+        {
+    new[] { 40, 35, 25 },  // Honest
+    new[] { 35, 35, 30 },  // Neglected
+    new[] { 30, 40, 30 },  // Dealer
+    new[] { 45, 30, 25 },  // Wrecker
+};
+
+        // ── UI handle refs — aktualizowane live przy zmianie wartości ────────────────
+        private UILabelHandle _lgMaxLbl, _lgChanceLbl;
+        private UILabelHandle _lgGenMinLbl, _lgGenMaxLbl;
+        private UILabelHandle _lgDurMinLbl, _lgDurMaxLbl;
+        private UILabelHandle _lgArchSumLbl;
+        private UILabelHandle[] _lgArchLbls = new UILabelHandle[4];
+        private IntPtr[] _lgArchBarFillPtrs = new IntPtr[4];
+        private float _lgArchBarMaxW;   // obliczana raz podczas build
+        private UILabelHandle _lgLvlTitleLbl, _lgLvlSumLbl;
+        private UILabelHandle[] _lgLvlLbls = new UILabelHandle[3];
+        private IntPtr[] _lgLvlBarFillPtrs = new IntPtr[3];
+        private float _lgLvlBarMaxW;
+
+
         // ── Settings overlay ──────────────────────────────────────────────────────
         private IntPtr _settingsOverlayPtr;
         private UILabelHandle _diffEasyLbl;
@@ -223,6 +262,10 @@ namespace CMS2026_OXL
             BuildPageOverlay();     // Help / Settings / About
             BuildListingPage();     // car auction list
             BuildDetailOverlay();   // single listing detail
+
+
+            BuildListingGenSettingsOverlay();   
+            BuildArchLevelOverlay();           
 
 
             // ── Address bar LAST — renders on top of all overlays ───────────
@@ -2150,6 +2193,41 @@ namespace CMS2026_OXL
                 new Color(0.30f, 0.38f, 0.34f, 0.80f));
             noteLbl.SetFontSize(11);
 
+
+            cy += BtnH + 20f;  // po trzech przyciskach trudności (ta linia może już być)
+
+            // ── Separator przed nawigacją ─────────────────────────────────────────────────
+            var navSep = UIRuntime.NewVE();
+            {
+                var navSepSt = UIRuntime.GetStyle(navSep);
+                S.Position(navSepSt, "Absolute");
+                S.Left(navSepSt, 0f); S.Top(navSepSt, cy);
+                S.Width(navSepSt, PanelW); S.Height(navSepSt, 1f);
+                S.BgColor(navSepSt, Border);
+            }
+            UIRuntime.AddChild(overlay, navSep);
+            UIRuntime.AddChild(overlay, navSep);
+            cy += 1f + 20f;
+
+            // ── Nawigacja do Listing Generation Settings ──────────────────────────────────
+            var lgNavPtr = _panel.AddButtonToContainer(
+                overlay,
+                "⚙  Listing Generation Settings  →",
+                Pad, cy, 320f, 40f, BtnDark,
+                ShowListingGenSettings);
+            _panel.WireHover(lgNavPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            var lgNavDesc = _panel.AddLabelToContainer(
+                overlay,
+                "Max listings · generation rate · duration · archetype & level weights",
+                Pad + 328f, cy, PanelW - Pad * 2f - 336f, 40f,
+                TextGray);
+            lgNavDesc.SetFontSize(11);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(lgNavDesc.GetRawPtr())),
+                TextAnchor.MiddleLeft);
+
+            cy += 40f + 20f;
+
             const float FootH = 32f;
             BuildFooter(overlay, PanelH - OverlayTop - FootH);
         }
@@ -2262,6 +2340,745 @@ namespace CMS2026_OXL
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_settingsOverlayPtr)), false);
         }
 
+        // ══════════════════════════════════════════════════════════════════════════════
+        //  LISTING GENERATION SETTINGS OVERLAY
+        //  Overlay 1 z 2: główne ustawienia + wagi archetypów.
+        //  Przycisk "L1/L2/L3 ▶" na każdym wierszu otwiera Overlay 2.
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        private void BuildListingGenSettingsOverlay()
+        {
+            const float TopBarH = 44f;
+            const float FootH = 32f;
+            const float Pad = 28f;
+            const float Sg = 8f;   // small gap
+            const float Mg = 18f;  // medium gap między sekcjami
+            const float SecH = 16f;  // wysokość etykiety sekcji
+            const float DescH = 20f;  // opis sekcji
+            const float CtrlH = 44f;  // wysokość wiersza kontrolki
+
+            // ── Overlay root ─────────────────────────────────────────────────────────
+            var ov = UIRuntime.NewVE();
+            {
+                var os = UIRuntime.GetStyle(ov);
+                S.Position(os, "Absolute");
+                S.Left(os, 0f); S.Top(os, OverlayTop);
+                S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
+                S.BgColor(os, PageBg);
+                S.Overflow(os, "Hidden");
+                S.Display(os, false);
+            }
+            _panel.AddOverlayToPanel(ov);
+            _listingGenOverlayPtr = UIRuntime.GetPtr(ov);
+
+            // ── Top bar ───────────────────────────────────────────────────────────────
+            LgBuildTopBar(ov, "Listing Generation", HideListingGenSettings, out _);
+            LgSep(ov, TopBarH);
+            float cy = TopBarH + 1f + Mg;
+
+            // ══ Section 1: Max Active Listings ═══════════════════════════════════════
+            LgSectionLabel(ov, "MAX ACTIVE LISTINGS", Pad, cy);
+            cy += SecH + Sg;
+            LgDescLabel(ov,
+                "Tablica nigdy nie przekroczy tej liczby aktywnych ogłoszeń, niezależnie od rolowania generacji.",
+                Pad, cy);
+            cy += DescH + Sg;
+
+            _lgMaxLbl = LgNumControl(ov, Pad, cy, 520f, CtrlH,
+                "Maks. ogłoszeń na tablicy:", () => _draftMaxListings,
+                v => _draftMaxListings = v, 1, 50, " ogłoszeń");
+            cy += CtrlH + Mg;
+            LgSep(ov, cy); cy += 1f + Mg;
+
+            // ══ Section 2: Generation Rate ════════════════════════════════════════════
+            LgSectionLabel(ov, "TEMPO GENERACJI", Pad, cy);
+            cy += SecH + Sg;
+            LgDescLabel(ov,
+                "Szansa procentowa na wygenerowanie nowego ogłoszenia w ciągu każdej godziny gry. Ilość per batch to losowy zakres tworzonych ogłoszeń za jednym razem.",
+                Pad, cy);
+            cy += DescH + Sg;
+
+            _lgChanceLbl = LgNumControl(ov, Pad, cy, 520f, CtrlH,
+                "Szansa generacji (na godzinę):", () => _draftGenChancePct,
+                v => _draftGenChancePct = v, 0, 100, "%");
+            cy += CtrlH + Sg;
+
+            float half = (PanelW - Pad * 2f - 20f) / 2f;
+
+            _lgGenMinLbl = LgNumControl(ov, Pad, cy, half, CtrlH,
+                "Min ogłoszeń per batch:", () => _draftGenMin,
+                v => { _draftGenMin = Mathf.Min(v, _draftGenMax); _lgGenMinLbl?.SetText(_draftGenMin.ToString()); },
+                1, 16, " szt.");
+
+            _lgGenMaxLbl = LgNumControl(ov, Pad + half + 20f, cy, half, CtrlH,
+                "Max ogłoszeń per batch:", () => _draftGenMax,
+                v => { _draftGenMax = Mathf.Max(v, _draftGenMin); _lgGenMaxLbl?.SetText(_draftGenMax.ToString()); },
+                1, 16, " szt.");
+
+            cy += CtrlH + Mg;
+            LgSep(ov, cy); cy += 1f + Mg;
+
+            // ══ Section 3: Listing Duration ═══════════════════════════════════════════
+            LgSectionLabel(ov, "CZAS TRWANIA OGŁOSZENIA (godziny gry)", Pad, cy);
+            cy += SecH + Sg;
+            LgDescLabel(ov,
+                "Zakres czasu przez jaki ogłoszenie pozostaje aktywne. Minimum musi być mniejsze niż Maksimum.",
+                Pad, cy);
+            cy += DescH + Sg;
+
+            _lgDurMinLbl = LgNumControl(ov, Pad, cy, half, CtrlH,
+                "Min czas trwania:", () => _draftDurMinH,
+                v => { _draftDurMinH = Mathf.Clamp(v, 1, _draftDurMaxH - 1); _lgDurMinLbl?.SetText(_draftDurMinH + "h"); },
+                1, 167, "h");
+
+            _lgDurMaxLbl = LgNumControl(ov, Pad + half + 20f, cy, half, CtrlH,
+                "Max czas trwania:", () => _draftDurMaxH,
+                v => { _draftDurMaxH = Mathf.Clamp(v, _draftDurMinH + 1, 168); _lgDurMaxLbl?.SetText(_draftDurMaxH + "h"); },
+                2, 168, "h");
+
+            cy += CtrlH + Mg;
+            LgSep(ov, cy); cy += 1f + Mg;
+
+            // ══ Section 4: Archetype Probability ══════════════════════════════════════
+            LgSectionLabel(ov, "SZANSA NA ARCHETYPE (suma = 100%)", Pad, cy);
+
+            // Sigma indicator — prawy róg, ten sam wiersz co nagłówek
+            _lgArchSumLbl = _panel.AddLabelToContainer(
+                ov, "Σ = 100%",
+                PanelW - Pad - 130f, cy, 130f, SecH,
+                new Color(0.22f, 0.75f, 0.40f, 1f));
+            _lgArchSumLbl.SetFontSize(11);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchSumLbl.GetRawPtr())),
+                TextAnchor.MiddleRight);
+            cy += SecH + Sg;
+
+            LgDescLabel(ov,
+                "Prawdopodobieństwo każdego archetypu przy losowaniu nowego ogłoszenia. Suwaki są sprzężone — zawsze sumują się do 100%. Krok: 5%.",
+                Pad, cy);
+            cy += DescH + Sg;
+
+            LgDescLabel(ov,
+                "Kliknij L1/L2/L3  aby skonfigurować rozkład poziomów wewnątrz każdego archetypu.",
+        
+                Pad, cy);
+            cy += DescH + Sg;
+
+            // Cztery wiersze archetypów
+            string[] archNames =   { "Honest",                       "Neglected",
+                              "Dealer",                       "Wrecker"   };
+            Color[] archAccents = {
+        new Color(0.22f, 0.75f, 0.40f, 1f),   // zielony
+        new Color(0.85f, 0.72f, 0.20f, 1f),   // złoty
+        new Color(0.55f, 0.75f, 0.90f, 1f),   // niebieski
+        new Color(0.90f, 0.45f, 0.20f, 1f),   // pomarańczowy
+    };
+
+            float archRowW = PanelW - Pad * 2f;
+            const float ArchRowH = 54f;
+
+            for (int a = 0; a < 4; a++)
+            {
+                BuildLgArchRow(ov, a, archNames[a], archAccents[a],
+                    Pad, cy, archRowW, ArchRowH);
+                cy += ArchRowH + (a < 3 ? 5f : 0f);
+            }
+            cy += Mg;
+            LgSep(ov, cy); cy += 1f + Mg;
+
+            // ══ Save button ════════════════════════════════════════════════════════════
+            const float SaveW = 240f;
+            const float SaveH = 48f;
+            var savePtr = _panel.AddButtonToContainer(
+                ov, "✔  ZAPISZ USTAWIENIA",
+                (PanelW - SaveW) / 2f, cy, SaveW, SaveH,
+                OXLGreen, SaveListingGenSettings);
+            _panel.WireHover(savePtr, OXLGreen,
+                new Color(0.28f, 0.70f, 0.42f, 1f),
+                new Color(0.16f, 0.48f, 0.28f, 1f));
+
+            var hintLbl = _panel.AddLabelToContainer(
+                ov,
+                "Zmiany zostaną zastosowane do kolejno generowanych ogłoszeń  ·  Zapisane do CMS2026_OXL.cfg",
+                0f, cy + SaveH + 6f, PanelW, 18f,
+                new Color(0.35f, 0.48f, 0.38f, 0.70f));
+            hintLbl.SetFontSize(10);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(hintLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            BuildFooter(ov, PanelH - OverlayTop - FootH);
+        }
+
+        // ── Wiersz archetypu: [nazwa] [pasek] [wartość%] [−] [+] [L1/L2/L3 ▶] ────────
+
+        private void BuildLgArchRow(
+            object overlay, int ai, string name, Color accent,
+            float x, float y, float w, float rowH)
+        {
+            const float NameW = 130f;
+            const float ValW = 72f;
+            const float BtnW = 36f;
+            const float EditW = 156f;
+            const float Gp = 6f;
+
+            // Tło karty
+            var card = UIRuntime.NewVE();
+            {
+                var cs = UIRuntime.GetStyle(card);
+                S.Position(cs, "Absolute");
+                S.Left(cs, x); S.Top(cs, y);
+                S.Width(cs, w); S.Height(cs, rowH);
+                S.BgColor(cs, TagBg);
+                S.BorderRadius(cs, 6f);
+                S.BorderWidth(cs, 1f);
+                S.BorderColor(cs, TagBdr);
+            }
+            UIRuntime.AddChild(overlay, card);
+
+            // Nazwa archetypu
+            var nameLbl = _panel.AddLabelToContainer(card, name, 12f, 0f, NameW, rowH, accent);
+            nameLbl.SetFontSize(14);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(nameLbl.GetRawPtr())), TextAnchor.MiddleLeft);
+
+            // Pasek postępu
+            float barX = 12f + NameW + Gp;
+            float barH = 10f;
+            float barY = (rowH - barH) / 2f;
+            float barW = w - barX - Gp - ValW - Gp - BtnW - Gp - BtnW - Gp - EditW - 12f;
+            _lgArchBarMaxW = barW; // identyczne dla wszystkich wierszy
+
+            var barBg = UIRuntime.NewVE();
+            {
+                var s = UIRuntime.GetStyle(barBg);
+                S.Position(s, "Absolute");
+                S.Left(s, barX); S.Top(s, barY);
+                S.Width(s, barW); S.Height(s, barH);
+                S.BgColor(s, new Color(0.04f, 0.07f, 0.12f, 1f));
+                S.BorderRadius(s, 5f);
+            }
+            UIRuntime.AddChild(card, barBg);
+
+            var barFill = UIRuntime.NewVE();
+            {
+                var s = UIRuntime.GetStyle(barFill);
+                S.Position(s, "Absolute");
+                S.Left(s, 0f); S.Top(s, 0f);
+                S.Width(s, barW * (_draftArchW[ai] / 100f));
+                S.Height(s, barH);
+                S.BgColor(s, accent with { a = 0.75f });
+                S.BorderRadius(s, 5f);
+            }
+            UIRuntime.AddChild(barBg, barFill);
+            _lgArchBarFillPtrs[ai] = UIRuntime.GetPtr(barFill);
+
+            // Etykieta wartości
+            float valX = barX + barW + Gp;
+            _lgArchLbls[ai] = _panel.AddLabelToContainer(
+                card, $"{_draftArchW[ai]}%", valX, 0f, ValW, rowH, Color.white);
+            _lgArchLbls[ai].SetFontSize(15);
+            {
+                var vs = UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchLbls[ai].GetRawPtr()));
+                S.BgColor(vs, new Color(0.04f, 0.07f, 0.13f, 1f));
+                S.BorderRadius(vs, 4f);
+                S.TextAlign(vs, TextAnchor.MiddleCenter);
+            }
+
+            // Przyciski − / +
+            float minX = valX + ValW + Gp;
+            float plsX = minX + BtnW + Gp;
+            float btnY = (rowH - 30f) / 2f;
+            int ai2 = ai; // capture dla closure
+
+            var minusPtr = _panel.AddButtonToContainer(card, "−",
+                minX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    AdjustLinked(_draftArchW, ai2, _draftArchW[ai2] - 5, 5, 80);
+                    RefreshLgArchDisplays();
+                });
+            _panel.WireHover(minusPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            var plusPtr = _panel.AddButtonToContainer(card, "+",
+                plsX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    AdjustLinked(_draftArchW, ai2, _draftArchW[ai2] + 5, 5, 80);
+                    RefreshLgArchDisplays();
+                });
+            _panel.WireHover(plusPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            // Przycisk edycji poziomów
+            float editX = plsX + BtnW + Gp;
+            var editPtr = _panel.AddButtonToContainer(card, "L1 / L2 / L3  ▶",
+                editX, btnY, EditW, 30f,
+                new Color(0.06f, 0.10f, 0.18f, 1f),
+                () => ShowArchLevel(ai2));
+            _panel.WireHover(editPtr,
+                new Color(0.06f, 0.10f, 0.18f, 1f),
+                new Color(0.10f, 0.16f, 0.26f, 1f),
+                accent with { a = 0.50f });
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════════════
+        //  ARCHETYPE LEVEL OVERLAY
+        //  Overlay 2 z 2: rozkład L1/L2/L3 dla wybranego archetypu.
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        private void BuildArchLevelOverlay()
+        {
+            const float TopBarH = 44f;
+            const float FootH = 32f;
+            const float Pad = 28f;
+            const float Sg = 10f;
+            const float Mg = 22f;
+            const float SecH = 16f;
+            const float LevelRowH = 64f;
+
+            var ov = UIRuntime.NewVE();
+            {
+                var os = UIRuntime.GetStyle(ov);
+                S.Position(os, "Absolute");
+                S.Left(os, 0f); S.Top(os, OverlayTop);
+                S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
+                S.BgColor(os, PageBg);
+                S.Overflow(os, "Hidden");
+                S.Display(os, false);
+            }
+            _panel.AddOverlayToPanel(ov);
+            _archLevelOverlayPtr = UIRuntime.GetPtr(ov);
+
+            // ── Top bar (tytuł ustawiany dynamicznie) ────────────────────────────────
+            LgBuildTopBar(ov, "", HideArchLevel, out object topBar);
+
+            _lgLvlTitleLbl = _panel.AddLabelToContainer(
+                topBar, "—", 132f, 0f, 600f, TopBarH, OXLGreen);
+            _lgLvlTitleLbl.SetFontSize(18);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgLvlTitleLbl.GetRawPtr())),
+                TextAnchor.MiddleLeft);
+
+            LgSep(ov, TopBarH);
+            float cy = TopBarH + 1f + Mg;
+
+            // ── Nagłówek sekcji + sigma ──────────────────────────────────────────────
+            LgSectionLabel(ov, "ROZKŁAD POZIOMÓW (suma = 100%)", Pad, cy);
+
+            _lgLvlSumLbl = _panel.AddLabelToContainer(
+                ov, "Σ = 100%",
+                PanelW - Pad - 130f, cy, 130f, SecH,
+                new Color(0.22f, 0.75f, 0.40f, 1f));
+            _lgLvlSumLbl.SetFontSize(11);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgLvlSumLbl.GetRawPtr())),
+                TextAnchor.MiddleRight);
+            cy += SecH + Sg;
+
+            LgDescLabel(ov,
+                "Szansa na każdy poziom doświadczenia wewnątrz wybranego archetypu. Sprzężone — suma zawsze = 100%. Krok: 5%.",
+                Pad, cy);
+            cy += 20f + Mg;
+
+            // ── 3 wiersze poziomów ────────────────────────────────────────────────────
+            string[] lvlLabels =
+            {
+        "L1  —  Novice  ·  Casual  ·  Backyard  ·  Amateur",
+        "L2  —  Experienced  ·  Busy  ·  Pro  ·  Intermediate",
+        "L3  —  Veteran  ·  Hoarder  ·  Criminal  ·  Expert",
+    };
+            Color[] lvlAccents =
+            {
+        new Color(0.45f, 0.65f, 0.85f, 1f),  // niebieski
+        new Color(0.55f, 0.80f, 0.55f, 1f),  // zielony
+        new Color(0.85f, 0.55f, 0.75f, 1f),  // fioletowy
+    };
+
+            float rowW = PanelW - Pad * 2f;
+            const float NameW = 500f;
+            const float ValW = 72f;
+            const float BtnW = 36f;
+            const float Gp = 6f;
+            _lgLvlBarMaxW = rowW - 12f - NameW - Gp - ValW - Gp - BtnW - Gp - BtnW - 12f;
+
+            for (int li = 0; li < 3; li++)
+            {
+                BuildLgLevelRow(ov, li, lvlLabels[li], lvlAccents[li],
+                    Pad, cy, rowW, LevelRowH);
+                cy += LevelRowH + 8f;
+            }
+            cy += Mg;
+            LgSep(ov, cy); cy += 1f + Mg;
+
+            // ── Save ─────────────────────────────────────────────────────────────────
+            const float SaveW = 260f;
+            const float SaveH = 48f;
+            var savePtr = _panel.AddButtonToContainer(
+                ov, "✔  ZAPISZ POZIOMY",
+                (PanelW - SaveW) / 2f, cy, SaveW, SaveH,
+                OXLGreen, () => { SaveListingGenSettings(); HideArchLevel(); });
+            _panel.WireHover(savePtr, OXLGreen,
+                new Color(0.28f, 0.70f, 0.42f, 1f),
+                new Color(0.16f, 0.48f, 0.28f, 1f));
+
+            var backLinkLbl = _panel.AddLabelToContainer(
+                ov, "← Wróć do Listing Generation aby zapisać wszystkie ustawienia razem",
+                0f, cy + SaveH + 6f, PanelW, 18f,
+                new Color(0.35f, 0.48f, 0.38f, 0.60f));
+            backLinkLbl.SetFontSize(10);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(backLinkLbl.GetRawPtr())),
+                TextAnchor.MiddleCenter);
+
+            BuildFooter(ov, PanelH - OverlayTop - FootH);
+        }
+
+        // ── Wiersz poziomu: [nazwa] [pasek] [wartość%] [−] [+] ───────────────────────
+
+        private void BuildLgLevelRow(
+            object overlay, int li, string label, Color accent,
+            float x, float y, float w, float rowH)
+        {
+            const float NameW = 500f;
+            const float ValW = 72f;
+            const float BtnW = 36f;
+            const float Gp = 6f;
+
+            var card = UIRuntime.NewVE();
+            {
+                var cs = UIRuntime.GetStyle(card);
+                S.Position(cs, "Absolute");
+                S.Left(cs, x); S.Top(cs, y);
+                S.Width(cs, w); S.Height(cs, rowH);
+                S.BgColor(cs, TagBg);
+                S.BorderRadius(cs, 6f);
+                S.BorderWidth(cs, 1f);
+                S.BorderColor(cs, TagBdr);
+            }
+            UIRuntime.AddChild(overlay, card);
+
+            // Nazwa poziomu
+            var nameLbl = _panel.AddLabelToContainer(card, label, 12f, 0f, NameW, rowH, accent);
+            nameLbl.SetFontSize(13);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(nameLbl.GetRawPtr())), TextAnchor.MiddleLeft);
+
+            // Pasek postępu
+            float barX = 12f + NameW + Gp;
+            float barH = 10f;
+            float barW = _lgLvlBarMaxW;
+            float barY = (rowH - barH) / 2f;
+
+            var barBg = UIRuntime.NewVE();
+            {
+                var s = UIRuntime.GetStyle(barBg);
+                S.Position(s, "Absolute");
+                S.Left(s, barX); S.Top(s, barY);
+                S.Width(s, barW); S.Height(s, barH);
+                S.BgColor(s, new Color(0.04f, 0.07f, 0.12f, 1f));
+                S.BorderRadius(s, 5f);
+            }
+            UIRuntime.AddChild(card, barBg);
+
+            var barFill = UIRuntime.NewVE();
+            {
+                var s = UIRuntime.GetStyle(barFill);
+                S.Position(s, "Absolute");
+                S.Left(s, 0f); S.Top(s, 0f);
+                S.Width(s, barW * (_draftLvlW[0][li] / 100f)); // placeholder, odświeżane w ShowArchLevel
+                S.Height(s, barH);
+                S.BgColor(s, accent with { a = 0.75f });
+                S.BorderRadius(s, 5f);
+            }
+            UIRuntime.AddChild(barBg, barFill);
+            _lgLvlBarFillPtrs[li] = UIRuntime.GetPtr(barFill);
+
+            // Etykieta wartości
+            float valX = barX + barW + Gp;
+            _lgLvlLbls[li] = _panel.AddLabelToContainer(
+                card, $"{_draftLvlW[0][li]}%", valX, 0f, ValW, rowH, Color.white);
+            _lgLvlLbls[li].SetFontSize(15);
+            {
+                var vs = UIRuntime.GetStyle(UIRuntime.WrapVE(_lgLvlLbls[li].GetRawPtr()));
+                S.BgColor(vs, new Color(0.04f, 0.07f, 0.13f, 1f));
+                S.BorderRadius(vs, 4f);
+                S.TextAlign(vs, TextAnchor.MiddleCenter);
+            }
+
+            // Przyciski − / +
+            float minX = valX + ValW + Gp;
+            float plsX = minX + BtnW + Gp;
+            float btnY = (rowH - 30f) / 2f;
+            int li2 = li;
+
+            var minusPtr = _panel.AddButtonToContainer(card, "−",
+                minX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    AdjustLinked(_draftLvlW[_archLevelIdx], li2,
+                        _draftLvlW[_archLevelIdx][li2] - 5, 5, 90);
+                    RefreshLgLvlDisplays();
+                });
+            _panel.WireHover(minusPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            var plusPtr = _panel.AddButtonToContainer(card, "+",
+                plsX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    AdjustLinked(_draftLvlW[_archLevelIdx], li2,
+                        _draftLvlW[_archLevelIdx][li2] + 5, 5, 90);
+                    RefreshLgLvlDisplays();
+                });
+            _panel.WireHover(plusPtr, BtnDark, BtnDarkHi, SearchBdr);
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════════════
+        //  SHARED LAYOUT HELPERS
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Buduje górny pasek overlay. Zwraca referencję do topBar VE (do ew. dopisania dynamicznych elementów).</summary>
+        private void LgBuildTopBar(object overlay, string title, Action onBack, out object topBarVE)
+        {
+            var topBar = UIRuntime.NewVE();
+            {
+                var ts = UIRuntime.GetStyle(topBar);
+                S.Position(ts, "Absolute");
+                S.Left(ts, 0f); S.Top(ts, 0f);
+                S.Width(ts, PanelW); S.Height(ts, 44f);
+                S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
+            }
+            UIRuntime.AddChild(overlay, topBar);
+            topBarVE = topBar;
+
+            var backPtr = _panel.AddButtonToContainer(
+                topBar, "← Wstecz", 12f, 6f, 110f, 32f, BtnDark, onBack);
+            _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            if (!string.IsNullOrEmpty(title))
+            {
+                var titleLbl = _panel.AddLabelToContainer(
+                    topBar, title, 132f, 0f, 600f, 44f, OXLGreen);
+                titleLbl.SetFontSize(18);
+                S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())),
+                    TextAnchor.MiddleLeft);
+            }
+        }
+
+        private void LgSectionLabel(object parent, string text, float x, float cy)
+        {
+            var lbl = _panel.AddLabelToContainer(
+                parent, text, x, cy, PanelW - x * 2f, 16f,
+                new Color(0.38f, 0.55f, 0.42f, 0.90f));
+            lbl.SetFontSize(10);
+        }
+
+        private void LgDescLabel(object parent, string text, float x, float cy)
+        {
+            var lbl = _panel.AddLabelToContainer(parent, text, x, cy, PanelW - x * 2f, 20f, TextGray);
+            lbl.SetFontSize(11);
+        }
+
+        private void LgSep(object parent, float y)
+        {
+            var sep = UIRuntime.NewVE();
+            {
+                var ss = UIRuntime.GetStyle(sep);
+                S.Position(ss, "Absolute");
+                S.Left(ss, 0f); S.Top(ss, y);
+                S.Width(ss, PanelW); S.Height(ss, 1f);
+                S.BgColor(ss, Border);
+            }
+            UIRuntime.AddChild(parent, sep);
+        }
+
+        /// <summary>
+        /// Kontrolka numeryczna: [tekst etykiety ...] [−] [wartość] [+].
+        /// Zwraca uchwyt do etykiety wartości.
+        /// </summary>
+        private UILabelHandle LgNumControl(
+            object parent, float x, float y, float w, float h,
+            string labelText, Func<int> getV, Action<int> setV,
+            int lo, int hi, string suffix = "")
+        {
+            const float BtnW = 34f;
+            const float ValW = 82f;
+            const float Gp = 5f;
+            float lblW = w - BtnW - Gp - ValW - Gp - BtnW;
+
+            // Etykieta opisu
+            var lbl = _panel.AddLabelToContainer(parent, labelText, x, y, lblW, h, TextGray);
+            lbl.SetFontSize(12);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(lbl.GetRawPtr())), TextAnchor.MiddleLeft);
+
+            // Forward reference trick: etykieta wartości musi istnieć nim odczytają ją callbacki
+            var valRef = new UILabelHandle[1];
+
+            float bMinX = x + lblW;
+            float valX = bMinX + BtnW + Gp;
+            float bPluX = valX + ValW + Gp;
+            float btnY = y + (h - 30f) / 2f;
+
+            // − przycisk
+            var minusPtr = _panel.AddButtonToContainer(parent, "−",
+                bMinX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    int v = Mathf.Clamp(getV() - 1, lo, hi);
+                    setV(v);
+                    valRef[0]?.SetText(v + suffix);
+                });
+            _panel.WireHover(minusPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            // Etykieta wartości (tworzona po − żeby w razie kliknięcia valRef[0] już istniało)
+            var valLbl = _panel.AddLabelToContainer(
+                parent, getV() + suffix, valX, y, ValW, h, Color.white);
+            valLbl.SetFontSize(14);
+            {
+                var vs = UIRuntime.GetStyle(UIRuntime.WrapVE(valLbl.GetRawPtr()));
+                S.BgColor(vs, new Color(0.04f, 0.07f, 0.13f, 1f));
+                S.BorderRadius(vs, 4f);
+                S.TextAlign(vs, TextAnchor.MiddleCenter);
+            }
+            valRef[0] = valLbl;
+
+            // + przycisk
+            var plusPtr = _panel.AddButtonToContainer(parent, "+",
+                bPluX, btnY, BtnW, 30f, BtnDark, () =>
+                {
+                    int v = Mathf.Clamp(getV() + 1, lo, hi);
+                    setV(v);
+                    valRef[0]?.SetText(v + suffix);
+                });
+            _panel.WireHover(plusPtr, BtnDark, BtnDarkHi, SearchBdr);
+
+            return valLbl;
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════════════
+        //  LINKED SLIDER LOGIC
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Zmienia arr[idx] na newVal (clamp do [lo, hi]), a pozostałe elementy
+        /// kompensują różnicę tak, by suma tablicy pozostała niezmieniona.
+        /// Bierze/daje od elementu z największym zapasem (największy gdy zmniejszamy,
+        /// najmniejszy gdy zwiększamy) — jeden krok na iterację.
+        /// </summary>
+        private static void AdjustLinked(int[] arr, int idx, int newVal, int lo, int hi)
+        {
+            newVal = Mathf.Clamp(newVal, lo, hi);
+            if (newVal == arr[idx]) return;
+
+            int delta = newVal - arr[idx];
+            arr[idx] = newVal;
+            int rem = -delta; // pozostałe muszą się zmienić o -delta łącznie
+
+            int guard = 0;
+            while (rem != 0 && guard++ < 500)
+            {
+                int pick = -1;
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    if (i == idx) continue;
+                    if (rem < 0 && arr[i] <= lo) continue; // nie możemy zmniejszyć dalej
+                    if (rem > 0 && arr[i] >= hi) continue; // nie możemy zwiększyć dalej
+                    if (pick < 0) { pick = i; continue; }
+                    // rem < 0 → zmniejszamy innych → bierzemy od największego
+                    // rem > 0 → zwiększamy innych → dajemy najmniejszemu
+                    pick = rem < 0
+                        ? (arr[i] > arr[pick] ? i : pick)
+                        : (arr[i] < arr[pick] ? i : pick);
+                }
+                if (pick < 0) break; // brak miejsca, suma może nie wyjść 100 — edge case
+                if (rem < 0) { arr[pick]--; rem++; }
+                else { arr[pick]++; rem--; }
+            }
+        }
+
+        private void RefreshLgArchDisplays()
+        {
+            int sum = _draftArchW[0] + _draftArchW[1] + _draftArchW[2] + _draftArchW[3];
+            for (int i = 0; i < 4; i++)
+            {
+                _lgArchLbls[i]?.SetText($"{_draftArchW[i]}%");
+                if (_lgArchBarFillPtrs[i] == IntPtr.Zero) continue;
+                var st = UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchBarFillPtrs[i]));
+                S.Width(st, _lgArchBarMaxW * (_draftArchW[i] / 100f));
+            }
+            _lgArchSumLbl?.SetText($"Σ = {sum}%");
+            _lgArchSumLbl?.SetColor(sum == 100
+                ? new Color(0.22f, 0.75f, 0.40f, 1f)
+                : new Color(0.95f, 0.45f, 0.20f, 1f));
+        }
+
+        private void RefreshLgLvlDisplays()
+        {
+            int[] w = _draftLvlW[_archLevelIdx];
+            int sum = w[0] + w[1] + w[2];
+            for (int i = 0; i < 3; i++)
+            {
+                _lgLvlLbls[i]?.SetText($"{w[i]}%");
+                if (_lgLvlBarFillPtrs[i] == IntPtr.Zero) continue;
+                var st = UIRuntime.GetStyle(UIRuntime.WrapVE(_lgLvlBarFillPtrs[i]));
+                S.Width(st, _lgLvlBarMaxW * (w[i] / 100f));
+            }
+            _lgLvlSumLbl?.SetText($"Σ = {sum}%");
+            _lgLvlSumLbl?.SetColor(sum == 100
+                ? new Color(0.22f, 0.75f, 0.40f, 1f)
+                : new Color(0.95f, 0.45f, 0.20f, 1f));
+        }
+
+
+        // ══════════════════════════════════════════════════════════════════════════════
+        //  NAVIGATION
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        private void ShowListingGenSettings()
+        {
+            if (_listingGenOverlayPtr == IntPtr.Zero) return;
+            HideSettings();
+            HideListingPage();
+            HideDetail();
+            HidePage();
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingGenOverlayPtr)), true);
+        }
+
+        private void HideListingGenSettings()
+        {
+            if (_listingGenOverlayPtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingGenOverlayPtr)), false);
+            ShowSettings(); // powrót do głównych ustawień
+        }
+
+        private void ShowArchLevel(int archIdx)
+        {
+            if (_archLevelOverlayPtr == IntPtr.Zero) return;
+            _archLevelIdx = archIdx;
+
+            string[] names = { "Honest", "Neglected", "Dealer", "Wrecker" };
+            _lgLvlTitleLbl?.SetText($"{names[archIdx]}  —  Rozkład Poziomów");
+
+            // Odśwież pola wartości i paski dla wybranego archetypu
+            RefreshLgLvlDisplays();
+
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_archLevelOverlayPtr)), true);
+        }
+
+        private void HideArchLevel()
+        {
+            if (_archLevelOverlayPtr == IntPtr.Zero) return;
+            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_archLevelOverlayPtr)), false);
+        }
+
+        private void SaveListingGenSettings()
+        {
+            // TODO: podpiąć pod ListingSystem gdy logika będzie gotowa.
+            // Na razie zapisuje tylko do logu — placeholder.
+            OXLLog.Msg($"[OXL:LGSETTINGS] ══ LISTING GEN SETTINGS SAVED ══════════════");
+            OXLLog.Msg($"[OXL:LGSETTINGS] MaxListings  : {_draftMaxListings}");
+            OXLLog.Msg($"[OXL:LGSETTINGS] GenChance    : {_draftGenChancePct}% / hour");
+            OXLLog.Msg($"[OXL:LGSETTINGS] GenBatch     : {_draftGenMin}–{_draftGenMax} per roll");
+            OXLLog.Msg($"[OXL:LGSETTINGS] Duration     : {_draftDurMinH}h – {_draftDurMaxH}h");
+            OXLLog.Msg($"[OXL:LGSETTINGS] ArchWeights  : " +
+                       $"H={_draftArchW[0]}% N={_draftArchW[1]}% D={_draftArchW[2]}% W={_draftArchW[3]}%");
+            for (int a = 0; a < 4; a++)
+                OXLLog.Msg($"[OXL:LGSETTINGS] LvlWeights[{a}]: " +
+                           $"L1={_draftLvlW[a][0]}% L2={_draftLvlW[a][1]}% L3={_draftLvlW[a][2]}%");
+            OXLLog.Msg($"[OXL:LGSETTINGS] ═══════════════════════════════════════════════");
+        }
+
+
         // ══════════════════════════════════════════════════════════════════════
         //  PUBLIC API
         // ══════════════════════════════════════════════════════════════════════
@@ -2346,7 +3163,7 @@ namespace CMS2026_OXL
 
         public CarPhotoLoader.CacheInfo GetPhotoCacheInfo() => _photoLoader?.GetCacheInfo() ?? default;
 
-        // Metoda do wygodnego przełączania (np. dla klawisza F10)
+        // Metoda do wygodnego przełączania
         public void Toggle()
         {
             if (IsVisible) Close();
