@@ -327,16 +327,6 @@ namespace CMS2026_OXL
 
             _panel.SetUpdateCallback(dt =>
             {
-                _listings.Tick(dt);
-
-                int current = _listings.ActiveListings.Count;
-                if (current != _lastKnownListingCount)
-                {
-                    _lastKnownListingCount = current;
-                    if (_filteredListings != null) ApplyFilters();
-                    RefreshListings();
-                }
-
                 UpdateTimers();
             });
 
@@ -3388,6 +3378,20 @@ namespace CMS2026_OXL
         {
             for (int i = 0; i < count; i++)
                 _listings?.ForceGenerate();
+        }
+
+        public void TickSystem(float dt)
+        {
+            if (_listings == null) return;
+            _listings.Tick(dt);
+
+            int current = _listings.ActiveListings.Count;
+            if (current != _lastKnownListingCount)
+            {
+                _lastKnownListingCount = current;
+                if (_filteredListings != null) ApplyFilters();
+                RefreshListings();
+            }
         }
 
         public CarPhotoLoader.CacheInfo GetPhotoCacheInfo() => _photoLoader?.GetCacheInfo() ?? default;

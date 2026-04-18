@@ -67,6 +67,9 @@ namespace CMS2026_OXL
 
         public override void OnUpdate()
         {
+            // Tick zawsze — niezależnie od widoczności panelu
+            _panel?.TickSystem(UnityEngine.Time.deltaTime);
+
             if (_panel != null && _panel.IsVisible
                 && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Escape))
             {
@@ -307,6 +310,24 @@ namespace CMS2026_OXL
             })
                 });
 
+
+
+                register?.Invoke(null, new object[]
+{
+    "oxl_logs",
+    "oxl_logs <on|off> — toggle verbose OXL logging",
+    (Action<string[]>)(args =>
+    {
+        if (args.Length < 2)
+        {
+            Print($"OXL logs: {(OXLLog.Enabled ? "ON" : "OFF")}");
+            return;
+        }
+        OXLLog.Enabled = args[1].Equals("on", StringComparison.OrdinalIgnoreCase);
+        Print($"OXL logs: {(OXLLog.Enabled ? "ON" : "OFF")}");
+    })
+});
+
                 // ── oxl_end_all — kończy wszystkie aukcje ─────────────────────────
                 register?.Invoke(null, new object[]
                 {
@@ -489,6 +510,8 @@ namespace CMS2026_OXL
         private static System.Reflection.MethodInfo _consolePrint;
         private static bool _resolved;
 
+        public static bool Enabled { get; set; } = false;  // domyślnie cicho
+
         private static void TryResolve()
         {
             if (_resolved) return;
@@ -501,22 +524,17 @@ namespace CMS2026_OXL
                     })
                     .FirstOrDefault(x => x.FullName == "CMS2026SimpleConsole.ConsoleAPI");
 
-                _consolePrint = t?.GetMethod("Print",
-                    new[] { typeof(string), typeof(string) });
-
+                _consolePrint = t?.GetMethod("Print", new[] { typeof(string), typeof(string) });
                 if (_consolePrint == null)
-                    _consolePrint = t?.GetMethod("Print",
-                        new[] { typeof(string) });
-
-                // ← tylko gdy faktycznie znalazł — nie blokuj retry
-                if (_consolePrint != null)
-                    _resolved = true;
+                    _consolePrint = t?.GetMethod("Print", new[] { typeof(string) });
+                if (_consolePrint != null) _resolved = true;
             }
             catch { }
         }
 
         public static void Msg(string msg)
         {
+            if (!Enabled) return;
             try
             {
                 TryResolve();
@@ -536,5 +554,6 @@ namespace CMS2026_OXL
 
         public static void Warn(string msg) => _log.Warning(msg);
         public static void Error(string msg) => _log.Error(msg);
+        public static void Always(string msg) => _log.Msg(msg);
     }
 }
