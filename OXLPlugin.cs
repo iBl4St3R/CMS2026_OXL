@@ -23,6 +23,8 @@ namespace CMS2026_OXL
             if (!sceneName.ToLower().Contains("garage")) return;
             if (!FrameworkAPI.IsReady) return;
 
+            GameTimeProvider.Reset();// reset przy każdym załadowaniu sceny
+
             CursorManager.OnCursorShow -= OnCursorShow;
             CursorManager.OnCursorHide -= OnCursorHide;
             CursorManager.OnCursorShow += OnCursorShow;

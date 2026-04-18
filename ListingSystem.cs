@@ -68,7 +68,9 @@ namespace CMS2026_OXL
         // ── Aktywne ogłoszenia ────────────────────────────────────────────────────
         public List<CarListing> ActiveListings { get; private set; } = new();
         private float _gameTime = 0f;
+        private double _gameTimeOrigin = -1.0;
         public float GameTime => _gameTime;
+
 
         // ═════════════════════════════════════════════════════════════════════════
         //  TICK
@@ -76,12 +78,22 @@ namespace CMS2026_OXL
 
         public void Tick(float deltaTime)
         {
-            _gameTime += deltaTime;
+            // ── Odczyt czasu gry z TimeManager ───────────────────────────────────
+            double gameSecs = GameTimeProvider.TotalGameSeconds;
 
-            // Usuń wygasłe
+            if (_gameTimeOrigin < 0.0)
+            {
+                _gameTimeOrigin = gameSecs;
+                OXLLog.Msg($"[OXL:LGSYS] GameTime origin={gameSecs:F1}s" +
+                           $" ({gameSecs / 3600.0:F2}h)" +
+                           $" TM={GameTimeProvider.IsAvailable}");
+            }
+
+            _gameTime = (float)(gameSecs - _gameTimeOrigin);
+
+            // Reszta bez zmian
             ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
 
-            // Jednorazowe seed — wypełnij do min(4, MaxListings) przy starcie
             if (!_initialSeeded)
             {
                 int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
@@ -89,10 +101,10 @@ namespace CMS2026_OXL
                     ActiveListings.Add(GenerateListing());
                 _initialSeeded = true;
                 _lastGenCheckTime = _gameTime;
+                _lastSaveTime = _gameTime;
                 return;
             }
 
-            // Okresowa generacja — raz na GenCheckInterval
             if (_gameTime - _lastGenCheckTime >= GenCheckInterval)
             {
                 _lastGenCheckTime = _gameTime;

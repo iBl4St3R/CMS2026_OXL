@@ -68,6 +68,8 @@ namespace CMS2026_OXL
         private const float RowH = 90f;
         private const float RowGap = 1f;
 
+        private int _lastKnownListingCount = -1;
+
         private UILabelHandle _listingMoneyLbl;
         private string FormatMetaLine(CarListing listing)
         {
@@ -321,14 +323,16 @@ namespace CMS2026_OXL
 
             _panel.SetUpdateCallback(dt =>
             {
-                int before = _listings.ActiveListings.Count;
                 _listings.Tick(dt);
-                if (_listings.ActiveListings.Count != before)
+
+                int current = _listings.ActiveListings.Count;
+                if (current != _lastKnownListingCount)
                 {
-                    // Re-apply filter so expired listings are removed from results
+                    _lastKnownListingCount = current;
                     if (_filteredListings != null) ApplyFilters();
                     RefreshListings();
                 }
+
                 UpdateTimers();
             });
 

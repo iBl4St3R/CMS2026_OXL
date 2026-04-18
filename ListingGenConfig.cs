@@ -33,6 +33,6 @@ namespace CMS2026_OXL
         /// 1 godzina gry = ile sekund czasu Unity.
         /// Przy 60s: domyślne 12h–36h daje 720s–2160s.
         /// </summary>
-        public const float SecondsPerGameHour = 60f;
+        public const float SecondsPerGameHour = 3600f;
     }
 }
