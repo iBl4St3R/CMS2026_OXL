@@ -2164,7 +2164,7 @@ namespace CMS2026_OXL
                 "Adjusts listing prices relative to the baseline.\n" +
                 "Easy = ceny 15% niższe.  Normal = ceny bazowe (zalecane).  Hard = ceny 20% wyższe.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
-                TextGray);
+                Color.white);
             descLbl.SetFontSize(12);
             cy += 50f;
 
@@ -2190,7 +2190,7 @@ namespace CMS2026_OXL
                 "Change takes effect on the next generated listing.\n" +
                 "Applies to newly generated listings only.\nActive listings keep their original prices.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
-                new Color(0.30f, 0.38f, 0.34f, 0.80f));
+                Color.white);
             noteLbl.SetFontSize(11);
 
 
@@ -2279,7 +2279,7 @@ namespace CMS2026_OXL
 
             // Sublabel (description)
             outLbl = _panel.AddLabelToContainer(
-                card, sublabel, 0f, 38f, w, 18f, TextGray);
+                card, sublabel, 0f, 38f, w, 18f, Color.white);
             outLbl.SetFontSize(11);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(outLbl.GetRawPtr())),
                 TextAnchor.MiddleCenter);
@@ -2321,7 +2321,7 @@ namespace CMS2026_OXL
                 ? new Color(0.06f, 0.14f, 0.10f, 1f)
                 : new Color(0.05f, 0.09f, 0.15f, 1f));
 
-            lbl?.SetColor(active ? accentColor : TextDim);
+            lbl?.SetColor(active ? accentColor : new Color(0.55f, 0.62f, 0.68f, 1f));
         }
 
         private void ShowSettings()
@@ -2351,11 +2351,10 @@ namespace CMS2026_OXL
             const float TopBarH = 44f;
             const float FootH = 32f;
             const float Pad = 28f;
-            const float Sg = 8f;   // small gap
-            const float Mg = 18f;  // medium gap między sekcjami
-            const float SecH = 16f;  // wysokość etykiety sekcji
-            const float DescH = 20f;  // opis sekcji
-            const float CtrlH = 44f;  // wysokość wiersza kontrolki
+            const float Sg = 8f;
+            const float Mg = 14f;
+            const float SecH = 16f;
+            const float CtrlH = 44f;
 
             // ── Overlay root ─────────────────────────────────────────────────────────
             var ov = UIRuntime.NewVE();
@@ -2371,125 +2370,131 @@ namespace CMS2026_OXL
             _panel.AddOverlayToPanel(ov);
             _listingGenOverlayPtr = UIRuntime.GetPtr(ov);
 
-            // ── Top bar ───────────────────────────────────────────────────────────────
-            LgBuildTopBar(ov, "Listing Generation", HideListingGenSettings, out _);
+            // ── Top bar (fixed) ───────────────────────────────────────────────────────
+            LgBuildTopBar(ov, "Listing Generation Settings", HideListingGenSettings, out _);
             LgSep(ov, TopBarH);
-            float cy = TopBarH + 1f + Mg;
 
-            // ══ Section 1: Max Active Listings ═══════════════════════════════════════
-            LgSectionLabel(ov, "MAX ACTIVE LISTINGS", Pad, cy);
-            cy += SecH + Sg;
-            LgDescLabel(ov,
-                "Tablica nigdy nie przekroczy tej liczby aktywnych ogłoszeń, niezależnie od rolowania generacji.",
-                Pad, cy);
-            cy += DescH + Sg;
+            // ── ScrollView (dodany PRZED footer żeby footer renderował się na wierzchu) ──
+            float scrollTop = TopBarH + 1f;
+            float scrollH = PanelH - OverlayTop - FootH - scrollTop;
 
-            _lgMaxLbl = LgNumControl(ov, Pad, cy, 520f, CtrlH,
+            var sv = TryMakeScrollView(ov, 0f, scrollTop, PanelW, scrollH);
+            object sc;
+            if (sv != null)
+            {
+                sc = GetScrollContent(sv) ?? sv;
+            }
+            else
+            {
+                // Fallback — zwykły kontener bez scrolla
+                var fb = UIRuntime.NewVE();
+                var fbs = UIRuntime.GetStyle(fb);
+                S.Position(fbs, "Absolute");
+                S.Left(fbs, 0f); S.Top(fbs, scrollTop);
+                S.Width(fbs, PanelW); S.Height(fbs, scrollH);
+                S.Overflow(fbs, "Hidden");
+                UIRuntime.AddChild(ov, fb);
+                sc = fb;
+            }
+
+            // ── Footer (fixed, dodany PO ScrollView → renderuje się na wierzchu) ──────
+            BuildFooter(ov, PanelH - OverlayTop - FootH);
+
+            // ══ Zawartość scrollowana — cy jest lokalne, od 0 ════════════════════════
+            float cy = Mg;
+
+            // ── Section 1: Max Active Listings ───────────────────────────────────────
+            LgSectionLabel(sc, "MAX ACTIVE LISTINGS", Pad, cy); cy += SecH + Sg;
+            LgDescLabel(sc, "Tablica nigdy nie przekroczy tej liczby ogłoszeń, niezależnie od rolowania generacji.", Pad, cy);
+            cy += 20f + Sg;
+
+            _lgMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
                 "Maks. ogłoszeń na tablicy:", () => _draftMaxListings,
                 v => _draftMaxListings = v, 1, 50, " ogłoszeń");
             cy += CtrlH + Mg;
-            LgSep(ov, cy); cy += 1f + Mg;
+            LgSep(sc, cy); cy += 1f + Mg;
 
-            // ══ Section 2: Generation Rate ════════════════════════════════════════════
-            LgSectionLabel(ov, "TEMPO GENERACJI", Pad, cy);
-            cy += SecH + Sg;
-            LgDescLabel(ov,
-                "Szansa procentowa na wygenerowanie nowego ogłoszenia w ciągu każdej godziny gry. Ilość per batch to losowy zakres tworzonych ogłoszeń za jednym razem.",
-                Pad, cy);
-            cy += DescH + Sg;
+            // ── Section 2: Generation Rate ────────────────────────────────────────────
+            LgSectionLabel(sc, "TEMPO GENERACJI", Pad, cy); cy += SecH + Sg;
+            LgDescLabel(sc, "Szansa na wygenerowanie nowego ogłoszenia w ciągu każdej godziny gry.", Pad, cy);
+            cy += 20f + Sg;
 
-            _lgChanceLbl = LgNumControl(ov, Pad, cy, 520f, CtrlH,
-                "Szansa generacji (na godzinę):", () => _draftGenChancePct,
+            _lgChanceLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
+                "Szansa generacji (na godzinę gry):", () => _draftGenChancePct,
                 v => _draftGenChancePct = v, 0, 100, "%");
             cy += CtrlH + Sg;
 
-            float half = (PanelW - Pad * 2f - 20f) / 2f;
-
-            _lgGenMinLbl = LgNumControl(ov, Pad, cy, half, CtrlH,
+            _lgGenMinLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
                 "Min ogłoszeń per batch:", () => _draftGenMin,
-                v => { _draftGenMin = Mathf.Min(v, _draftGenMax); _lgGenMinLbl?.SetText(_draftGenMin.ToString()); },
+                v => _draftGenMin = Mathf.Min(v, _draftGenMax),
                 1, 16, " szt.");
+            cy += CtrlH + Sg;
 
-            _lgGenMaxLbl = LgNumControl(ov, Pad + half + 20f, cy, half, CtrlH,
+            _lgGenMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
                 "Max ogłoszeń per batch:", () => _draftGenMax,
-                v => { _draftGenMax = Mathf.Max(v, _draftGenMin); _lgGenMaxLbl?.SetText(_draftGenMax.ToString()); },
+                v => _draftGenMax = Mathf.Max(v, _draftGenMin),
                 1, 16, " szt.");
-
             cy += CtrlH + Mg;
-            LgSep(ov, cy); cy += 1f + Mg;
+            LgSep(sc, cy); cy += 1f + Mg;
 
-            // ══ Section 3: Listing Duration ═══════════════════════════════════════════
-            LgSectionLabel(ov, "CZAS TRWANIA OGŁOSZENIA (godziny gry)", Pad, cy);
-            cy += SecH + Sg;
-            LgDescLabel(ov,
-                "Zakres czasu przez jaki ogłoszenie pozostaje aktywne. Minimum musi być mniejsze niż Maksimum.",
-                Pad, cy);
-            cy += DescH + Sg;
+            // ── Section 3: Listing Duration ───────────────────────────────────────────
+            LgSectionLabel(sc, "CZAS TRWANIA OGŁOSZENIA (godziny gry)", Pad, cy); cy += SecH + Sg;
+            LgDescLabel(sc, "Zakres czasu przez jaki ogłoszenie pozostaje aktywne. Min musi być mniejsze niż Max.", Pad, cy);
+            cy += 20f + Sg;
 
-            _lgDurMinLbl = LgNumControl(ov, Pad, cy, half, CtrlH,
+            _lgDurMinLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
                 "Min czas trwania:", () => _draftDurMinH,
-                v => { _draftDurMinH = Mathf.Clamp(v, 1, _draftDurMaxH - 1); _lgDurMinLbl?.SetText(_draftDurMinH + "h"); },
+                v => _draftDurMinH = Mathf.Clamp(v, 1, _draftDurMaxH - 1),
                 1, 167, "h");
+            cy += CtrlH + Sg;
 
-            _lgDurMaxLbl = LgNumControl(ov, Pad + half + 20f, cy, half, CtrlH,
+            _lgDurMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
                 "Max czas trwania:", () => _draftDurMaxH,
-                v => { _draftDurMaxH = Mathf.Clamp(v, _draftDurMinH + 1, 168); _lgDurMaxLbl?.SetText(_draftDurMaxH + "h"); },
+                v => _draftDurMaxH = Mathf.Clamp(v, _draftDurMinH + 1, 168),
                 2, 168, "h");
-
             cy += CtrlH + Mg;
-            LgSep(ov, cy); cy += 1f + Mg;
+            LgSep(sc, cy); cy += 1f + Mg;
 
-            // ══ Section 4: Archetype Probability ══════════════════════════════════════
-            LgSectionLabel(ov, "SZANSA NA ARCHETYPE (suma = 100%)", Pad, cy);
+            // ── Section 4: Archetype Probability ──────────────────────────────────────
+            LgSectionLabel(sc, "SZANSA NA ARCHETYPE (suma = 100%)", Pad, cy);
 
-            // Sigma indicator — prawy róg, ten sam wiersz co nagłówek
             _lgArchSumLbl = _panel.AddLabelToContainer(
-                ov, "Σ = 100%",
-                PanelW - Pad - 130f, cy, 130f, SecH,
+                sc, "Σ = 100%", PanelW - Pad - 130f, cy, 130f, SecH,
                 new Color(0.22f, 0.75f, 0.40f, 1f));
             _lgArchSumLbl.SetFontSize(11);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchSumLbl.GetRawPtr())),
-                TextAnchor.MiddleRight);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchSumLbl.GetRawPtr())), TextAnchor.MiddleRight);
             cy += SecH + Sg;
 
-            LgDescLabel(ov,
-                "Prawdopodobieństwo każdego archetypu przy losowaniu nowego ogłoszenia. Suwaki są sprzężone — zawsze sumują się do 100%. Krok: 5%.",
-                Pad, cy);
-            cy += DescH + Sg;
-
-            LgDescLabel(ov,
-                "Kliknij L1/L2/L3  aby skonfigurować rozkład poziomów wewnątrz każdego archetypu.",
+            LgDescLabel(sc, "Prawdopodobieństwo każdego archetypu. Sprzężone — suma = 100%. Krok: 5%.", Pad, cy);
+            cy += 20f + Sg;
+            LgDescLabel(sc, "Kliknij L1/L2/L3 ▶ aby skonfigurować rozkład poziomów wewnątrz archetypu.", Pad, cy);
         
-                Pad, cy);
-            cy += DescH + Sg;
+            cy += 20f + Sg;
 
-            // Cztery wiersze archetypów
-            string[] archNames =   { "Honest",                       "Neglected",
-                              "Dealer",                       "Wrecker"   };
-            Color[] archAccents = {
-        new Color(0.22f, 0.75f, 0.40f, 1f),   // zielony
-        new Color(0.85f, 0.72f, 0.20f, 1f),   // złoty
-        new Color(0.55f, 0.75f, 0.90f, 1f),   // niebieski
-        new Color(0.90f, 0.45f, 0.20f, 1f),   // pomarańczowy
+            string[] archNames = { "Honest", "Neglected", "Dealer", "Wrecker" };
+            Color[] archAccents =
+            {
+        new Color(0.22f, 0.75f, 0.40f, 1f),
+        new Color(0.85f, 0.72f, 0.20f, 1f),
+        new Color(0.55f, 0.75f, 0.90f, 1f),
+        new Color(0.90f, 0.45f, 0.20f, 1f),
     };
-
             float archRowW = PanelW - Pad * 2f;
             const float ArchRowH = 54f;
 
             for (int a = 0; a < 4; a++)
             {
-                BuildLgArchRow(ov, a, archNames[a], archAccents[a],
-                    Pad, cy, archRowW, ArchRowH);
+                BuildLgArchRow(sc, a, archNames[a], archAccents[a], Pad, cy, archRowW, ArchRowH);
                 cy += ArchRowH + (a < 3 ? 5f : 0f);
             }
             cy += Mg;
-            LgSep(ov, cy); cy += 1f + Mg;
+            LgSep(sc, cy); cy += 1f + Mg;
 
-            // ══ Save button ════════════════════════════════════════════════════════════
+            // ── Save ──────────────────────────────────────────────────────────────────
             const float SaveW = 240f;
             const float SaveH = 48f;
             var savePtr = _panel.AddButtonToContainer(
-                ov, "✔  ZAPISZ USTAWIENIA",
+                sc, "✔  ZAPISZ USTAWIENIA",
                 (PanelW - SaveW) / 2f, cy, SaveW, SaveH,
                 OXLGreen, SaveListingGenSettings);
             _panel.WireHover(savePtr, OXLGreen,
@@ -2497,15 +2502,17 @@ namespace CMS2026_OXL
                 new Color(0.16f, 0.48f, 0.28f, 1f));
 
             var hintLbl = _panel.AddLabelToContainer(
-                ov,
+                sc,
                 "Zmiany zostaną zastosowane do kolejno generowanych ogłoszeń  ·  Zapisane do CMS2026_OXL.cfg",
                 0f, cy + SaveH + 6f, PanelW, 18f,
-                new Color(0.35f, 0.48f, 0.38f, 0.70f));
+                new Color(0.55f, 0.68f, 0.58f, 1f));
             hintLbl.SetFontSize(10);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(hintLbl.GetRawPtr())),
-                TextAnchor.MiddleCenter);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(hintLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
-            BuildFooter(ov, PanelH - OverlayTop - FootH);
+            cy += SaveH + 18f + 20f;
+
+            // ── Ustaw wysokość contentu żeby ScrollView wiedział ile scrollować ────────
+            if (sv != null) SetScrollContentHeight(sc, cy);
         }
 
         // ── Wiersz archetypu: [nazwa] [pasek] [wartość%] [−] [+] [L1/L2/L3 ▶] ────────
@@ -2865,7 +2872,7 @@ namespace CMS2026_OXL
 
         private void LgDescLabel(object parent, string text, float x, float cy)
         {
-            var lbl = _panel.AddLabelToContainer(parent, text, x, cy, PanelW - x * 2f, 20f, TextGray);
+            var lbl = _panel.AddLabelToContainer(parent, text, x, cy, PanelW - x * 2f, 20f, Color.white);
             lbl.SetFontSize(11);
         }
 
@@ -2911,12 +2918,12 @@ namespace CMS2026_OXL
 
             // − przycisk
             var minusPtr = _panel.AddButtonToContainer(parent, "−",
-                bMinX, btnY, BtnW, 30f, BtnDark, () =>
-                {
-                    int v = Mathf.Clamp(getV() - 1, lo, hi);
-                    setV(v);
-                    valRef[0]?.SetText(v + suffix);
-                });
+         bMinX, btnY, BtnW, 30f, BtnDark, () =>
+         {
+             int v = Mathf.Clamp(getV() - 1, lo, hi);
+             setV(v);
+             valRef[0]?.SetText(getV() + suffix); 
+         });
             _panel.WireHover(minusPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             // Etykieta wartości (tworzona po − żeby w razie kliknięcia valRef[0] już istniało)
@@ -2933,12 +2940,12 @@ namespace CMS2026_OXL
 
             // + przycisk
             var plusPtr = _panel.AddButtonToContainer(parent, "+",
-                bPluX, btnY, BtnW, 30f, BtnDark, () =>
-                {
-                    int v = Mathf.Clamp(getV() + 1, lo, hi);
-                    setV(v);
-                    valRef[0]?.SetText(v + suffix);
-                });
+       bPluX, btnY, BtnW, 30f, BtnDark, () =>
+       {
+           int v = Mathf.Clamp(getV() + 1, lo, hi);
+           setV(v);
+           valRef[0]?.SetText(getV() + suffix); // było: v + suffix
+       });
             _panel.WireHover(plusPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             return valLbl;
@@ -3078,6 +3085,42 @@ namespace CMS2026_OXL
             OXLLog.Msg($"[OXL:LGSETTINGS] ═══════════════════════════════════════════════");
         }
 
+
+        private object TryMakeScrollView(object parentVE, float left, float top, float w, float h)
+        {
+            try
+            {
+                var svType = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
+                    .FirstOrDefault(t => t.FullName == "UnityEngine.UIElements.ScrollView");
+                if (svType == null) return null;
+
+                var sv = Activator.CreateInstance(svType);
+                var st = UIRuntime.GetStyle(sv);
+                S.Position(st, "Absolute");
+                S.Left(st, left); S.Top(st, top);
+                S.Width(st, w); S.Height(st, h);
+                UIRuntime.AddChild(parentVE, sv);
+                return sv;
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL] ScrollView create failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static object GetScrollContent(object sv)
+        {
+            try { return sv?.GetType().GetProperty("contentContainer")?.GetValue(sv); }
+            catch { return null; }
+        }
+
+        private static void SetScrollContentHeight(object contentVE, float height)
+        {
+            try { S.Height(UIRuntime.GetStyle(contentVE), height); }
+            catch { }
+        }
 
         // ══════════════════════════════════════════════════════════════════════
         //  PUBLIC API
