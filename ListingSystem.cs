@@ -437,6 +437,19 @@ namespace CMS2026_OXL
                 };
 
                 price = fair * neglectedDisc;
+
+                // ── Instant-flip guard ────────────────────────────────────────────────
+                // Gra płaci za niesprawne auto ~58-65% fair value z samych części.
+                // Nasz floor = 70% fair — gracz nie może zarobić bez pracy.
+                // Dla actual=3% fair≈$2k → floor≈$1.4k (OK, gra płaci ~$1.2k)
+                // Dla actual=27% fair≈$21k → floor≈$14.7k (gra płaci ~$12k, marża na naprawie)
+                float instantFlipFloor = fair * 0.70f;
+                if (price < instantFlipFloor)
+                {
+                    OXLLog.Msg($"[OXL:PRICE]   Neglected instant-flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × 0.70)");
+                    price = instantFlipFloor;
+                }
+
                 OXLLog.Msg($"[OXL:PRICE]   Neglected: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
             }
             // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
