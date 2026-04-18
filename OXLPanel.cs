@@ -3389,8 +3389,15 @@ namespace CMS2026_OXL
             if (current != _lastKnownListingCount)
             {
                 _lastKnownListingCount = current;
-                if (_filteredListings != null) ApplyFilters();
-                RefreshListings();
+                try
+                {
+                    if (_filteredListings != null) ApplyFilters();
+                    if (_isVisible) RefreshListings(); // odśwież tylko gdy panel widoczny
+                }
+                catch (Exception ex)
+                {
+                    OXLLog.Warn($"[OXL:TICK] RefreshListings failed: {ex.Message}");
+                }
             }
         }
 
@@ -3403,6 +3410,7 @@ namespace CMS2026_OXL
             else Open();
         }
 
+        public void ForceGenCheck() => _listings?.ForceCheckNow();
         public void SaveListings() => _listings?.Save();
     }
 }

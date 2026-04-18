@@ -311,6 +311,17 @@ namespace CMS2026_OXL
                 });
 
 
+                register?.Invoke(null, new object[]
+{
+    "oxl_check_now",
+    "Force a generation check on next tick",
+    (Action<string[]>)(_ =>
+    {
+        _panel?.ForceGenCheck();
+        Print("Generation check forced — will trigger on next tick.");
+    })
+});
+
 
                 register?.Invoke(null, new object[]
 {

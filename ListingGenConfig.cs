@@ -14,8 +14,8 @@ namespace CMS2026_OXL
         public int GenMax { get; set; } = 4;
 
         // ── Czas trwania — w sekundach gry (konwersja: h × SecondsPerGameHour) ─
-        public float DurMinSec { get; set; } = 720f;    // default 12h × 60s
-        public float DurMaxSec { get; set; } = 2160f;   // default 36h × 60s
+        public float DurMinSec { get; set; } = 12f * SecondsPerGameHour;  // 43200f
+        public float DurMaxSec { get; set; } = 36f * SecondsPerGameHour;  // 129600f
 
         // ── Wagi archetypów [0]=Honest [1]=Neglected [2]=Dealer [3]=Wrecker ──
         public int[] ArchWeights { get; set; } = { 20, 35, 30, 15 };

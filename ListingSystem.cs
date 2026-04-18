@@ -110,6 +110,13 @@ namespace CMS2026_OXL
             }
         }
 
+        /// <summary>Wymusza sprawdzenie generacji przy następnym Tick().</summary>
+        public void ForceCheckNow()
+        {
+            _lastGenCheckTime = _gameTime - GenCheckInterval;
+            OXLLog.Msg("[OXL:LGSYS] ForceCheckNow — next Tick will trigger TryGenerateBatch()");
+        }
+
         public void Save() => ListingPersistence.Save(ActiveListings, _gameTime);
 
         public void LoadSaved()
