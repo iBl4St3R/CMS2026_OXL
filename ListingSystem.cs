@@ -40,12 +40,6 @@ namespace CMS2026_OXL
         }
 
 
-        private const float AutoSaveInterval = 30f;  // co 30s Unity time
-        private float _lastSaveTime = 0f;
-
-
-
-
         private class CarDef
         {
             public string Make, Model, ImageFolder, InternalId;
@@ -91,9 +85,13 @@ namespace CMS2026_OXL
 
             _gameTime = (float)(gameSecs - _gameTimeOrigin);
 
-            // Reszta bez zmian
+            // ── Usuń wygasłe i zapisz jeśli coś wygasło ──────────────────────────
+            int before = ActiveListings.Count;
             ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
+            if (ActiveListings.Count != before)
+                Save();
 
+            // ── Jednorazowy seed przy starcie ─────────────────────────────────────
             if (!_initialSeeded)
             {
                 int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
@@ -101,20 +99,14 @@ namespace CMS2026_OXL
                     ActiveListings.Add(GenerateListing());
                 _initialSeeded = true;
                 _lastGenCheckTime = _gameTime;
-                _lastSaveTime = _gameTime;
                 return;
             }
 
+            // ── Okresowa generacja — raz na GenCheckInterval ──────────────────────
             if (_gameTime - _lastGenCheckTime >= GenCheckInterval)
             {
                 _lastGenCheckTime = _gameTime;
                 TryGenerateBatch();
-            }
-
-            if (_gameTime - _lastSaveTime >= AutoSaveInterval)
-            {
-                _lastSaveTime = _gameTime;
-                Save();
             }
         }
 

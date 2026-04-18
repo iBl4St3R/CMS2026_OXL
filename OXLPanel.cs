@@ -74,10 +74,14 @@ namespace CMS2026_OXL
         private string FormatMetaLine(CarListing listing)
         {
             float rem = listing.ExpiresAt - _listings.GameTime;
-            string timer = rem <= 0f ? "Auction ended"
-                : $"Expires in {(int)(rem / 60f)}:{(int)(rem % 60f):D2}";
+            string timer = rem <= 0f
+                ? "Auction ended"
+                : FormatTimeRemaining(rem);
+
             string mi = listing.Mileage >= 1000
-                ? $"{listing.Mileage / 1000}k mi" : $"{listing.Mileage} mi";
+                ? $"{listing.Mileage / 1000}k mi"
+                : $"{listing.Mileage} mi";
+
             return $"{timer}  ·  {listing.Location}  ·  {mi}  ·  {listing.Year}  ·  ~{listing.DeliveryHours}h delivery";
         }
 
@@ -1170,11 +1174,34 @@ namespace CMS2026_OXL
         {
             float rem = listing.ExpiresAt - _listings.GameTime;
             if (rem <= 0f) return "Auction ended";
-            int m = (int)(rem / 60f);
-            int s = (int)(rem % 60f);
-            string icon = rem < 60f ? "\u26A0 " : "\u23F1 ";
-            return $"Expires in {m}:{s:D2}";
+
+            return FormatTimeRemaining(rem);
         }
+
+
+        private static string FormatTimeRemaining(float seconds)
+        {
+            if (seconds <= 0f) return "Auction ended";
+
+            int total = (int)seconds;
+            int h = total / 3600;
+            int m = (total % 3600) / 60;
+            int s = total % 60;
+
+            if (total >= 86400)  // 24h+
+            {
+                int days = total / 86400;
+                return days == 1 ? "1 day left" : $"{days} days left";
+            }
+
+            if (total >= 3600)   // 1h+
+            {
+                return h == 1 ? "1 hour left" : $"{h} hours left";
+            }
+
+            return $"{m}:{s:D2}";
+        }
+
 
         // ── Listing page visibility ───────────────────────────────────────────
         private void ShowListingPage()
