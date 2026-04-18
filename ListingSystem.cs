@@ -291,12 +291,7 @@ namespace CMS2026_OXL
                 SellerArchetype.Honest => Mathf.Clamp(actual * (float)(0.92 + rng.NextDouble() * 0.12), 0.05f, 0.95f),
 
                 // Neglected: zaniedbana karoseria — ciut gorsza niż actual
-                SellerArchetype.Neglected => level switch
-                {
-                    1 => Mathf.Clamp(actual * (float)(0.78 + rng.NextDouble() * 0.22), 0.03f, 0.85f),
-                    2 => Mathf.Clamp(actual * (float)(0.68 + rng.NextDouble() * 0.25), 0.02f, 0.78f),
-                    _ => Mathf.Clamp(actual * (float)(0.55 + rng.NextDouble() * 0.30), 0.02f, 0.72f),
-                },
+                SellerArchetype.Neglected => (float)(rng.NextDouble() * 0.30),
 
                 // Dealer: karoseria naprawiona niezależnie od mechaniki — to jest ich "produkt"
                 SellerArchetype.Dealer => level switch
@@ -423,41 +418,32 @@ namespace CMS2026_OXL
                 int fair = CalcFairValue(actual, archetypePrices);
                 if (fair <= 0) fair = ap.Price;
 
-                float neglectedDisc = (level, actual) switch
+                // Spec: flat ranges per level — actual jest już w CalcFairValue
+                float neglectedDisc = level switch
                 {
-                    (1, < 0.20f) => (float)(0.20 + rng.NextDouble() * 0.15),
-                    (1, < 0.50f) => (float)(0.28 + rng.NextDouble() * 0.17),
-                    (1, _) => (float)(0.35 + rng.NextDouble() * 0.15),
-                    (2, < 0.20f) => (float)(0.15 + rng.NextDouble() * 0.15),
-                    (2, < 0.50f) => (float)(0.22 + rng.NextDouble() * 0.18),
-                    (2, _) => (float)(0.28 + rng.NextDouble() * 0.17),
-                    (_, < 0.20f) => (float)(0.08 + rng.NextDouble() * 0.17),
-                    (_, < 0.50f) => (float)(0.15 + rng.NextDouble() * 0.25),
-                    _ => (float)(0.20 + rng.NextDouble() * 0.30),
+                    1 => (float)(0.20 + rng.NextDouble() * 0.15),  // 0.20–0.35 — nie zna wartości
+                    2 => (float)(0.40 + rng.NextDouble() * 0.20),  // 0.40–0.60 — zna wartość
+                    _ => (float)(0.50 + rng.NextDouble() * 0.20),  // 0.50–0.70 — handlarz (drożej niż L2)
                 };
 
                 price = fair * neglectedDisc;
 
-                // ── Instant-flip guard ────────────────────────────────────────────────
-                // Gra płaci za niesprawne auto ~58-65% fair value z samych części.
-                // Nasz floor = 70% fair — gracz nie może zarobić bez pracy.
-                // Dla actual=3% fair≈$2k → floor≈$1.4k (OK, gra płaci ~$1.2k)
-                // Dla actual=27% fair≈$21k → floor≈$14.7k (gra płaci ~$12k, marża na naprawie)
+                // Instant-flip guard — spec: L1: 0.32 / L2: 0.48 / L3: 0.55
                 float flipFloorMult = level switch
                 {
-                    1 => 0.62f,  // L1 Casual: chce przyzwoitą kasę, lekki rabat
-                    2 => 0.48f,  // L2 Busy: nie ma czasu negocjować
-                    _ => 0.32f,  // L3 Hoarder: chce się pozbyć, cena śmieciowa
+                    1 => 0.32f,  // L1: nie zna wartości → niski floor
+                    2 => 0.48f,  // L2: zna wartość → średni floor
+                    _ => 0.55f,  // L3: handlarz zna wartość → wysoki floor
                 };
                 float instantFlipFloor = fair * flipFloorMult;
 
                 if (price < instantFlipFloor)
                 {
-                    OXLLog.Msg($"[OXL:PRICE]   Neglected instant-flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × 0.70)");
+                    OXLLog.Msg($"[OXL:PRICE]   Neglected flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × {flipFloorMult})");
                     price = instantFlipFloor;
                 }
 
-                OXLLog.Msg($"[OXL:PRICE]   Neglected: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
+                OXLLog.Msg($"[OXL:PRICE]   Neglected L{level}: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
             }
             // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
             else if (arch == SellerArchetype.Dealer)

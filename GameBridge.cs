@@ -107,6 +107,55 @@ namespace CMS2026_OXL
             }
         }
 
+        // ── Helper: kolor lakieru — wydzielony żeby dzielić między ApplyWear i ApplyNeglectedWear ──
+        private static void TrySetCarColor(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        {
+            try
+            {
+                var allowedColors = cl.AllowedColors;
+                if (allowedColors == null || allowedColors.Count == 0) return;
+
+                Color targetColor = OXLPanel.HexColor(listing.Color);
+                int bestIdx = 0;
+                float bestDist = float.MaxValue;
+                for (int ci = 0; ci < allowedColors.Count; ci++)
+                {
+                    var c = allowedColors[ci].Color;
+                    float r = c.r > 1f ? c.r / 255f : c.r;
+                    float g = c.g > 1f ? c.g / 255f : c.g;
+                    float b = c.b > 1f ? c.b / 255f : c.b;
+                    float dist = Mathf.Abs(r - targetColor.r)
+                               + Mathf.Abs(g - targetColor.g)
+                               + Mathf.Abs(b - targetColor.b);
+                    if (dist < bestDist) { bestDist = dist; bestIdx = ci; }
+                }
+                Il2CppCMS.Core.Car.CarLoaderExtension.SetRandomCarColor(
+                    cl, allowedColors[bestIdx], false);
+            }
+            catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetColor failed: {ex.Message}"); }
+        }
+
+        // ── Helper: historia pojazdu (przebieg, rok, tablica) ──────────────────────
+        private static void ApplyCarHistory(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        {
+            var cid = cl.CarInfoData;
+            if (cid != null)
+            {
+                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
+                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
+            }
+            if (!string.IsNullOrEmpty(listing.Registration))
+            {
+                try
+                {
+                    cl.SetNewLicensePlateNumber(listing.Registration, true);
+                    cl.SetNewLicensePlateNumber(listing.Registration, false);
+                }
+                catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}"); }
+            }
+        }
+
+
         // ══════════════════════════════════════════════════════════════════════
         //  APPLY WEAR
         // ══════════════════════════════════════════════════════════════════════
@@ -149,6 +198,12 @@ namespace CMS2026_OXL
                 yield break;  // ← nie idzie dalej do normalnego ApplyWear
             }
 
+            // ── NEGLECTED — wrak po zaniedbaniu, osobna ścieżka ──────────────────
+            if (listing.Archetype == SellerArchetype.Neglected)
+            {
+                yield return ApplyNeglectedWear(cl, listing);
+                yield break;
+            }
 
             float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
@@ -321,22 +376,7 @@ namespace CMS2026_OXL
             catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL:WEAR] SetFrameCondition failed: {ex.Message}"); }
 
             // ── Historia pojazdu ──────────────────────────────────────────────────
-            var cid = cl.CarInfoData;
-            if (cid != null)
-            {
-                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
-                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
-            }
-
-            if (!string.IsNullOrEmpty(listing.Registration))
-            {
-                try
-                {
-                    cl.SetNewLicensePlateNumber(listing.Registration, true);
-                    cl.SetNewLicensePlateNumber(listing.Registration, false);
-                }
-                catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}"); }
-            }
+            ApplyCarHistory(cl, listing);
 
             yield return new WaitForFixedUpdate();
 
@@ -355,8 +395,7 @@ namespace CMS2026_OXL
         // isBodyPart=true: traktuj jako część karoserii (carParts), nie mechanikę.
 
 
-        private static IEnumerator ApplyWreckerWear(
-    Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        private static IEnumerator ApplyWreckerWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
             var flags = System.Reflection.BindingFlags.Public
                       | System.Reflection.BindingFlags.Instance
@@ -463,8 +502,138 @@ namespace CMS2026_OXL
                 $"\n  All parts → 0.02, fluids drained");
         }
 
-        private static float WearForPart(string partId, float baseCondition, float exhaustableMax,
-    float startFloor, FaultFlags faults, bool isBodyPart)
+
+        private static IEnumerator ApplyNeglectedWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        {
+            int level = listing.ArchetypeLevel;
+
+            // ── Krok 1: Karoseria — 0.00–0.30 (wrak), wszystkie levele identycznie ──
+            cl.Dev_RepairAllBody();
+            yield return new WaitForEndOfFrame();
+
+            var cp = cl.carParts;
+            if (cp != null)
+            {
+                for (int i = 0; i < cp.Count; i++)
+                {
+                    if (cp[i] == null) continue;
+                    float wear = UnityEngine.Random.Range(0.00f, 0.30f);
+                    cl.SetCondition(cp[i], wear);
+
+                    if (!IsGlass(cp[i].name ?? ""))
+                    {
+                        float dent = UnityEngine.Random.Range(0.50f, 0.90f);
+                        try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.70f, 1.00f)); } catch { }
+
+                        float dust = UnityEngine.Random.Range(0.60f, 0.85f);
+                        try { cl.EnableDust(cp[i], dust); } catch { }
+                    }
+                }
+            }
+
+            float bodyWear = UnityEngine.Random.Range(0.00f, 0.25f);
+            cl.SetConditionOnBody(bodyWear);
+            cl.SetConditionOnDetails(bodyWear);
+            cl.SwitchRusted(bodyWear);
+
+            yield return new WaitForFixedUpdate();
+            try { cl.UpdateCarBodyParts(); } catch { }
+            try { cl.SetupCarSupport(); } catch { }
+            yield return new WaitForFixedUpdate();
+
+            // ── Krok 2: IndexedParts — różna logika per level ──────────────────────
+            var ip = cl.indexedParts;
+            if (ip != null)
+            {
+                if (level == 3)
+                {
+                    // L3 Handlarz: zabrał wszystkie dobre części → 0.02
+                    for (int i = 0; i < ip.Count; i++)
+                    {
+                        if (ip[i] == null) continue;
+                        try { ip[i].SetCondition(0.02f, false); }
+                        catch { ip[i].condition = 0.02f; }
+                    }
+                    OXLLog.Msg($"[OXL:NEGLECTED-L3] {ip.Count} indexedParts → 0.02 (stripped by trader)");
+                }
+                else
+                {
+                    // L1 / L2: wszystkie → 0.00–0.30 (wrak)
+                    for (int i = 0; i < ip.Count; i++)
+                    {
+                        if (ip[i] == null) continue;
+                        float wear = UnityEngine.Random.Range(0.00f, 0.30f);
+                        try { ip[i].SetCondition(wear, false); }
+                        catch { ip[i].condition = wear; }
+                    }
+                    OXLLog.Msg($"[OXL:NEGLECTED-L{level}] {ip.Count} indexedParts → 0.00–0.30");
+
+                    // L1 MECHANIC SURPRISE — post-pass ─────────────────────────────
+                    // Spec: wylosuj 3–4 indeksy, szansa 15–20% → nadpisz na 0.50–0.80
+                    // Właściciel nie wiedział że ma te części — gracz odkrywa przy demontażu
+                    if (level == 1 && ip.Count >= 4)
+                    {
+                        int pickCount = 10;                                        // zawsze 10 szans
+                        float surpriseChance = UnityEngine.Random.Range(0.30f, 0.50f);  // 30–50% per slot
+
+                        // Shuffle indeksów — Fisher-Yates
+                        var indices = new int[ip.Count];
+                        for (int i = 0; i < ip.Count; i++) indices[i] = i;
+                        for (int i = ip.Count - 1; i > 0; i--)
+                        {
+                            int j = UnityEngine.Random.Range(0, i + 1);
+                            (indices[i], indices[j]) = (indices[j], indices[i]);
+                        }
+
+                        int surprised = 0;
+                        for (int k = 0; k < pickCount; k++)
+                        {
+                            int idx = indices[k];
+                            if (ip[idx] == null) continue;
+                            if (UnityEngine.Random.value < surpriseChance)
+                            {
+                                float good = UnityEngine.Random.Range(0.50f, 0.80f);
+                                try { ip[idx].SetCondition(good, false); }
+                                catch { ip[idx].condition = good; }
+                                OXLLog.Msg($"[OXL:NEGLECTED-L1] ★ Surprise: '{ip[idx].id}' → {good:P0}");
+                                surprised++;
+                            }
+                        }
+                        OXLLog.Msg($"[OXL:NEGLECTED-L1] Surprise pass: {pickCount} picked, {surprised} upgraded");
+                    }
+                }
+
+                cl.ClearEnginePartsConditionCache();
+            }
+
+            // ── Krok 3: Chassis ────────────────────────────────────────────────────
+            float chassisWear = UnityEngine.Random.Range(0.02f, 0.25f);
+            try
+            {
+                var dbg = cl.gameObject.GetComponent<Il2Cpp.CarDebug>();
+                if (dbg != null)
+                {
+                    dbg.SetFrameCondition(chassisWear);
+                    OXLLog.Msg($"[OXL:NEGLECTED] chassis={chassisWear:P0}");
+                }
+            }
+            catch (Exception ex) { OXLLog.Msg($"[OXL:NEGLECTED] SetFrameCondition failed: {ex.Message}"); }
+
+            // ── Historia pojazdu ────────────────────────────────────────────────────
+            ApplyCarHistory(cl, listing);
+
+            yield return new WaitForFixedUpdate();
+
+            string wearDesc = level == 3 ? "IndexedParts -> 0.02 (stripped)" :
+                   level == 1 ? "IndexedParts -> 0.00-0.30 + L1 surprise pass" :
+                                "IndexedParts -> 0.00-0.30 (no surprises)";
+            OXLLog.Msg(
+                $"[OXL:NEGLECTED] DONE" +
+                $"\n  Level={level}  Body={bodyWear:P0}  Chassis={chassisWear:P0}" +
+                $"\n  {wearDesc}");
+        }
+
+        private static float WearForPart(string partId, float baseCondition, float exhaustableMax,float startFloor, FaultFlags faults, bool isBodyPart)
         {
             if (isBodyPart && IsGlass(partId))
             {

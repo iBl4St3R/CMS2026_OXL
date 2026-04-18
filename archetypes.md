@@ -155,8 +155,8 @@ Wszystkie levele: **auto nie odpala, brak StartFloor.**
 **L1 — ApplyWear() + mechanic surprise:**
 Wszystkie indexedParts → 0.00–0.30 (wrak)
 Wszystkie carParts     → 0.00–0.30 (wrak)
-POST-PASS: wylosuj 3–4 indeksy z indexedParts,
-szansa 15–20% → nadpisz kondycję na 0.50–0.80
+POST-PASS: wylosuj 10 indeksy z indexedParts,
+szansa 30–50% → nadpisz kondycję na 0.50–0.80
 (niespodzianki dla gracza, właściciel nie wiedział)
 
 **L2 — ApplyWear():**
