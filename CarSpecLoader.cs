@@ -70,30 +70,43 @@ namespace CMS2026_OXL
 
         public CarSpecLoader(string modsRoot)
         {
-            string medRes = Path.Combine(modsRoot, "CarImages_MEDRES");
-            if (!Directory.Exists(medRes)) return;
+            // Try MEDRES first, fall back to LOWRES
+            string[] roots = {
+        Path.Combine(modsRoot, "CarImages_MEDRES"),
+        Path.Combine(modsRoot, "CarImages_LOWRES"),
+    };
 
-            foreach (var carDir in Directory.GetDirectories(medRes))
+            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string root in roots)
             {
-                string specPath = Path.Combine(carDir, "car_spec.json");
-                if (!File.Exists(specPath)) continue;
+                if (!Directory.Exists(root)) continue;
 
-                try
+                foreach (var carDir in Directory.GetDirectories(root))
                 {
-                    var spec = ParseSpec(File.ReadAllText(specPath));
-                    if (spec != null && !string.IsNullOrEmpty(spec.CarId))
+                    string specPath = Path.Combine(carDir, "car_spec.json");
+                    if (!File.Exists(specPath)) continue;
+
+                    try
                     {
+                        var spec = ParseSpec(File.ReadAllText(specPath));
+                        if (spec == null || string.IsNullOrEmpty(spec.CarId)) continue;
+
+                        // Skip if already loaded from a higher-priority root
+                        if (loaded.Contains(spec.CarId)) continue;
+
                         _specs[spec.CarId] = spec;
+                        loaded.Add(spec.CarId);
+
                         OXLPlugin.Log.Msg(
-     $"[CarSpecLoader] Loaded spec for '{spec.CarId}': " +
-     $"priceModel=(base={spec.PriceModel.BaseValue} parts={spec.PriceModel.MaxParts}) " +
-     $"archetypeKeys=[{string.Join(", ", spec.ArchetypePrices.Keys)}]");
+                            $"[CarSpecLoader] Loaded spec for '{spec.CarId}' from {Path.GetFileName(root)}: " +
+                            $"priceModel=(base={spec.PriceModel.BaseValue} parts={spec.PriceModel.MaxParts}) " +
+                            $"archetypeKeys=[{string.Join(", ", spec.ArchetypePrices.Keys)}]");
                     }
-                }
-                catch (Exception ex)
-                {
-                    OXLPlugin.Log.Msg(
-                        $"[CarSpecLoader] Failed to load {specPath}: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        OXLPlugin.Log.Msg($"[CarSpecLoader] Failed to load {specPath}: {ex.Message}");
+                    }
                 }
             }
         }

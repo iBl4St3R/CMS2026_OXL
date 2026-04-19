@@ -70,6 +70,8 @@ namespace CMS2026_OXL
         private const float RowH = 90f;
         private const float RowGap = 1f;
 
+        private bool _listingPageWasOpen = false;//flaga display
+
         private int _lastKnownListingCount = -1;
 
         private UILabelHandle _listingMoneyLbl;
@@ -144,7 +146,7 @@ namespace CMS2026_OXL
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
 
-            "OXL — Online eX-Owner Lies\nVersion: 0.4.0\nAuthor: iBlaster\n\n" +
+            "OXL — Online eX-Owner Lies\nVersion: 0.4.1\nAuthor: iBlaster\n\n" +
             "Built on _CMS2026_UITK_Framework.\n\n" +
             "github.com/iBl4St3R/CMS2026-OXL\n\n" +
              "— Icons —\n" +
@@ -639,7 +641,7 @@ namespace CMS2026_OXL
             _panel.AddSeparator(new Color(0.15f, 0.42f, 0.24f, 0.45f));
 
             var footerLbl = _panel.AddLabel(
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.1  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 new Color(0.22f, 0.48f, 0.30f, 0.70f),
                 height: 32f);
             footerLbl.SetFontSize(10);
@@ -1252,12 +1254,14 @@ namespace CMS2026_OXL
             _currentPage = 0;
             RefreshListings();
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), true);
+            _listingPageWasOpen = true;
         }
 
         private void HideListingPage()
         {
             if (_listingPagePtr == IntPtr.Zero) return;
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), false);
+            _listingPageWasOpen = false;
         }
 
 
@@ -1900,7 +1904,7 @@ namespace CMS2026_OXL
             // Main footer text
             var lbl = _panel.AddLabelToContainer(
                 foot,
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.1  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 0f, 0f, PanelW, FootH,
                 new Color(0.22f, 0.48f, 0.30f, 0.70f));
             lbl.SetFontSize(10);
@@ -3428,6 +3432,13 @@ namespace CMS2026_OXL
             _panel.SetVisible(true);
             _isVisible = true;
             SetPlayerInput(false);
+
+            if (_listingPageWasOpen)
+            {
+                if (_filteredListings != null) ApplyFilters();
+                _lastKnownListingCount = _listings?.ActiveListings.Count ?? 0;
+                RefreshListings();
+            }
         }
 
         public void Close()
