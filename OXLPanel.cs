@@ -144,7 +144,7 @@ namespace CMS2026_OXL
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
 
-            "OXL — Online eX-Owner Lies\nVersion: 0.3.0\nAuthor: iBlaster\n\n" +
+            "OXL — Online eX-Owner Lies\nVersion: 0.4.0\nAuthor: iBlaster\n\n" +
             "Built on _CMS2026_UITK_Framework.\n\n" +
             "github.com/iBl4St3R/CMS2026-OXL\n\n" +
              "— Icons —\n" +
@@ -244,6 +244,13 @@ namespace CMS2026_OXL
         static readonly Color LockBgOn = new Color(0.28f, 0.05f, 0.05f, 1f);  // zablokowany — ciemny czerwony
         static readonly Color LockBdrOn = new Color(0.80f, 0.20f, 0.20f, 0.80f);
         static readonly Color LockBdrOff = new Color(0.15f, 0.25f, 0.38f, 0.40f);
+
+        private IntPtr _lgViewportPtr;
+        private IntPtr _lgContentPtr;
+        private float _lgScrollY = 0f;
+        private float _lgContentHeight = 0f;
+        private const float LgScrollStep = 40f;
+
 
 
         private CarSpecLoader _specLoader;
@@ -632,7 +639,7 @@ namespace CMS2026_OXL
             _panel.AddSeparator(new Color(0.15f, 0.42f, 0.24f, 0.45f));
 
             var footerLbl = _panel.AddLabel(
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.3.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 new Color(0.22f, 0.48f, 0.30f, 0.70f),
                 height: 32f);
             footerLbl.SetFontSize(10);
@@ -1893,7 +1900,7 @@ namespace CMS2026_OXL
             // Main footer text
             var lbl = _panel.AddLabelToContainer(
                 foot,
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.3.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.4.0  \u00B7  \u00A9 Blaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 0f, 0f, PanelW, FootH,
                 new Color(0.22f, 0.48f, 0.30f, 0.70f));
             lbl.SetFontSize(10);
@@ -2270,7 +2277,7 @@ namespace CMS2026_OXL
             var descLbl = _panel.AddLabelToContainer(
                 overlay,
                 "Adjusts listing prices relative to the baseline.\n" +
-                "Easy = ceny 15% niższe.  Normal = ceny bazowe (zalecane).  Hard = ceny 20% wyższe.",
+                "Easy = prices 15% lower.  Normal = base prices (recommended).  Hard = prices 20% higher.",
                 Pad, cy, PanelW - Pad * 2f, 40f,
                 Color.white);
             descLbl.SetFontSize(12);
@@ -2477,82 +2484,100 @@ namespace CMS2026_OXL
             _panel.AddOverlayToPanel(ov);
             _listingGenOverlayPtr = UIRuntime.GetPtr(ov);
 
-            // ── 1. ScrollView NAJPIERW (niżej w z-order) ─────────────────────────────
             float scrollTop = TopBarH + 1f;
-            float scrollH = PanelH - OverlayTop - FootH - scrollTop;
+            float scrollViewH = PanelH - OverlayTop - FootH - scrollTop;
 
-            var sv = TryMakeScrollView(ov, 0f, scrollTop, PanelW, scrollH);
-            object sc;
-            if (sv != null)
+            // ── VIEWPORT (clipper) ────────────────────────────────────────────────
+            var viewport = UIRuntime.NewVE();
             {
-                sc = GetScrollContent(sv) ?? sv;
+                var vs = UIRuntime.GetStyle(viewport);
+                S.Position(vs, "Absolute");
+                S.Left(vs, 0f);
+                S.Top(vs, scrollTop);
+                S.Width(vs, PanelW);
+                S.Height(vs, scrollViewH);
+                S.Overflow(vs, "Hidden");
             }
-            else
-            {
-                sc = MakeFallbackContainer(ov, scrollTop, scrollH);
-            }
+            UIRuntime.AddChild(ov, viewport);
+            _lgViewportPtr = UIRuntime.GetPtr(viewport);
 
-            // ── 2. Footer (musi być nad scrollem, pod topbarem) ───────────────────────
+            // ── CONTENT (scrollowany) ─────────────────────────────────────────────
+            var content = UIRuntime.NewVE();
+            {
+                var cs = UIRuntime.GetStyle(content);
+                S.Position(cs, "Absolute");
+                S.Left(cs, 0f);
+                S.Top(cs, 0f);
+                S.Width(cs, PanelW);
+            }
+            UIRuntime.AddChild(viewport, content);
+            _lgContentPtr = UIRuntime.GetPtr(content);
+            _lgScrollY = 0f;
+
+            // Podpięcie wheel event na viewport
+            LgWireScroll(viewport);
+
+            object sc = content;
+
+            // ── Footer i TopBar (poza viewport, bezpośrednio w ov) ───────────────
             BuildFooter(ov, PanelH - OverlayTop - FootH);
-
-            // ── 3. Top bar OSTATNI → renderuje się na wierzchu ────────────────────────
             LgBuildTopBar(ov, "Listing Generation Settings", HideListingGenSettings, out _);
             LgSep(ov, TopBarH);
 
-            // ══ Zawartość scrollowana — cy od 0 ══════════════════════════════════════
+            // ══ Zawartość — cy od 0 (relatywnie do content VE) ════════════════════
             float cy = Mg;
 
-            LgSectionLabel(sc, "LIMIT OGŁOSZEŃ NA TABLICY", Pad, cy);
+            LgSectionLabel(sc, "LISTING CAP", Pad, cy);
             cy += SecH + Sg;
-            LgDescLabel(sc, "Generator nie doda nowych ogłoszeń jeśli aktywna liczba osiągnie ten limit.", Pad, cy);
+            LgDescLabel(sc, "No new listings will be generated once the active count reaches this limit.", Pad, cy);
             cy += 22f + Sg;
 
             _lgMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-                "Maks. ogłoszeń na tablicy:", () => _draftMaxListings,
-                v => _draftMaxListings = v, 1, 50, " ogłoszeń");
+                "Max listings on the board:", () => _draftMaxListings,
+                v => _draftMaxListings = v, 1, 50, " listings");
             cy += CtrlH + Mg;
             LgSep(sc, cy); cy += 1f + Mg;
 
-            LgSectionLabel(sc, "TEMPO GENERACJI", Pad, cy); cy += SecH + Sg;
-            LgDescLabel(sc, "Szansa na wygenerowanie nowego ogłoszenia w ciągu każdej godziny gry.", Pad, cy);
+            LgSectionLabel(sc, "GENERATION RATE", Pad, cy); cy += SecH + Sg;
+            LgDescLabel(sc, "Chance of generating a new listing each in-game hour.", Pad, cy);
             cy += 22f + Sg;
 
             _lgChanceLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-            "Szansa generacji (na godzinę gry):", () => _draftGenChancePct,
-            v => _draftGenChancePct = v, 0, 100, "%", step: 5);
+                "Generation chance (per in-game hour):", () => _draftGenChancePct,
+                v => _draftGenChancePct = v, 0, 100, "%", step: 5);
             cy += CtrlH + Sg;
 
             _lgGenMinLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-                "Min ogłoszeń per batch:", () => _draftGenMin,
+                "Min listings per batch:", () => _draftGenMin,
                 v => _draftGenMin = Mathf.Min(v, _draftGenMax),
-                1, 16, " szt.");
+                1, 16, " pcs");
             cy += CtrlH + Sg;
 
             _lgGenMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-                "Max ogłoszeń per batch:", () => _draftGenMax,
+                "Max listings per batch:", () => _draftGenMax,
                 v => _draftGenMax = Mathf.Max(v, _draftGenMin),
-                1, 16, " szt.");
+                1, 16, " pcs");
             cy += CtrlH + Mg;
             LgSep(sc, cy); cy += 1f + Mg;
 
-            LgSectionLabel(sc, "CZAS TRWANIA OGŁOSZENIA (godziny gry)", Pad, cy); cy += SecH + Sg;
-            LgDescLabel(sc, "Zakres czasu przez jaki ogłoszenie pozostaje aktywne. Min musi być mniejsze niż Max.", Pad, cy);
+            LgSectionLabel(sc, "LISTING DURATION (in-game hours)", Pad, cy); cy += SecH + Sg;
+            LgDescLabel(sc, "How long a listing stays active. Min must be lower than Max.", Pad, cy);
             cy += 22f + Sg;
 
             _lgDurMinLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-                "Min czas trwania:", () => _draftDurMinH,
+                "Min duration:", () => _draftDurMinH,
                 v => _draftDurMinH = Mathf.Clamp(v, 1, _draftDurMaxH - 1),
                 1, 167, "h");
             cy += CtrlH + Sg;
 
             _lgDurMaxLbl = LgNumControl(sc, Pad, cy, PanelW - Pad * 2f, CtrlH,
-                "Max czas trwania:", () => _draftDurMaxH,
+                "Max duration:", () => _draftDurMaxH,
                 v => _draftDurMaxH = Mathf.Clamp(v, _draftDurMinH + 1, 168),
                 2, 168, "h");
             cy += CtrlH + Mg;
             LgSep(sc, cy); cy += 1f + Mg;
 
-            LgSectionLabel(sc, "SZANSA NA ARCHETYPE (suma = 100%)", Pad, cy);
+            LgSectionLabel(sc, "ARCHETYPE CHANCE (sum = 100%)", Pad, cy);
 
             _lgArchSumLbl = _panel.AddLabelToContainer(
                 sc, "Σ = 100%", PanelW - Pad - 130f, cy, 130f, SecH,
@@ -2561,12 +2586,12 @@ namespace CMS2026_OXL
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgArchSumLbl.GetRawPtr())), TextAnchor.MiddleRight);
             cy += SecH + Sg;
 
-            LgDescLabel(sc, "Prawdopodobieństwo każdego archetypu. Sprzężone — suma = 100%. Krok: 5%.", Pad, cy);
+            LgDescLabel(sc, "Probability of each archetype. Linked — sum always = 100%. Step: 5%.", Pad, cy);
             cy += 22f + Sg;
-            LgDescLabel(sc, "Kliknij L1/L2/L3 ▶ aby skonfigurować rozkład poziomów wewnątrz archetypu.", Pad, cy);
+            LgDescLabel(sc, "Click L1/L2/L3 ▶ to configure the level distribution within each archetype.", Pad, cy);
             cy += 22f + Sg;
 
-            string[] archNames = { "Honest", "Neglected", "Dealer", "Wrecker" };
+            string[] archNames = { "Honest", "Neglected", "Dealer", "Scammer" };
             Color[] archAccents =
             {
         new Color(0.22f, 0.75f, 0.40f, 1f),
@@ -2588,7 +2613,7 @@ namespace CMS2026_OXL
             const float SaveW = 240f;
             const float SaveH = 48f;
             var savePtr = _panel.AddButtonToContainer(
-                sc, "✔  ZAPISZ USTAWIENIA",
+                sc, "✔  SAVE SETTINGS",
                 (PanelW - SaveW) / 2f, cy, SaveW, SaveH,
                 OXLGreen, SaveListingGenSettings);
             _panel.WireHover(savePtr, OXLGreen,
@@ -2597,7 +2622,7 @@ namespace CMS2026_OXL
 
             var hintLbl = _panel.AddLabelToContainer(
                 sc,
-                "Zmiany zostaną zastosowane do kolejno generowanych ogłoszeń  ·  Zapisane do CMS2026_OXL.cfg",
+                "Changes apply to newly generated listings only  ·  Saved to CMS2026_OXL.cfg",
                 0f, cy + SaveH + 6f, PanelW, 18f,
                 new Color(0.55f, 0.68f, 0.58f, 1f));
             hintLbl.SetFontSize(10);
@@ -2605,20 +2630,72 @@ namespace CMS2026_OXL
 
             cy += SaveH + 18f + 20f;
 
-            if (sv != null) SetScrollContentHeight(sc, cy);
+            // ── Ustaw wysokość contentu ───────────────────────────────────────────
+            _lgContentHeight = cy;
+            S.Height(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgContentPtr)), cy);
         }
 
-        // ── Wiersz archetypu: [nazwa] [pasek] [wartość%] [−] [+] [L1/L2/L3 ▶] ────────
 
-        private void BuildLgArchRow(object overlay, int ai, string name, Color accent,float x, float y, float w, float rowH)
+        private void LgWireScroll(object viewport)
+        {
+            try
+            {
+                var ue = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "UnityEngine.UIElementsModule");
+                if (ue == null) { OXLPlugin.Log.Msg("[OXL] LgWireScroll: UIElements assembly not found"); return; }
+
+                var trickle = ue.GetType("UnityEngine.UIElements.TrickleDown");
+                var wheelType = ue.GetType("UnityEngine.UIElements.WheelEvent");
+                var regBase = UIRuntime.VisualElementType.GetMethods()
+                    .First(m => m.Name == "RegisterCallback"
+                             && m.IsGenericMethod
+                             && m.GetParameters().Length == 2);
+
+                var wheelReg = regBase.MakeGenericMethod(wheelType);
+                Action<UnityEngine.UIElements.WheelEvent> wheelH = evt =>
+                {
+                    LgScroll(evt.delta.y * LgScrollStep);
+                    try
+                    {
+                        var stopProp = ue.GetType("UnityEngine.UIElements.EventBase")
+                            ?.GetMethod("StopPropagation");
+                        stopProp?.Invoke(evt, null);
+                    }
+                    catch { }
+                };
+
+                wheelReg.Invoke(viewport, new object[] {
+            Il2CppInterop.Runtime.DelegateSupport
+                .ConvertDelegate<UnityEngine.UIElements.EventCallback<UnityEngine.UIElements.WheelEvent>>(wheelH),
+            Enum.Parse(trickle, "TrickleDown")
+        });
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL] LgWireScroll failed: {ex.Message}");
+            }
+        }
+
+
+        private void LgScroll(float delta)
+        {
+            if (_lgContentPtr == IntPtr.Zero) return;
+            float scrollViewH = PanelH - OverlayTop - 44f - 1f - 32f;
+            float maxScroll = Mathf.Max(0f, _lgContentHeight - scrollViewH);
+            _lgScrollY = Mathf.Clamp(_lgScrollY + delta, 0f, maxScroll);
+            S.Top(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgContentPtr)), -_lgScrollY);
+        }
+
+
+        private void BuildLgArchRow(object overlay, int ai, string name, Color accent,
+    float x, float y, float w, float rowH)
         {
             const float NameW = 130f;
             const float ValW = 72f;
-            const float BtnW = 36f;  // −, +, 🔒
-            const float EditW = 156f;  // L1/L2/L3
+            const float BtnW = 36f;
+            const float EditW = 156f;
             const float Gp = 6f;
 
-            // Tło karty (bez zmian)
             var card = UIRuntime.NewVE();
             {
                 var cs = UIRuntime.GetStyle(card);
@@ -2632,12 +2709,10 @@ namespace CMS2026_OXL
             }
             UIRuntime.AddChild(overlay, card);
 
-            // Nazwa
             var nameLbl = _panel.AddLabelToContainer(card, name, 12f, 0f, NameW, rowH, accent);
             nameLbl.SetFontSize(14);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(nameLbl.GetRawPtr())), TextAnchor.MiddleLeft);
 
-            // Pasek — szerokość uwzględnia dodatkowy przycisk kłódki
             float barX = 12f + NameW + Gp;
             float barH = 10f;
             float barY = (rowH - barH) / 2f;
@@ -2668,7 +2743,6 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(barBg, barFill);
             _lgArchBarFillPtrs[ai] = UIRuntime.GetPtr(barFill);
 
-            // Etykieta wartości
             float valX = barX + barW + Gp;
             _lgArchLbls[ai] = _panel.AddLabelToContainer(
                 card, $"{_draftArchW[ai]}%", valX, 0f, ValW, rowH, Color.white);
@@ -2682,13 +2756,12 @@ namespace CMS2026_OXL
 
             float minX = valX + ValW + Gp;
             float plsX = minX + BtnW + Gp;
-            float lockX = plsX + BtnW + Gp;     // ← nowa pozycja kłódki
-            float editX = lockX + BtnW + Gp;    // ← L1/L2/L3 przesuniête
+            float lockX = plsX + BtnW + Gp;
+            float editX = lockX + BtnW + Gp;
             float btnY = (rowH - 30f) / 2f;
 
             int ai2 = ai;
 
-            // ── Przycisk − ────────────────────────────────────────────────────────
             var minusPtr = _panel.AddButtonToContainer(card, "−",
                 minX, btnY, BtnW, 30f, BtnDark, () =>
                 {
@@ -2698,7 +2771,6 @@ namespace CMS2026_OXL
                 });
             _panel.WireHover(minusPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            // ── Przycisk + ────────────────────────────────────────────────────────
             var plusPtr = _panel.AddButtonToContainer(card, "+",
                 plsX, btnY, BtnW, 30f, BtnDark, () =>
                 {
@@ -2708,7 +2780,6 @@ namespace CMS2026_OXL
                 });
             _panel.WireHover(plusPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            // ── Kłódka toggle ─────────────────────────────────────────────────────
             Color lockBgNormal = _draftArchLocked[ai2] ? LockBgOn : LockBgOff;
 
             var lockPtr = _panel.AddButtonToContainer(card, "🔒",
@@ -2723,7 +2794,6 @@ namespace CMS2026_OXL
                     S.BgColor(st, newBg);
                     S.BorderColor(st, isLocked ? LockBdrOn : LockBdrOff);
 
-                    // ← Re-wire żeby hover nie resetował do starego koloru
                     _panel.WireHover(_lgArchLockBtnPtrs[ai2],
                         newBg,
                         new Color(0.18f, 0.08f, 0.08f, 1f),
@@ -2734,7 +2804,6 @@ namespace CMS2026_OXL
                 new Color(0.18f, 0.08f, 0.08f, 1f),
                 new Color(0.50f, 0.10f, 0.10f, 0.50f));
 
-            // ── Przycisk L1/L2/L3 ─────────────────────────────────────────────────
             var editPtr = _panel.AddButtonToContainer(card, "L1 / L2 / L3  ▶",
                 editX, btnY, EditW, 30f,
                 new Color(0.06f, 0.10f, 0.18f, 1f),
@@ -2744,7 +2813,6 @@ namespace CMS2026_OXL
                 new Color(0.10f, 0.16f, 0.26f, 1f),
                 accent with { a = 0.50f });
         }
-
 
         // ══════════════════════════════════════════════════════════════════════════════
         //  ARCHETYPE LEVEL OVERLAY
@@ -2777,7 +2845,7 @@ namespace CMS2026_OXL
             // ── Zawartość — dodana PRZED topbarem (niżej w z-order) ─────────────────
             float cy = TopBarH + 1f + Mg;
 
-            LgSectionLabel(ov, "ROZKŁAD POZIOMÓW (suma = 100%)", Pad, cy);
+            LgSectionLabel(ov, "LEVEL DISTRIBUTION (sum = 100%)", Pad, cy);
 
             _lgLvlSumLbl = _panel.AddLabelToContainer(
                 ov, "Σ = 100%",
@@ -2789,15 +2857,15 @@ namespace CMS2026_OXL
             cy += SecH + Sg;
 
             LgDescLabel(ov,
-                "Szansa na każdy poziom doświadczenia wewnątrz wybranego archetypu. Sprzężone — suma zawsze = 100%. Krok: 5%.",
+                "Chance for each experience level within the selected archetype. Linked — sum always = 100%. Step: 5%.",
                 Pad, cy);
             cy += 22f + Mg;
 
             string[] lvlLabels =
             {
-        "L1  —  Novice  ·  Casual  ·  Backyard  ·  Amateur",
-        "L2  —  Experienced  ·  Busy  ·  Pro  ·  Intermediate",
-        "L3  —  Veteran  ·  Hoarder  ·  Criminal  ·  Expert",
+        "L1  —  Novice",
+        "L2  —  Experienced",
+        "L3  —  Veteran",
     };
             Color[] lvlAccents =
             {
@@ -2827,7 +2895,7 @@ namespace CMS2026_OXL
             const float SaveW = 260f;
             const float SaveH = 48f;
             var savePtr = _panel.AddButtonToContainer(
-                ov, "✔  ZAPISZ POZIOMY",
+                 ov, "✔  SAVE LEVELS",
                 (PanelW - SaveW) / 2f, cy, SaveW, SaveH,
                 OXLGreen, () => { SaveListingGenSettings(); HideArchLevel(); });
             _panel.WireHover(savePtr, OXLGreen,
@@ -2835,7 +2903,7 @@ namespace CMS2026_OXL
                 new Color(0.16f, 0.48f, 0.28f, 1f));
 
             var backLinkLbl = _panel.AddLabelToContainer(
-                ov, "← Wróć do Listing Generation aby zapisać wszystkie ustawienia razem",
+                ov, "← Go back to Listing Generation to save all settings together",
                 0f, cy + SaveH + 6f, PanelW, 18f,
                 new Color(0.35f, 0.48f, 0.38f, 0.60f));
             backLinkLbl.SetFontSize(10);
@@ -3002,7 +3070,7 @@ namespace CMS2026_OXL
             topBarVE = topBar;
 
             var backPtr = _panel.AddButtonToContainer(
-                topBar, "← Wstecz", 12f, 6f, 110f, 32f, BtnDark, onBack);
+                topBar, "← Back", 12f, 6f, 110f, 32f, BtnDark, onBack);
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             if (!string.IsNullOrEmpty(title))
@@ -3222,6 +3290,12 @@ namespace CMS2026_OXL
             HideListingPage();
             HideDetail();
             HidePage();
+
+            // Reset scroll do góry przy każdym otwarciu
+            _lgScrollY = 0f;
+            if (_lgContentPtr != IntPtr.Zero)
+                S.Top(UIRuntime.GetStyle(UIRuntime.WrapVE(_lgContentPtr)), 0f);
+
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingGenOverlayPtr)), true);
         }
 
@@ -3248,8 +3322,8 @@ namespace CMS2026_OXL
                 S.BorderColor(st, lk ? LockBdrOn : LockBdrOff);
             }
 
-            string[] names = { "Honest", "Neglected", "Dealer", "Wrecker" };
-            _lgLvlTitleLbl?.SetText($"{names[archIdx]}  —  Rozkład Poziomów");
+            string[] names = { "Honest", "Neglected", "Dealer", "Scammer" };
+            _lgLvlTitleLbl?.SetText($"{names[archIdx]}  —  Level Distribution");
             RefreshLgLvlDisplays();
 
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_archLevelOverlayPtr)), true);

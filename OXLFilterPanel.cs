@@ -213,7 +213,7 @@ namespace CMS2026_OXL
             MidLeft(_arrowLbl);
 
             // "FILTRY" title
-            var title = _owner.AddLabelToContainer(zone, "FILTRY", 38f, 0f, 90f, BarH, Grn);
+            var title = _owner.AddLabelToContainer(zone, "FILTERS", 38f, 0f, 90f, BarH, Grn);
             title.SetFontSize(13);
             MidLeft(title);
 
@@ -480,7 +480,7 @@ namespace CMS2026_OXL
         {
             int n = Current.ActiveCount;
             if (n == 0) { _badgeLbl?.SetText(""); return; }
-            string form = n == 1 ? "filtr aktywny" : n < 5 ? "filtry aktywne" : "filtrów aktywnych";
+            string form = n == 1 ? "filter active" : "filters active";
             _badgeLbl?.SetText($"  {n} {form}");
         }
 
