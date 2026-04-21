@@ -26,73 +26,113 @@ namespace CMS2026_OXL
         private readonly Dictionary<string, Texture2D> _texCache = new();
         private readonly LinkedList<string> _texLru = new();
 
-        // ── Nickname pools ────────────────────────────────────────────────────
-        private static readonly string[] Prefixes =
-{
-    // Oryginalne i podobne (Ogólny vibe)
-    "Fast", "Rusty", "Dirty", "Lucky", "Slick", "Grease", "Mad", "Iron", "Steel",
-    "Quick", "Shifty", "Dodgy", "Honest", "Shady", "Turbo", "Nitro", "Dusty",
-    "Banged", "Smooth", "Bent", "Crooked", "Bargain", "Flash", "Sly", "Old",
-    "Speedy", "Cranky", "Leaky", "Busted", "Solid",
-
-    // Stan techniczny i wizualny
-    "Mint", "Pristine", "Wrecked", "Totaled", "Smashed", "Dented", "Scratched",
-    "Polished", "Gleaming", "Filthy", "Clean", "Muddy", "Oily", "Greasy",
-    "Squeaky", "Rattling", "Knocking", "Ticking", "Purring", "Roaring", "Smoking",
-    "Sparking", "Burned", "Fried", "Melted", "Frozen", "Broken", "Fixed",
-    "Repaired", "Scrapped", "Crusty", "Trashy", "Messy", "Classy",
-
-    // Cechy charakteru i biznesowe
-    "Cheap", "Fair", "Swindling", "Trusty", "Reliable", "Sketchy", "Sneaky",
-    "Clever", "Smart", "Crazy", "Wild", "Psycho", "Happy", "Angry", "Grumpy",
-    "Smug", "Proud", "Lazy", "Busy", "Tired", "Generous", "Greedy", "Ruthless",
-    "Savage", "Tough", "Premium", "Discount", "Elite", "Budget", "Luxury",
-
-    // Styl i Tuning
-    "Boosted", "Tuned", "Stanced", "Slammed", "Lifted", "Custom", "Stock",
-    "Factory", "Revved", "Geared", "Driven", "Parked", "Drifting", "Racing",
-    "Cruising", "Chopped", "Channeled", "Shaved", "Stripped", "Bare", "Heavy",
-    "Light", "Aero", "Forged", "Billet",
-
-    // Kolory, Materiały i Klimat
-    "Red", "Black", "Blue", "Silver", "Gold", "Chrome", "Aluminum", "Carbon",
-    "Oxidized", "Copper", "Brass", "Uptown", "Downtown", "Backyard", "Street",
-    "Alley", "Junkyard", "Highway", "City", "Country", "Desert", "Midnight",
-    "Neon", "Ghost", "Phantom", "Shadow", "Epic", "Legendary", "Cursed", "Blessed"
+        // ── Nickname pools ────────────────────────────────────────────────────────
+        private static readonly string[] MalePrefixes =
+        {
+    // Oryginalne i osobowość
+    "Honest", "Shady", "Rusty", "Greasy", "Crazy", "Big", "Old", "Fast", "Smiling", "Trusty",
+    "Dodgy", "Lucky", "Dirty", "Slick", "Cheap", "Fair", "Crooked", "Bent", "Smug", "Broke",
+    "Tired", "Grumpy", "Bald", "Sweaty", "Flashy", "Busted", "Sketchy", "Solid", "Turbo", "Nitro",
+    // Handlarze i biznes
+    "Deals", "Bargain", "Discount", "Premium", "Elite", "Budget", "Stealy", "Hustling", "Sly", "Cunning",
+    "Rich", "Poor", "Desperate", "Greedy", "Sleepy", "Loud", "Silent", "Strict", "Easy", "Hard",
+    // Techniczne i stan
+    "Smoking", "Leaky", "Knocking", "Rattling", "Ticking", "Burnt", "Fried", "Frozen", "Seized", "Dented",
+    "Scratched", "Primer", "Matte", "Glossy", "Polished", "Wrecked", "Totaled", "Salvaged", "Mint", "Pristine",
+    // Klimat uliczny/garażowy
+    "Street", "Alley", "Backyard", "Junkyard", "Highway", "Drift", "Drag", "Racing", "Cruising", "Low",
+    "High", "Heavy", "Light", "Wide", "Narrow", "Short", "Long", "Mad", "Wild", "Savage",
+    // Przymiotniki różne
+    "Mean", "Kind", "Odd", "Rare", "Classic", "Vintage", "Modern", "Custom", "Stock", "Factory",
+    "Manual", "Auto", "Geared", "Boosted", "Tunned", "Stanced", "Slammed", "Lifted", "Beaten", "Banged",
+    "Shiny", "Crusty", "Muddy", "Oily", "Filthy", "Clean", "Pure", "Raw", "Rough", "Tough",
+    "Quick", "Rapid", "Slow", "Steady", "Cranky", "Wonky", "Shifting", "Drifting", "Burning", "Spinning",
+    "Grimy", "Dusty", "Stale", "Fresh", "Golden", "Silver", "Iron", "Steel", "Chrome", "Carbon",
+    "Ghost", "Shadow", "Phantom", "Spirit", "Demon", "Devil", "Angel", "Saint", "Sinful", "Holy",
+    "Big-Block", "Small-Block", "Twin", "V8", "Rotary", "Flat", "Boxer", "Inline", "Diesel", "Electric"
 };
 
-        private static readonly string[] Nouns =
+        private static readonly string[] FemalePrefixes =
         {
-    // Oryginalne i Imiona (Klimat warsztatu/komisu)
-    "Dave", "Pete", "Mike", "Joe", "Bob", "Al", "Rex", "Benny", "Frank", "Vince",
-    "Tony", "Carl", "Mack", "Hank", "Norm", "Clint", "Ray", "Larry", "Gary",
-    "Terry", "Jerry", "Barry", "Harry", "Lenny", "Homer", "Barney", "Arthur",
-    "Richard", "Edward", "Charles", "William", "James", "John", "Robert",
-    "David", "Joseph", "Daniel", "Matthew", "Anthony", "Mark", "Donald",
-    "Steven", "Paul", "Andrew", "Kevin", "Brian", "Jason", "Ryan", "Eric", "Stan",
+    // Oryginalne i styl
+    "Shiny", "Swift", "Lucky", "Slick", "Clever", "Classy", "Smart", "Sharp", "Quick", "Sassy",
+    "Clean", "Mint", "Busy", "Foxy", "Boss", "Iron", "Rusty", "Honest", "Sweet", "Tough",
+    "Fair", "Sneaky", "Proud", "Neat", "Flashy", "Pristine", "Turbo", "Smooth", "Aero", "Elite",
+    // Charakter i biznes
+    "Greedy", "Thrifty", "Spendy", "Rich", "Wealthy", "Broke", "Dashing", "Grand", "Royal", "Noble",
+    "Graceful", "Fierce", "Wild", "Calm", "Cool", "Hot", "Firey", "Icy", "Cold", "Warm",
+    // Techniczne i wygląd
+    "Glossy", "Metallic", "Chrome", "Pearl", "Satin", "Matte", "Carbon", "Alloy", "Forged", "Billet",
+    "Sparkly", "Glowing", "Radiant", "Neon", "Electric", "Silent", "Loud", "Fast", "Speedy", "Rapid",
+    // Uliczne i profesjonalne
+    "Urban", "City", "Metro", "Country", "Track", "Road", "Drift", "Circuit", "Sprint", "Enduro",
+    "Custom", "Original", "Pure", "Prime", "Top", "Pro", "Expert", "Master", "Chief", "Queen",
+    // Różne i opisowe
+    "Bold", "Brave", "Little", "Tiny", "Huge", "Major", "Minor", "First", "Last", "Only",
+    "Retro", "Mod", "New", "Aged", "Old", "Young", "Ancient", "Future", "Digital", "Analog",
+    "Heavy", "Light", "Slim", "Hard", "Soft", "Blue", "Red", "Black", "White", "Gold",
+    "Silver", "Copper", "Brass", "Bronze", "Velvet", "Silk", "Leather", "Denim", "Steel", "Glass",
+    "Mighty", "Strong", "Steady", "Swift", "Nimble", "Agile", "Fast", "Active", "Deep", "Bright"
+};
 
-    // Części Silnikowe i Mechaniczne
-    "Wheels", "Wrench", "Spanner", "Piston", "Valve", "Gasket", "Jack", "Rod",
-    "Cam", "Crank", "Engine", "Motor", "Exhaust", "Muffler", "Pipe", "Header",
-    "Intake", "Filter", "Carb", "Injector", "Sparkplug", "Wire", "Battery",
-    "Alternator", "Starter", "Radiator", "Hose", "Pump", "Belt", "Pulley",
-    "Gear", "Trans", "Clutch", "Flywheel", "Driveshaft", "Axle", "Diff",
-    "Bearing", "Hub", "Rotor", "Caliper", "Pad", "Shoe", "Drum", "Line", "Fluid",
-    "Oil", "Lube", "Tire", "Rim",
+        private static readonly string[] SharedNouns =
+        {
+    // Oryginalne i biznesy
+    "Wheels", "Motors", "Garage", "Deals", "Auto", "Wrench", "Imports", "Classics", "Traders", "Sales",
+    "Junk", "Yard", "Scrap", "Flips", "Exhaust", "Parts", "Lot", "Steals", "Bargains", "Salvage",
+    "Wreckers", "Dismantlers", "Customs", "Rides", "Projects", "Market", "Exports", "JDM", "Euro", "Muscle",
+    // Części mechaniczne
+    "Pistons", "Valves", "Gaskets", "Rods", "Cams", "Cranks", "Blocks", "Heads", "Turbos", "Blowers",
+    "Injectors", "Plugs", "Wires", "Belts", "Hoses", "Filters", "Pumps", "Fans", "Radiators", "Coils",
+    "Clutches", "Gears", "Diffs", "Axles", "Shafts", "Joints", "Hubs", "Bearings", "Brakes", "Pads",
+    "Rotors", "Calipers", "Struts", "Shocks", "Springs", "Bushings", "Arms", "Links", "Bars", "Racks",
+    // Nadwozie i wnętrze
+    "Fenders", "Bumpers", "Hoods", "Doors", "Panels", "Trunks", "Roofs", "Windows", "Mirrors", "Lights",
+    "Seats", "Wheels", "Tires", "Rims", "Alloys", "Steering", "Dash", "Gauges", "Pedals", "Shifters",
+    // Slang i miejsca
+    "Barns", "Sheds", "Shacks", "Stalls", "Bays", "Docks", "Hubs", "Points", "Spots", "Zones",
+    "Addicts", "Enthusiasts", "Heads", "Nuts", "Freaks", "Geeks", "Kings", "Lords", "Pro", "Masters",
+    "Speed", "Power", "Torque", "Boost", "Nitrous", "Fuel", "Oil", "Lube", "Gas", "Diesel",
+    "Rods", "Sleds", "Beaters", "Sleepers", "Gassers", "Tuners", "Racers", "Drivers", "Pilots", "Owners",
+    "Dealers", "Brokers", "Agents", "Scouts", "Finders", "Keepers", "Sellers", "Buyers", "Traders", "Swappers"
+};
 
-    // Karoseria, Narzędzia i Akcesoria
-    "Hubcap", "Fender", "Bumper", "Hood", "Trunk", "Door", "Roof", "Window",
-    "Glass", "Mirror", "Seat", "Steering", "Dash", "Console", "Radio", "Speaker",
-    "Amp", "Sub", "Wiring", "Fuse", "Relay", "Switch", "Hammer", "Mallet",
-    "Socket", "Ratchet", "Grinder", "Welder", "Torch", "Pliers", "Hoist", "Lift",
+        private static readonly string[] MaleNouns =
+        {
+    // Oryginalne i klasyki
+    "Dave", "Pete", "Mike", "Hank", "Rex", "Tony", "Vince", "Frank", "Boris", "Jimmy",
+    "Mick", "Vlad", "Chuck", "Ray", "Gus", "Bob", "Al", "Norm", "Clint", "Larry",
+    "Gary", "Terry", "Jerry", "Barry", "Harry", "Stan", "Carl", "Mack", "Benny", "Joe",
+    // Nowe imiona
+    "Arnie", "Bernie", "Charlie", "Danny", "Eddie", "Freddie", "Georgie", "Hughie", "Ivan", "Jake",
+    "Kenny", "Lenny", "Monty", "Nate", "Ollie", "Phil", "Quint", "Rick", "Saul", "Tim",
+    "Uri", "Victor", "Walt", "Xavier", "Yuri", "Zack", "Arthur", "Bill", "Don", "Earl",
+    "Felix", "Gabe", "Herb", "Igor", "Jack", "Karl", "Leo", "Max", "Ned", "Oscar",
+    "Paul", "Ralph", "Steve", "Tom", "Uly", "Vern", "Will", "Zane", "Bruce", "Duke",
+    "Earl", "Floyd", "Grant", "Heath", "Ike", "Jed", "Kirk", "Lance", "Mitch", "Nash",
+    "Otto", "Pierce", "Reid", "Seth", "Tate", "Vance", "Wade", "Ace", "Buck", "Cash",
+    "Dash", "Edge", "Flint", "Gunner", "Hunter", "Iron", "Jax", "Kane", "Link", "Maverick",
+    "Rocco", "Sledge", "Tank", "Wolf", "Axel", "Blade", "Cutter", "Diesel", "Gear", "Hammer",
+    "Rusty", "Spike", "Turbo", "Zod", "Biff", "Buzz", "Chip", " Kip", "Skip", "Ziggy"
+};
 
-    // Typ działalności i Miejsca
-    "Motors", "Dealer", "Trader", "Garage", "Auto", "Parts", "Sales", "Market",
-    "Emporium", "Shack", "Shed", "Barn", "Lot", "Yard", "Scrapyard", "Junkyard",
-    "Salvage", "Wreckers", "Dismantlers", "Customs", "Speedshop", "Tuners",
-    "Workshop", "Mechanics", "Automotive", "Vehicle", "Car", "Truck", "Bike",
-    "Rides", "Deals", "Bargains", "Steals", "Imports", "Exports", "Classics",
-    "Muscle", "Exotics", "JDM", "Euro"
+        private static readonly string[] FemaleNouns =
+        {
+    // Oryginalne i klasyki
+    "Lisa", "Kay", "Dee", "Rosa", "Vera", "Roxy", "Sue", "Mia", "Jess", "Rita",
+    "Chloe", "Angie", "Nina", "Lucy", "Eva", "Gina", "Tina", "Tara", "Sara", "Cara",
+    "Mara", "Lara", "Donna", "Brenda", "Linda", "Meg", "Pam", "Kim", "Jen", "Beth",
+    // Nowe imiona
+    "Alice", "Belle", "Cathy", "Dora", "Elsa", "Faye", "Gwen", "Hope", "Iris", "June",
+    "Kate", "Lana", "Maya", "Nora", "Olive", "Pearl", "Quinn", "Rose", "Skye", "Tess",
+    "Uma", "Vi", "Willow", "Xena", "Yana", "Zoe", "Amy", "Bonnie", "Cleo", "Daisy",
+    "Ember", "Flora", "Gia", "Hazel", "Ivy", "Jade", "Kiki", "Luna", "Misty", "Nova",
+    "Opal", "Piper", "Ruby", "Sage", "Trudy", "Vada", "Wren", "Zelda", "Amber", "Blair",
+    "Crystal", "Dawn", "Eve", "Faith", "Ginger", "Holly", "Joy", "Kelly", "Lily", "Molly",
+    "Nancy", "Penny", "Roxie", "Sasha", "Trixie", "Vicky", "Wendy", "Abby", "Becca", "Candy",
+    "Dolly", "Ellie", "Gigi", "Heidi", "Izzy", "Jojo", "Lulu", "Mimi", "Nana", "Pippa",
+    "Sassy", "Tilly", "Zuzu", "Kat", "Lexi", "Maddy", "Nat", "Ria", "Steff", "Val",
+    "Aria", "Brea", "Cora", "Dara", "Eira", "Fara", "Gala", "Hala", "Ila", "Jala"
 };
 
         // ── Singleton-style factory ───────────────────────────────────────────
@@ -130,7 +170,7 @@ namespace CMS2026_OXL
 
             string path = PickPath(preferMale, rng);
             Texture2D tex = path != null ? GetOrLoad(path) : null;
-            string nick = GenerateNick(rng);
+            string nick = GenerateNick(rng, preferMale);
 
             return (tex, nick, path ?? "");
         }
@@ -247,13 +287,16 @@ namespace CMS2026_OXL
             }
         }
 
-        private static string GenerateNick(System.Random rng)
+        private string GenerateNick(System.Random rng, bool preferMale)
         {
-            // ~30% chance: pure word combo  e.g. "IronWheels"
-            // ~40% chance: word + number    e.g. "RustyDave88"
-            // ~30% chance: word_word        e.g. "SlickPiston99"
-            string prefix = Prefixes[rng.Next(Prefixes.Length)];
-            string noun = Nouns[rng.Next(Nouns.Length)];
+            string[] prefixes = preferMale ? MalePrefixes : FemalePrefixes;
+            string prefix = prefixes[rng.Next(prefixes.Length)];
+
+            // 50% szans: własna pula płciowa, 50%: wspólna
+            string[] nounPool = rng.Next(0, 2) == 0
+                ? (preferMale ? MaleNouns : FemaleNouns)
+                : SharedNouns;
+            string noun = nounPool[rng.Next(nounPool.Length)];
 
             int style = rng.Next(0, 10);
 
@@ -261,14 +304,9 @@ namespace CMS2026_OXL
                 return prefix + noun;
 
             if (style < 7)
-            {
-                int num = rng.Next(0, 100);
-                return prefix + noun + num.ToString();
-            }
+                return prefix + noun + rng.Next(0, 100).ToString();
 
-            // underscore + suffix number
-            int suffix = rng.Next(1, 999);
-            return prefix + "_" + noun + suffix.ToString();
+            return prefix + "_" + noun + rng.Next(1, 999).ToString();
         }
 
         private static string[] LoadPngList(string dir)

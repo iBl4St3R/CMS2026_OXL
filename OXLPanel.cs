@@ -166,6 +166,8 @@ namespace CMS2026_OXL
         // ── Icon cache ────────────────────────────────────────────────────────
         private Texture2D _icoPrev, _icoNext, _icoRef, _icoSecured, _icoMenu;
 
+        private Texture2D _mapPlaceholder;
+
         // ── button cache ────────────────────────────────────────────────────────
         private Texture2D _passengerCars, _carParts, _workshopItems, _decorations;
 
@@ -1523,12 +1525,19 @@ namespace CMS2026_OXL
             UIRuntime.AddChild(locCard, mapBox);
 
             // Pin placeholder — do czasu wstawienia prawdziwej mapy
-            var pinLbl = _panel.AddLabelToContainer(
-                mapBox, "\U0001F4CD", 0f, 0f, MapS, MapS,
-                new Color(0.22f, 0.59f, 0.34f, 0.9f));
-            pinLbl.SetFontSize(32);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())),
-                TextAnchor.MiddleCenter);
+            if (_mapPlaceholder != null)
+            {
+                UIRuntime.SetBackgroundImage(mapBox, _mapPlaceholder);
+            }
+            else
+            {
+                var pinLbl = _panel.AddLabelToContainer(
+                    mapBox, "\U0001F4CD", 0f, 0f, MapS, MapS,
+                    new Color(0.22f, 0.59f, 0.34f, 0.9f));
+                pinLbl.SetFontSize(32);
+                S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())),
+                    TextAnchor.MiddleCenter);
+            }
 
             float locTx = MapS + 20f;  // 148f
 
@@ -1769,6 +1778,9 @@ namespace CMS2026_OXL
             _icoRef = TryLoadTexture(Path.Combine(iconDir, "ref.png"));
             _icoSecured = TryLoadTexture(Path.Combine(iconDir, "secured.png"));
             _icoMenu = TryLoadTexture(Path.Combine(iconDir, "ModMenu.png"));
+
+            _mapPlaceholder = TryLoadTexture(Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL","Resources", "Images", "mapPH.png"));
+
 
             string carImgRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "CarImages");
 
