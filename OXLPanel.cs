@@ -129,6 +129,11 @@ namespace CMS2026_OXL
 
         private UILabelHandle _detailBalanceLbl;
 
+        private IntPtr _sellerAvatarPtr;
+        private SellerProfile _panel_sellerProfile;
+        private UILabelHandle _detailSellerName;
+        private UILabelHandle _detailSellerType;
+
         // ── Menu & static pages ───────────────────────────────────────────────
         private IntPtr _menuDropdownPtr;
         private bool _menuOpen = false;
@@ -279,7 +284,10 @@ namespace CMS2026_OXL
             string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
             _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
             _specLoader = new CarSpecLoader(modsRoot);
-            _listings = new ListingSystem(_photoLoader, _specLoader);
+            _panel_sellerProfile = new SellerProfile(modsRoot);
+            _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
+
+
 
             // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
             _listings.ApplyConfig(OXLSettings.SavedGenConfig);
@@ -1415,7 +1423,7 @@ namespace CMS2026_OXL
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
                 new Color(0.16f, 0.48f, 0.28f, 1f));
-            ry += 56f;
+            ry += 66f;
 
             // ── Seller card ───────────────────────────────────────────────────
             const float CardH = 144f;   // było 72f
@@ -1443,25 +1451,27 @@ namespace CMS2026_OXL
             S.BorderColor(avs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
             UIRuntime.AddChild(sellerCard, avatarBox);
 
-            var avatarLbl = _panel.AddLabelToContainer(
-                avatarBox, "?", 0f, 0f, AvatarS, AvatarS,
-                new Color(0.30f, 0.45f, 0.35f, 0.8f));
-            avatarLbl.SetFontSize(36);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(avatarLbl.GetRawPtr())),
-                TextAnchor.MiddleCenter);
+            _sellerAvatarPtr = UIRuntime.GetPtr(avatarBox);
+
+            //var avatarLbl = _panel.AddLabelToContainer(
+            //    avatarBox, "?", 0f, 0f, AvatarS, AvatarS,
+            //    new Color(0.30f, 0.45f, 0.35f, 0.8f));
+            //avatarLbl.SetFontSize(36);
+            //S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(avatarLbl.GetRawPtr())),
+            //    TextAnchor.MiddleCenter);
 
             float tx = AvatarS + 20f;  // 148f
 
-            var sellerTypeLbl = _panel.AddLabelToContainer(
+            _detailSellerType = _panel.AddLabelToContainer(
                 sellerCard, "PRIVATE SELLER",
                 tx, 18f, 200f, 14f,
                 new Color(0.38f, 0.55f, 0.42f, 0.80f));
-            sellerTypeLbl.SetFontSize(9);
+            _detailSellerType.SetFontSize(9);
 
-            var sellerNameLbl = _panel.AddLabelToContainer(
-                sellerCard, "Anonymous",
-                tx, 36f, 200f, 26f, Color.white);
-            sellerNameLbl.SetFontSize(17);
+            _detailSellerName = _panel.AddLabelToContainer(
+            sellerCard, "Anonymous",
+            tx, 36f, 200f, 26f, Color.white);
+            _detailSellerName.SetFontSize(17);
 
             var sellerStarsLbl = _panel.AddLabelToContainer(
                 sellerCard, FormatStars(3),
@@ -1483,7 +1493,7 @@ namespace CMS2026_OXL
                 new Color(0.06f, 0.12f, 0.22f, 1f),
                 new Color(0.10f, 0.20f, 0.34f, 1f),
                 SearchBdr);
-            ry += CardH + 8f;
+            ry += CardH + 18f;
 
             // ── Location card ─────────────────────────────────────────────────
             const float LocCardH = 144f;   // było 72f
@@ -1538,7 +1548,7 @@ namespace CMS2026_OXL
                 new Color(0.55f, 0.65f, 0.72f, 1f));
             _detailYear.SetFontSize(12);
 
-            ry += LocCardH + 8f;
+            ry += LocCardH + 18f;
 
             // ── Seller note — rozciągnięty do footera ─────────────────────────────
             const float FooterH = 32f;
@@ -1685,6 +1695,28 @@ namespace CMS2026_OXL
             _detailSellerStars?.SetText(FormatStars(listing.SellerRating));
             _detailSellerStars?.SetColor(StarColor(listing.SellerRating));
 
+            // Nickname i typ sprzedawcy
+            _detailSellerName?.SetText(
+                string.IsNullOrEmpty(listing.SellerNick) ? "Anonymous" : listing.SellerNick);
+
+            _detailSellerType?.SetText(listing.Archetype switch
+            {
+                SellerArchetype.Dealer => "DEALER",
+                SellerArchetype.Scammer => "PRIVATE SELLER",   // ukrywa tożsamość
+                SellerArchetype.Wrecker => "PRIVATE SELLER",
+                _ => "PRIVATE SELLER",
+            });
+
+            // Awatar
+            if (_sellerAvatarPtr != IntPtr.Zero)
+            {
+                Texture2D avatarTex = (!string.IsNullOrEmpty(listing.AvatarPath))
+                    ? _panel_sellerProfile?.GetCachedOrLoad(listing.AvatarPath)
+                    : null;
+                UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(_sellerAvatarPtr), avatarTex);
+            }
+
+
             try
             {
                 int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
@@ -1710,6 +1742,7 @@ namespace CMS2026_OXL
             _detailListing = null;
             _galleryPhotos.Clear();     // ← puszcza referencje
             _photoLoader?.Evict();      // ← LRU cleanup
+            _panel_sellerProfile?.Evict();
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), false);
         }
 

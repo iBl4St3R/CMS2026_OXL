@@ -32,15 +32,16 @@ namespace CMS2026_OXL
         // Interwał sprawdzania generacji = 1 "godzina gry" w sekundach Unity
         private const float GenCheckInterval = ListingGenConfig.SecondsPerGameHour;
 
-        // ── Konstruktor (bez zmian w sygnaturze) ──────────────────────────────────
-        public ListingSystem(CarPhotoLoader photoLoader, CarSpecLoader specLoader = null)
-        {
-            _photoLoader = photoLoader;
-            _specLoader = specLoader;
-        }
+		// ── Konstruktor ──────────────────────────────────
+		public ListingSystem(CarPhotoLoader photoLoader, CarSpecLoader specLoader, SellerProfile sellerProfile)
+		{
+			_photoLoader = photoLoader;
+			_specLoader = specLoader;
+			_sellerProfile = sellerProfile;
+		}
 
 
-        private class CarDef
+		private class CarDef
         {
             public string Make, Model, ImageFolder, InternalId;
             public int MinYear, MaxYear, MinPrice, MaxPrice;
@@ -66,11 +67,13 @@ namespace CMS2026_OXL
         public float GameTime => _gameTime;
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        //  TICK
-        // ═════════════════════════════════════════════════════════════════════════
+		private readonly SellerProfile _sellerProfile;
 
-        public void Tick(float deltaTime)
+		// ═════════════════════════════════════════════════════════════════════════
+		//  TICK
+		// ═════════════════════════════════════════════════════════════════════════
+
+		public void Tick(float deltaTime)
         {
             // ── Odczyt czasu gry z TimeManager ───────────────────────────────────
             double gameSecs = GameTimeProvider.TotalGameSeconds;
@@ -267,7 +270,14 @@ namespace CMS2026_OXL
 
             listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
 
-            OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} Body={bodyCondition:P0} | Price=${price:N0} Fair=${fairValue:N0} ({(fairValue > 0 ? (float)price / fairValue : 0):F2}x) | Faults={faults} | Color={color} | TTL={ttl:F0}s");
+			var (avatarTex, nick, avatarPath) = _sellerProfile.Generate(listing, rng);
+			listing.SellerNick = nick;
+			listing.AvatarPath = avatarPath;
+
+
+
+			OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} Body={bodyCondition:P0} | Price=${price:N0} Fair=${fairValue:N0} ({(fairValue > 0 ? (float)price / fairValue : 0):F2}x) | Faults={faults} | Color={color} | TTL={ttl:F0}s");
+
 
             return listing;
         }

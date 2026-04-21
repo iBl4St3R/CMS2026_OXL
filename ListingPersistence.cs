@@ -55,6 +55,10 @@ namespace CMS2026_OXL
                     sb.AppendLine($"delivery_hours={l.DeliveryHours}");
                     sb.AppendLine($"seller_rating={l.SellerRating}");
                     sb.AppendLine($"remaining_sec={remaining.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
+
+                    sb.AppendLine($"seller_nick={l.SellerNick ?? ""}");
+                    sb.AppendLine($"avatar_path={l.AvatarPath ?? ""}");
+
                     // Nota Base64 — unika problemów ze znakami specjalnymi i nowymi liniami
                     sb.AppendLine($"seller_note_b64={Convert.ToBase64String(Encoding.UTF8.GetBytes(l.SellerNote ?? ""))}");
                     // PhotoFiles — każdy na osobnej linii, bez trim przy odczycie
@@ -151,6 +155,10 @@ namespace CMS2026_OXL
                         case "delivery_hours": TrySetInt(val, v => current.DeliveryHours = v); break;
                         case "seller_rating": TrySetInt(val, v => current.SellerRating = v); break;
                         case "remaining_sec": TrySetFloat(val, v => remaining = v); break;
+
+                        case "seller_nick": current.SellerNick = val.Trim(); break;
+                        case "avatar_path": current.AvatarPath = val; break;
+
                         case "seller_note_b64":
                             try
                             {

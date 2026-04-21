@@ -26,6 +26,9 @@ namespace CMS2026_OXL
 
     public class CarListing
     {
+        public string SellerNick { get; set; } = "";
+        public string AvatarPath { get; set; } = "";
+
         public int ColorIndex { get; set; } = 0;
         public List<string> PhotoFiles { get; set; } = new();
         public string Make { get; set; } = "";
