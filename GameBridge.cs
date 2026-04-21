@@ -521,6 +521,14 @@ namespace CMS2026_OXL
 			// Body: zawsze 0-30% (wrak), ale nie flat 0.02
 			float bodyWear = UnityEngine.Random.Range(0.01f, 0.30f);
 
+
+			cl.SetConditionOnBody(bodyWear);
+			cl.SetConditionOnDetails(bodyWear);
+			cl.SwitchRusted(bodyWear);
+
+			yield return new WaitForFixedUpdate();
+
+
 			var cp = cl.carParts;
 			if (cp != null)
 			{
@@ -546,11 +554,6 @@ namespace CMS2026_OXL
 				}
 			}
 
-			cl.SetConditionOnBody(bodyWear);
-			cl.SetConditionOnDetails(bodyWear);
-			cl.SwitchRusted(bodyWear);
-
-			yield return new WaitForFixedUpdate();
 			try { cl.UpdateCarBodyParts(); } catch { }
 			try { cl.SetupCarSupport(); } catch { }
 			yield return new WaitForFixedUpdate();
@@ -655,6 +658,12 @@ namespace CMS2026_OXL
 			cl.Dev_RepairAllBody();
 			yield return new WaitForEndOfFrame();
 
+			cl.SetConditionOnBody(bodyBase);
+			cl.SetConditionOnDetails(bodyBase);
+			if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
+
+			yield return new WaitForFixedUpdate();
+
 			// Karoseria
 			var cp = cl.carParts;
 			if (cp != null)
@@ -673,11 +682,7 @@ namespace CMS2026_OXL
 					}
 				}
 			}
-			cl.SetConditionOnBody(bodyBase);
-			cl.SetConditionOnDetails(bodyBase);
-			if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
-
-			yield return new WaitForFixedUpdate();
+			
 			try { cl.UpdateCarBodyParts(); } catch { }
 			try { cl.SetupCarSupport(); } catch { }
 			yield return new WaitForFixedUpdate();

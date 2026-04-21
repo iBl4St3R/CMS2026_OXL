@@ -193,10 +193,10 @@ namespace CMS2026_OXL
 
                 // Klucze muszą pasować do konwencji JSON — te same co w pliku
                 string[] keys = {
-                "neglectedL1", "neglectedL2", "neglectedL3",
+                "wreckerL1", "wreckerL2", "wreckerL3",
                 "dealerL1",    "dealerL2",    "dealerL3",
                 "honestL1",    "honestL2",    "honestL3",
-                "wreckerL1",   "wreckerL2",   "wreckerL3",
+                "scammerL1",   "scammerL2",   "scammerL3",
                 };
 
                 foreach (string key in keys)
