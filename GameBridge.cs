@@ -191,21 +191,29 @@ namespace CMS2026_OXL
             yield return new WaitForEndOfFrame();
 
 
-            // ── WRECKER — totalny wrak, pomijamy normalną logikę ─────────────────
+            // ── SCAMMER — totalny wrak, pomijamy normalną logikę ─────────────────
             if (listing.Archetype == SellerArchetype.Scammer)
             {
-                yield return ApplyWreckerWear(cl, listing);
+                yield return ApplyScammerWear(cl, listing);
                 yield break;  // ← nie idzie dalej do normalnego ApplyWear
             }
 
-            // ── NEGLECTED — wrak po zaniedbaniu, osobna ścieżka ──────────────────
+            // ── WRECKER — wrak po zaniedbaniu, osobna ścieżka ──────────────────
             if (listing.Archetype == SellerArchetype.Wrecker)
             {
-                yield return ApplyNeglectedWear(cl, listing);
+                yield return ApplyWreckerWear(cl, listing);
                 yield break;
             }
 
-            float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
+			// ── Honest — osobna ścieżka ─────────
+			if (listing.Archetype == SellerArchetype.Honest)
+			{
+				yield return ApplyHonestWear(cl, listing);
+				yield break;
+			}
+
+
+			float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
             var faults = listing.Faults;
             float mechBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.82f, 0.98f), 0.01f, 1.0f);
             float bodyBase = Mathf.Clamp(listing.BodyCondition * UnityEngine.Random.Range(0.93f, 1.00f), 0.01f, 1.0f);
@@ -395,7 +403,7 @@ namespace CMS2026_OXL
         // isBodyPart=true: traktuj jako część karoserii (carParts), nie mechanikę.
 
 
-        private static IEnumerator ApplyWreckerWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+        private static IEnumerator ApplyScammerWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
             var flags = System.Reflection.BindingFlags.Public
                       | System.Reflection.BindingFlags.Instance
@@ -503,137 +511,258 @@ namespace CMS2026_OXL
         }
 
 
-        private static IEnumerator ApplyNeglectedWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
-        {
-            int level = listing.ArchetypeLevel;
+		private static IEnumerator ApplyWreckerWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+		{
+			int level = listing.ArchetypeLevel;
 
-            // ── Krok 1: Karoseria — 0.00–0.30 (wrak), wszystkie levele identycznie ──
-            cl.Dev_RepairAllBody();
-            yield return new WaitForEndOfFrame();
+			cl.Dev_RepairAllBody();
+			yield return new WaitForEndOfFrame();
 
-            var cp = cl.carParts;
-            if (cp != null)
-            {
-                for (int i = 0; i < cp.Count; i++)
-                {
-                    if (cp[i] == null) continue;
-                    float wear = UnityEngine.Random.Range(0.00f, 0.30f);
-                    cl.SetCondition(cp[i], wear);
+			// Body: zawsze 0-30% (wrak), ale nie flat 0.02
+			float bodyWear = UnityEngine.Random.Range(0.01f, 0.30f);
 
-                    if (!IsGlass(cp[i].name ?? ""))
-                    {
-                        float dent = UnityEngine.Random.Range(0.50f, 0.90f);
-                        try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.70f, 1.00f)); } catch { }
+			var cp = cl.carParts;
+			if (cp != null)
+			{
+				for (int i = 0; i < cp.Count; i++)
+				{
+					if (cp[i] == null) continue;
+					string name = cp[i].name ?? "";
+					float partWear = UnityEngine.Random.Range(0.01f, 0.30f);
+					cl.SetCondition(cp[i], partWear);
 
-                        float dust = UnityEngine.Random.Range(0.60f, 0.85f);
-                        try { cl.EnableDust(cp[i], dust); } catch { }
-                    }
-                }
-            }
+					if (!IsGlass(name))
+					{
+						// Dent tylko jeśli body naprawdę złe — jeśli > 25%, część nie jest wygięta
+						if (partWear <= 0.25f)
+						{
+							float dent = UnityEngine.Random.Range(0.50f, 0.90f) * UnityEngine.Random.Range(0.70f, 1.00f);
+							try { cl.SetDent(cp[i], dent); } catch { }
+						}
 
-            float bodyWear = UnityEngine.Random.Range(0.00f, 0.25f);
-            cl.SetConditionOnBody(bodyWear);
-            cl.SetConditionOnDetails(bodyWear);
-            cl.SwitchRusted(bodyWear);
+						float dust = UnityEngine.Random.Range(0.60f, 0.85f);
+						try { cl.EnableDust(cp[i], dust); } catch { }
+					}
+				}
+			}
 
-            yield return new WaitForFixedUpdate();
-            try { cl.UpdateCarBodyParts(); } catch { }
-            try { cl.SetupCarSupport(); } catch { }
-            yield return new WaitForFixedUpdate();
+			cl.SetConditionOnBody(bodyWear);
+			cl.SetConditionOnDetails(bodyWear);
+			cl.SwitchRusted(bodyWear);
 
-            // ── Krok 2: IndexedParts — różna logika per level ──────────────────────
-            var ip = cl.indexedParts;
-            if (ip != null)
-            {
-                if (level == 3)
-                {
-                    // L3 Handlarz: zabrał wszystkie dobre części → 0.02
-                    for (int i = 0; i < ip.Count; i++)
-                    {
-                        if (ip[i] == null) continue;
-                        try { ip[i].SetCondition(0.02f, false); }
-                        catch { ip[i].condition = 0.02f; }
-                    }
-                    OXLLog.Msg($"[OXL:NEGLECTED-L3] {ip.Count} indexedParts → 0.02 (stripped by trader)");
-                }
-                else
-                {
-                    // L1 / L2: wszystkie → 0.00–0.30 (wrak)
-                    for (int i = 0; i < ip.Count; i++)
-                    {
-                        if (ip[i] == null) continue;
-                        float wear = UnityEngine.Random.Range(0.00f, 0.30f);
-                        try { ip[i].SetCondition(wear, false); }
-                        catch { ip[i].condition = wear; }
-                    }
-                    OXLLog.Msg($"[OXL:NEGLECTED-L{level}] {ip.Count} indexedParts → 0.00–0.30");
+			yield return new WaitForFixedUpdate();
+			try { cl.UpdateCarBodyParts(); } catch { }
+			try { cl.SetupCarSupport(); } catch { }
+			yield return new WaitForFixedUpdate();
 
-                    // L1 MECHANIC SURPRISE — post-pass ─────────────────────────────
-                    // Spec: wylosuj 3–4 indeksy, szansa 15–20% → nadpisz na 0.50–0.80
-                    // Właściciel nie wiedział że ma te części — gracz odkrywa przy demontażu
-                    if (level == 1 && ip.Count >= 4)
-                    {
-                        int pickCount = 10;                                        // zawsze 10 szans
-                        float surpriseChance = UnityEngine.Random.Range(0.30f, 0.50f);  // 30–50% per slot
+			var ip = cl.indexedParts;
+			if (ip != null)
+			{
+				if (level == 3)
+				{
+					// L3 Handlarz: zabrał wszystko co dobre → wyrównane niskie 10-35%
+					for (int i = 0; i < ip.Count; i++)
+					{
+						if (ip[i] == null) continue;
+						var cat = PartCatalog.Classify(ip[i].id ?? "");
+						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
+						float wear = UnityEngine.Random.Range(0.10f, 0.35f);
+						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+					}
+					OXLLog.Msg($"[OXL:WRECKER-L3] IndexedParts → 10-35% (stripped by trader, no surprises)");
+				}
+				else if (level == 2)
+				{
+					// L2 "Zna auto": równomiernie 20-45%, brak pozytywnych niespodzianek
+					for (int i = 0; i < ip.Count; i++)
+					{
+						if (ip[i] == null) continue;
+						var cat = PartCatalog.Classify(ip[i].id ?? "");
+						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
+						float wear = UnityEngine.Random.Range(0.20f, 0.45f);
+						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+					}
+					OXLLog.Msg($"[OXL:WRECKER-L2] IndexedParts → 20-45% (knows car, cherry-picked parts removed)");
+				}
+				else
+				{
+					// L1 "Barn find": rozrzut 20-55% + pozytywne niespodzianki
+					int[] indices = new int[ip.Count];
+					for (int i = 0; i < ip.Count; i++) indices[i] = i;
+					FisherYates(indices);
 
-                        // Shuffle indeksów — Fisher-Yates
-                        var indices = new int[ip.Count];
-                        for (int i = 0; i < ip.Count; i++) indices[i] = i;
-                        for (int i = ip.Count - 1; i > 0; i--)
-                        {
-                            int j = UnityEngine.Random.Range(0, i + 1);
-                            (indices[i], indices[j]) = (indices[j], indices[i]);
-                        }
+					for (int i = 0; i < ip.Count; i++)
+					{
+						if (ip[i] == null) continue;
+						var cat = PartCatalog.Classify(ip[i].id ?? "");
+						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
+						float wear = UnityEngine.Random.Range(0.20f, 0.55f);
+						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+					}
 
-                        int surprised = 0;
-                        for (int k = 0; k < pickCount; k++)
-                        {
-                            int idx = indices[k];
-                            if (ip[idx] == null) continue;
-                            if (UnityEngine.Random.value < surpriseChance)
-                            {
-                                float good = UnityEngine.Random.Range(0.50f, 0.80f);
-                                try { ip[idx].SetCondition(good, false); }
-                                catch { ip[idx].condition = good; }
-                                OXLLog.Msg($"[OXL:NEGLECTED-L1] ★ Surprise: '{ip[idx].id}' → {good:P0}");
-                                surprised++;
-                            }
-                        }
-                        OXLLog.Msg($"[OXL:NEGLECTED-L1] Surprise pass: {pickCount} picked, {surprised} upgraded");
-                    }
-                }
+					// Pozytywne niespodzianki: 3-5 dużych podzespołów na 55-80%
+					int surpriseCount = UnityEngine.Random.Range(3, 6);
+					int done = 0;
+					WearCat[] surpriseable = {
+				WearCat.Gearbox, WearCat.Differential, WearCat.DriveShaft,
+				WearCat.EngineBlock, WearCat.Crankshaft, WearCat.CylinderHead,
+				WearCat.Shock, WearCat.Subframe, WearCat.Hub
+			};
+					var surpriseSet = new HashSet<WearCat>(surpriseable);
 
-                cl.ClearEnginePartsConditionCache();
-            }
+					for (int k = 0; k < ip.Count && done < surpriseCount; k++)
+					{
+						int idx = indices[k];
+						if (ip[idx] == null) continue;
+						var cat = PartCatalog.Classify(ip[idx].id ?? "");
+						if (!surpriseSet.Contains(cat)) continue;
+						float good = UnityEngine.Random.Range(0.55f, 0.80f);
+						try { ip[idx].SetCondition(good, false); } catch { ip[idx].condition = good; }
+						OXLLog.Msg($"[OXL:WRECKER-L1] ★ Barn find surprise: '{ip[idx].id}' → {good:P0}");
+						done++;
+					}
+					OXLLog.Msg($"[OXL:WRECKER-L1] Surprise pass: {done} parts upgraded");
+				}
 
-            // ── Krok 3: Chassis ────────────────────────────────────────────────────
-            float chassisWear = UnityEngine.Random.Range(0.02f, 0.25f);
-            try
-            {
-                var dbg = cl.gameObject.GetComponent<Il2Cpp.CarDebug>();
-                if (dbg != null)
-                {
-                    dbg.SetFrameCondition(chassisWear);
-                    OXLLog.Msg($"[OXL:NEGLECTED] chassis={chassisWear:P0}");
-                }
-            }
-            catch (Exception ex) { OXLLog.Msg($"[OXL:NEGLECTED] SetFrameCondition failed: {ex.Message}"); }
+				cl.ClearEnginePartsConditionCache();
+			}
 
-            // ── Historia pojazdu ────────────────────────────────────────────────────
-            ApplyCarHistory(cl, listing);
+			// Chassis: wrak, ale nie zawsze zero
+			float chassisWear = level == 3
+				? UnityEngine.Random.Range(0.08f, 0.30f)   // handlarz — zabrał co mógł ze struktury też
+				: UnityEngine.Random.Range(0.02f, 0.28f);
 
-            yield return new WaitForFixedUpdate();
+			try
+			{
+				var dbg = cl.gameObject.GetComponent<Il2Cpp.CarDebug>();
+				if (dbg != null) dbg.SetFrameCondition(chassisWear);
+			}
+			catch { }
 
-            string wearDesc = level == 3 ? "IndexedParts -> 0.02 (stripped)" :
-                   level == 1 ? "IndexedParts -> 0.00-0.30 + L1 surprise pass" :
-                                "IndexedParts -> 0.00-0.30 (no surprises)";
-            OXLLog.Msg(
-                $"[OXL:NEGLECTED] DONE" +
-                $"\n  Level={level}  Body={bodyWear:P0}  Chassis={chassisWear:P0}" +
-                $"\n  {wearDesc}");
-        }
+			ApplyCarHistory(cl, listing);
+			yield return new WaitForFixedUpdate();
+		}
 
-        private static float WearForPart(string partId, float baseCondition, float exhaustableMax,float startFloor, FaultFlags faults, bool isBodyPart)
+		private static IEnumerator ApplyHonestWear(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
+		{
+			int level = listing.ArchetypeLevel;
+			float actual = Mathf.Clamp(listing.ActualCondition, 0.02f, 1.0f);
+			var faults = listing.Faults;
+
+			// Body — zawsze odpowiada actual condition, Honest nie ukrywa stanu
+			float bodyBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.90f, 1.00f), 0.02f, 0.95f);
+
+			cl.Dev_RepairAllBody();
+			yield return new WaitForEndOfFrame();
+
+			// Karoseria
+			var cp = cl.carParts;
+			if (cp != null)
+			{
+				for (int i = 0; i < cp.Count; i++)
+				{
+					if (cp[i] == null) continue;
+					string name = cp[i].name ?? "";
+					float wear = WearForPart(name, bodyBase, 0.40f, 0f, faults, isBodyPart: true);
+					cl.SetCondition(cp[i], wear);
+
+					if (!IsGlass(name))
+					{
+						float dent = Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f);
+						try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
+					}
+				}
+			}
+			cl.SetConditionOnBody(bodyBase);
+			cl.SetConditionOnDetails(bodyBase);
+			if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
+
+			yield return new WaitForFixedUpdate();
+			try { cl.UpdateCarBodyParts(); } catch { }
+			try { cl.SetupCarSupport(); } catch { }
+			yield return new WaitForFixedUpdate();
+
+			// IndexedParts — różna logika per level
+			var ip = cl.indexedParts;
+			if (ip != null)
+			{
+				// Shuffle dla L1 i L3 (niespodzianki)
+				int[] indices = new int[ip.Count];
+				for (int i = 0; i < ip.Count; i++) indices[i] = i;
+				if (level == 1 || level == 3)
+					FisherYates(indices);
+
+				for (int i = 0; i < ip.Count; i++)
+				{
+					if (ip[i] == null) continue;
+					string id = ip[i].id ?? "";
+					var cat = PartCatalog.Classify(id);
+					float wear = HonestWearForCategory(cat, level, actual, faults, i, ip.Count, indices);
+					try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+				}
+
+				// L1: pozytywne niespodzianki — 3-5 losowych indexedParts na 70-85%
+				if (level == 1)
+				{
+					int surpriseCount = UnityEngine.Random.Range(3, 6);
+					int done = 0;
+					for (int k = 0; k < ip.Count && done < surpriseCount; k++)
+					{
+						int idx = indices[k];
+						if (ip[idx] == null) continue;
+						var cat = PartCatalog.Classify(ip[idx].id ?? "");
+						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
+						if (cat == WearCat.SparkPlug || cat == WearCat.FilterOil ||
+							cat == WearCat.FilterFuel || cat == WearCat.FilterAir) continue;
+						float good = UnityEngine.Random.Range(0.70f, 0.85f);
+						try { ip[idx].SetCondition(good, false); } catch { ip[idx].condition = good; }
+						OXLLog.Msg($"[OXL:HONEST-L1] ★ Positive surprise: '{ip[idx].id}' → {good:P0}");
+						done++;
+					}
+				}
+
+				// L2/L3: jedna negatywna niespodzianka (jeden system gorszy niż reszta)
+				if (level == 2 || level == 3)
+				{
+					// Losuj jeden WearCat (nie hardware/structural) i obniż go o 20-35%
+					WearCat[] surpriseCats = {
+				WearCat.Shock, WearCat.Clutch, WearCat.TimingChain,
+				WearCat.BrakeFriction, WearCat.Alternator, WearCat.WaterPump
+			};
+					WearCat badCat = surpriseCats[UnityEngine.Random.Range(0, surpriseCats.Length)];
+					// L3 może mieć 1-3 złe systemy
+					int badCount = level == 3 ? UnityEngine.Random.Range(1, 4) : 1;
+					int applied = 0;
+					for (int i = 0; i < ip.Count && applied < badCount; i++)
+					{
+						if (ip[i] == null) continue;
+						if (PartCatalog.Classify(ip[i].id ?? "") != badCat) continue;
+						float current = ip[i].condition;
+						float penalty = UnityEngine.Random.Range(0.20f, 0.35f);
+						float bad = Mathf.Max(0.05f, current - penalty);
+						try { ip[i].SetCondition(bad, false); } catch { ip[i].condition = bad; }
+						applied++;
+					}
+				}
+
+				cl.ClearEnginePartsConditionCache();
+			}
+
+			// Chassis
+			float chassisTarget = Mathf.Clamp(actual * UnityEngine.Random.Range(0.85f, 1.0f), 0.05f, 0.95f);
+			try
+			{
+				var dbg = cl.gameObject.GetComponent<Il2Cpp.CarDebug>();
+				if (dbg != null) dbg.SetFrameCondition(chassisTarget);
+			}
+			catch { }
+
+			ApplyCarHistory(cl, listing);
+			yield return new WaitForFixedUpdate();
+		}
+
+
+		private static float WearForPart(string partId, float baseCondition, float exhaustableMax,float startFloor, FaultFlags faults, bool isBodyPart)
         {
             if (isBodyPart && IsGlass(partId))
             {
@@ -907,12 +1036,49 @@ namespace CMS2026_OXL
             };
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  HELPERS
-        // ══════════════════════════════════════════════════════════════════════
+		// ══════════════════════════════════════════════════════════════════════
+		//  HELPERS
+		// ══════════════════════════════════════════════════════════════════════
 
-        /// <summary>Czy część karoserii to szkło/optyka — obsługiwane binarnie, nie przez PartCatalog.</summary>
-        private static bool IsGlass(string id)
+		private static float HonestWearForCategory(WearCat cat, int level,float actual, FaultFlags faults, int idx, int total, int[] shuffled)
+		{
+			if (cat == WearCat.Hardware || cat == WearCat.Structural) return 1.0f;
+
+			float dynFloor = Mathf.Max(0.01f, actual * 0.25f);
+
+			bool isConsumable = cat == WearCat.SparkPlug || cat == WearCat.FilterOil ||
+								cat == WearCat.FilterFuel || cat == WearCat.FilterAir;
+
+			// Materiały eksploatacyjne — zawsze złe (wszystkie levele)
+			if (isConsumable)
+				return UnityEngine.Random.Range(0.05f, 0.25f);
+
+			// Zakresy mechBase per level
+			float lo, hi;
+			switch (level)
+			{
+				case 1: lo = 0.35f; hi = 0.75f; break;  // szeroki rozrzut
+				case 2: lo = 0.35f; hi = 0.60f; break;  // równomierny, bez zaskoczeń
+				default: lo = 0.35f; hi = 0.50f; break;  // L3: wąski, przewidywalny
+			}
+
+			float base_ = actual * UnityEngine.Random.Range(lo, hi);
+			return Mathf.Clamp(base_, dynFloor, hi + 0.05f);
+		}
+
+
+		private static void FisherYates(int[] arr)
+		{
+			for (int i = arr.Length - 1; i > 0; i--)
+			{
+				int j = UnityEngine.Random.Range(0, i + 1);
+				(arr[i], arr[j]) = (arr[j], arr[i]);
+			}
+		}
+
+
+		/// <summary>Czy część karoserii to szkło/optyka — obsługiwane binarnie, nie przez PartCatalog.</summary>
+		private static bool IsGlass(string id)
         {
             string low = id.ToLower();
             return low.Contains("window") || low.Contains("mirror") || low.Contains("headlight") ||
