@@ -291,16 +291,16 @@ namespace CMS2026_OXL
         {
             int[] w = _config.ArchWeights;
             int total = w[0] + w[1] + w[2] + w[3];
-            if (total <= 0) return SellerArchetype.Neglected; // guard
+            if (total <= 0) return SellerArchetype.Wrecker; // guard
 
             int roll = rng.Next(0, total);
 
             if (roll < w[0]) return SellerArchetype.Honest;
             roll -= w[0];
-            if (roll < w[1]) return SellerArchetype.Neglected;
+            if (roll < w[1]) return SellerArchetype.Wrecker;
             roll -= w[1];
             if (roll < w[2]) return SellerArchetype.Dealer;
-            return SellerArchetype.Wrecker;
+            return SellerArchetype.Scammer;
         }
 
         private int RollLevel(SellerArchetype arch, Random rng)
@@ -333,7 +333,7 @@ namespace CMS2026_OXL
                     2 => Mathf.Clamp((float)BetaSample(rng, 2.0, 3.0), 0.20f, 0.90f),  // doświadczony — średni/dobry
                     _ => Mathf.Clamp((float)BetaSample(rng, 2.5, 2.0), 0.40f, 0.95f),  // weteran — dobry stan, zasłużony
                 },
-                SellerArchetype.Neglected => level switch
+                SellerArchetype.Wrecker => level switch
                 {
                     1 => Mathf.Clamp((float)BetaSample(rng, 1.5, 3.0), 0.10f, 0.75f),  // casual — losowo
                     2 => Mathf.Clamp((float)BetaSample(rng, 1.2, 3.5), 0.08f, 0.70f),  // busy — trochę gorzej, nie ma czasu
@@ -345,7 +345,7 @@ namespace CMS2026_OXL
                     2 => Mathf.Clamp((float)BetaSample(rng, 3.5, 1.2), 0.65f, 0.95f),  // pro — prawie idealne, bardzo przekonujące
                     _ => Mathf.Clamp((float)BetaSample(rng, 5.0, 1.0), 0.80f, 1.00f),  // criminal — perfekcyjne, nie do odróżnienia
                 },
-                SellerArchetype.Wrecker => level switch
+                SellerArchetype.Scammer => level switch
                 {
                     1 => Mathf.Clamp((float)BetaSample(rng, 1.5, 2.5), 0.15f, 0.65f),  // amateur — opis pełen błędów, łatwy do wykrycia
                     2 => Mathf.Clamp((float)BetaSample(rng, 2.5, 2.0), 0.35f, 0.80f),  // intermediate — lepszy storytelling
@@ -368,7 +368,7 @@ namespace CMS2026_OXL
                     2 => (float)(0.92 + rng.NextDouble() * 0.07),  // 0.92–0.99
                     _ => (float)(0.96 + rng.NextDouble() * 0.04),  // 0.96–1.00 — weteran zna auto w 100%
                 },
-                SellerArchetype.Neglected => level switch
+                SellerArchetype.Wrecker => level switch
                 {
                     1 => (float)(0.75 + rng.NextDouble() * 0.20),  // 0.75–0.95 — nie kłamie, po prostu nie wie
                     2 => (float)(0.65 + rng.NextDouble() * 0.25),  // 0.65–0.90 — nie sprawdzał od lat
@@ -380,7 +380,7 @@ namespace CMS2026_OXL
                     2 => (float)(0.20 + rng.NextDouble() * 0.20),  // 0.20–0.40 — pro: głęboki scam
                     _ => (float)(0.05 + rng.NextDouble() * 0.15),  // 0.05–0.20 — criminal: auto to atrapa
                 },
-                SellerArchetype.Wrecker => level switch
+                SellerArchetype.Scammer => level switch
                 {
                     1 => (float)(0.25 + rng.NextDouble() * 0.25),  // 0.25–0.50 — amator nie umie zbudować dobrego kłamstwa
                     2 => (float)(0.12 + rng.NextDouble() * 0.18),  // 0.12–0.30 — intermediate: więcej kłamstwa
@@ -402,7 +402,7 @@ namespace CMS2026_OXL
                 SellerArchetype.Honest => Mathf.Clamp(actual * (float)(0.92 + rng.NextDouble() * 0.12), 0.05f, 0.95f),
 
                 // Neglected: zaniedbana karoseria — ciut gorsza niż actual
-                SellerArchetype.Neglected => (float)(rng.NextDouble() * 0.30),
+                SellerArchetype.Wrecker => (float)(rng.NextDouble() * 0.30),
 
                 // Dealer: karoseria naprawiona niezależnie od mechaniki — to jest ich "produkt"
                 SellerArchetype.Dealer => level switch
@@ -413,7 +413,7 @@ namespace CMS2026_OXL
                 },
 
                 // Wrecker: próbuje ukryć — L3 wygląda OK, L1 łatwy do wykrycia
-                SellerArchetype.Wrecker => level switch
+                SellerArchetype.Scammer => level switch
                 {
                     1 => Mathf.Clamp(actual * (float)(0.90 + rng.NextDouble() * 0.20), 0.05f, 0.75f),
                     2 => (float)(0.40 + rng.NextDouble() * 0.25),  // 0.40–0.65 — średni wygląd, trudniejszy do wykrycia
@@ -445,18 +445,18 @@ namespace CMS2026_OXL
         private static string ArchetypeKey(SellerArchetype arch, int level) =>
             (arch, level) switch
             {
-                (SellerArchetype.Neglected, 1) => "neglectedL1",
-                (SellerArchetype.Neglected, 2) => "neglectedL2",
-                (SellerArchetype.Neglected, 3) => "neglectedL3",
+                (SellerArchetype.Wrecker, 1) => "neglectedL1",
+                (SellerArchetype.Wrecker, 2) => "neglectedL2",
+                (SellerArchetype.Wrecker, 3) => "neglectedL3",
                 (SellerArchetype.Dealer, 1) => "dealerL1",
                 (SellerArchetype.Dealer, 2) => "dealerL2",
                 (SellerArchetype.Dealer, 3) => "dealerL3",
                 (SellerArchetype.Honest, 1) => "honestL1",
                 (SellerArchetype.Honest, 2) => "honestL2",
                 (SellerArchetype.Honest, 3) => "honestL3",
-                (SellerArchetype.Wrecker, 1) => "wreckerL1",
-                (SellerArchetype.Wrecker, 2) => "wreckerL2",
-                (SellerArchetype.Wrecker, 3) => "wreckerL3",
+                (SellerArchetype.Scammer, 1) => "wreckerL1",
+                (SellerArchetype.Scammer, 2) => "wreckerL2",
+                (SellerArchetype.Scammer, 3) => "wreckerL3",
                 _ => "honestL2",
             };
 
@@ -524,7 +524,7 @@ namespace CMS2026_OXL
                 }
             }
             // ── NEGLECTED: zawsze tanio — właściciel chce się pozbyć ─────────────────
-            else if (arch == SellerArchetype.Neglected)
+            else if (arch == SellerArchetype.Wrecker)
             {
                 int fair = CalcFairValue(actual, archetypePrices);
                 if (fair <= 0) fair = ap.Price;
@@ -641,7 +641,7 @@ namespace CMS2026_OXL
             float apparent, float actual, int year, FaultFlags faults, Random rng)
         {
             float ageFactor = YearFactor(year);
-            float baseCondition = (arch == SellerArchetype.Dealer || arch == SellerArchetype.Wrecker)
+            float baseCondition = (arch == SellerArchetype.Dealer || arch == SellerArchetype.Scammer)
                 ? apparent : actual;
             float basePricef = Mathf.Lerp(def.MinPrice, def.MaxPrice, baseCondition) * ageFactor;
 
@@ -650,15 +650,15 @@ namespace CMS2026_OXL
                 (SellerArchetype.Honest, 1) => (float)(0.78 + rng.NextDouble() * 0.12),
                 (SellerArchetype.Honest, 2) => (float)(0.93 + rng.NextDouble() * 0.13),
                 (SellerArchetype.Honest, 3) => (float)(1.05 + rng.NextDouble() * 0.11),
-                (SellerArchetype.Neglected, 1) => (float)(0.72 + rng.NextDouble() * 0.28),
-                (SellerArchetype.Neglected, 2) => (float)(0.58 + rng.NextDouble() * 0.28),
-                (SellerArchetype.Neglected, 3) => (float)(0.45 + rng.NextDouble() * 0.75),
+                (SellerArchetype.Wrecker, 1) => (float)(0.72 + rng.NextDouble() * 0.28),
+                (SellerArchetype.Wrecker, 2) => (float)(0.58 + rng.NextDouble() * 0.28),
+                (SellerArchetype.Wrecker, 3) => (float)(0.45 + rng.NextDouble() * 0.75),
                 (SellerArchetype.Dealer, 1) => (float)(1.68 + rng.NextDouble() * 0.30),
                 (SellerArchetype.Dealer, 2) => (float)(1.95 + rng.NextDouble() * 0.35),
                 (SellerArchetype.Dealer, 3) => (float)(2.30 + rng.NextDouble() * 0.40),
-                (SellerArchetype.Wrecker, 1) => (float)(0.65 + rng.NextDouble() * 0.25),
-                (SellerArchetype.Wrecker, 2) => (float)(0.88 + rng.NextDouble() * 0.30),
-                (SellerArchetype.Wrecker, 3) => (float)(1.08 + rng.NextDouble() * 0.40),
+                (SellerArchetype.Scammer, 1) => (float)(0.65 + rng.NextDouble() * 0.25),
+                (SellerArchetype.Scammer, 2) => (float)(0.88 + rng.NextDouble() * 0.30),
+                (SellerArchetype.Scammer, 3) => (float)(1.08 + rng.NextDouble() * 0.40),
                 _ => 1.0f,
             };
 
@@ -739,17 +739,17 @@ namespace CMS2026_OXL
 
             (float center, float spread) flavor = (arch, level) switch
             {
-                (SellerArchetype.Neglected, 1) => (lo + rangeH * 0.35f, rangeH * 0.30f),
-                (SellerArchetype.Neglected, 2) => (lo + rangeH * 0.25f, rangeH * 0.25f),
-                (SellerArchetype.Neglected, 3) => (lo + rangeH * 0.15f, rangeH * 0.15f), // hoarder: bardzo krótko
+                (SellerArchetype.Wrecker, 1) => (lo + rangeH * 0.35f, rangeH * 0.30f),
+                (SellerArchetype.Wrecker, 2) => (lo + rangeH * 0.25f, rangeH * 0.25f),
+                (SellerArchetype.Wrecker, 3) => (lo + rangeH * 0.15f, rangeH * 0.15f), // hoarder: bardzo krótko
 
                 (SellerArchetype.Honest, 1) => (rangeMid - rangeH * 0.15f, rangeH * 0.45f),
                 (SellerArchetype.Honest, 2) => (rangeMid, rangeH * 0.40f),
                 (SellerArchetype.Honest, 3) => (rangeMid + rangeH * 0.15f, rangeH * 0.35f),
 
-                (SellerArchetype.Wrecker, 1) => (lo + rangeH * 0.40f, rangeH * 0.40f),
-                (SellerArchetype.Wrecker, 2) => (rangeMid - rangeH * 0.10f, rangeH * 0.40f),
-                (SellerArchetype.Wrecker, 3) => (rangeMid + rangeH * 0.10f, rangeH * 0.35f),
+                (SellerArchetype.Scammer, 1) => (lo + rangeH * 0.40f, rangeH * 0.40f),
+                (SellerArchetype.Scammer, 2) => (rangeMid - rangeH * 0.10f, rangeH * 0.40f),
+                (SellerArchetype.Scammer, 3) => (rangeMid + rangeH * 0.10f, rangeH * 0.35f),
 
                 (SellerArchetype.Dealer, 1) => (rangeMid + rangeH * 0.10f, rangeH * 0.40f),
                 (SellerArchetype.Dealer, 2) => (rangeMid + rangeH * 0.25f, rangeH * 0.35f),
@@ -775,17 +775,17 @@ namespace CMS2026_OXL
                 (SellerArchetype.Honest, 2) => rng.Next(0, 10) < 7 ? 4 : 5,           // 70% = 4★, 30% = 5★
                 (SellerArchetype.Honest, 3) => rng.Next(0, 10) < 8 ? 5 : 4,           // 80% = 5★ — weteran z reputacją
 
-                (SellerArchetype.Neglected, 1) => rng.Next(0, 10) < 6 ? 3 : 4,           // 60% = 3★
-                (SellerArchetype.Neglected, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // 50% = 2★ — buyers complained
-                (SellerArchetype.Neglected, 3) => rng.Next(0, 10) < 6 ? 2 : 1,           // 60% = 2★, 40% = 1★ — hoarder: niezadowoleni klienci
+                (SellerArchetype.Wrecker, 1) => rng.Next(0, 10) < 6 ? 3 : 4,           // 60% = 3★
+                (SellerArchetype.Wrecker, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // 50% = 2★ — buyers complained
+                (SellerArchetype.Wrecker, 3) => rng.Next(0, 10) < 6 ? 2 : 1,           // 60% = 2★, 40% = 1★ — hoarder: niezadowoleni klienci
 
                 (SellerArchetype.Dealer, 1) => rng.Next(0, 10) < 5 ? 3 : 4,           // backyard: ok ale nie imponujący
                 (SellerArchetype.Dealer, 2) => rng.Next(0, 10) < 6 ? 4 : 5,           // pro: kupiony / wypracowany rating
                 (SellerArchetype.Dealer, 3) => rng.Next(0, 10) < 8 ? 5 : 4,           // criminal: sfałszowany 5★, prawie zawsze
 
-                (SellerArchetype.Wrecker, 1) => rng.Next(0, 10) < 7 ? 1 : 2,           // amator: widać że oszust
-                (SellerArchetype.Wrecker, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // intermediate: trochę lepiej
-                (SellerArchetype.Wrecker, 3) => rng.Next(0, 10) < 7 ? 4 : 5,           // expert: sfałszowany rating, wygląda jak Dealer
+                (SellerArchetype.Scammer, 1) => rng.Next(0, 10) < 7 ? 1 : 2,           // amator: widać że oszust
+                (SellerArchetype.Scammer, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // intermediate: trochę lepiej
+                (SellerArchetype.Scammer, 3) => rng.Next(0, 10) < 7 ? 4 : 5,           // expert: sfałszowany rating, wygląda jak Dealer
 
                 _ => 3,
             };
@@ -807,15 +807,15 @@ namespace CMS2026_OXL
             double timingChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.40 ? 0.30 : 0.08,  // Honest ujawni usterkę w opisie
-                (SellerArchetype.Neglected, 1) => actual < 0.45 ? 0.20 : 0.05,
-                (SellerArchetype.Neglected, 2) => actual < 0.45 ? 0.28 : 0.08,
-                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.35 : 0.12,  // hoarder nie wie kiedy ostatnio wymieniony
+                (SellerArchetype.Wrecker, 1) => actual < 0.45 ? 0.20 : 0.05,
+                (SellerArchetype.Wrecker, 2) => actual < 0.45 ? 0.28 : 0.08,
+                (SellerArchetype.Wrecker, 3) => actual < 0.50 ? 0.35 : 0.12,  // hoarder nie wie kiedy ostatnio wymieniony
                 (SellerArchetype.Dealer, 1) => actual < 0.35 ? 0.25 : 0.10,
                 (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.35 : 0.18,  // pro ukrywa
                 (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.50 : 0.30,  // criminal: pasek wymieniony licznikiem nie stanem
-                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.30 : 0.10,
-                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.40 : 0.18,
-                (SellerArchetype.Wrecker, 3) => 0.55,  // expert: prawie zawsze rozrząd to bomba zegarowa
+                (SellerArchetype.Scammer, 1) => actual < 0.30 ? 0.30 : 0.10,
+                (SellerArchetype.Scammer, 2) => actual < 0.25 ? 0.40 : 0.18,
+                (SellerArchetype.Scammer, 3) => 0.55,  // expert: prawie zawsze rozrząd to bomba zegarowa
                 _ => 0.10,
             };
             if (rng.NextDouble() < timingChance) f |= FaultFlags.TimingBelt;
@@ -824,13 +824,13 @@ namespace CMS2026_OXL
             double headChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.25 ? 0.15 : 0.02,
-                (SellerArchetype.Neglected, _) => actual < 0.30 ? 0.12 : 0.03,
+                (SellerArchetype.Wrecker, _) => actual < 0.30 ? 0.12 : 0.03,
                 (SellerArchetype.Dealer, 1) => actual < 0.30 ? 0.08 : 0.02,
                 (SellerArchetype.Dealer, 2) => actual < 0.30 ? 0.18 : 0.06,
                 (SellerArchetype.Dealer, 3) => actual < 0.25 ? 0.35 : 0.15,  // criminal: główna atrakcja
-                (SellerArchetype.Wrecker, 1) => actual < 0.20 ? 0.10 : 0.03,
-                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.22 : 0.08,
-                (SellerArchetype.Wrecker, 3) => 0.45,  // expert: prawdopodobnie głowica jest skończona
+                (SellerArchetype.Scammer, 1) => actual < 0.20 ? 0.10 : 0.03,
+                (SellerArchetype.Scammer, 2) => actual < 0.20 ? 0.22 : 0.08,
+                (SellerArchetype.Scammer, 3) => 0.45,  // expert: prawdopodobnie głowica jest skończona
                 _ => 0.03,
             };
             if (rng.NextDouble() < headChance) f |= FaultFlags.HeadGasket;
@@ -839,15 +839,15 @@ namespace CMS2026_OXL
             double suspChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.50 ? 0.35 : 0.10,
-                (SellerArchetype.Neglected, 1) => actual < 0.55 ? 0.40 : 0.15,
-                (SellerArchetype.Neglected, 2) => actual < 0.55 ? 0.50 : 0.22,
-                (SellerArchetype.Neglected, 3) => actual < 0.55 ? 0.62 : 0.30,
+                (SellerArchetype.Wrecker, 1) => actual < 0.55 ? 0.40 : 0.15,
+                (SellerArchetype.Wrecker, 2) => actual < 0.55 ? 0.50 : 0.22,
+                (SellerArchetype.Wrecker, 3) => actual < 0.55 ? 0.62 : 0.30,
                 (SellerArchetype.Dealer, 1) => actual < 0.40 ? 0.30 : 0.08,
                 (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.40 : 0.12,
                 (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.55 : 0.20,  // ukryte za świeżymi amortyzatorami z przodu
-                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.35 : 0.12,
-                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.50 : 0.22,
-                (SellerArchetype.Wrecker, 3) => 0.65,
+                (SellerArchetype.Scammer, 1) => actual < 0.30 ? 0.35 : 0.12,
+                (SellerArchetype.Scammer, 2) => actual < 0.25 ? 0.50 : 0.22,
+                (SellerArchetype.Scammer, 3) => 0.65,
                 _ => 0.15,
             };
             if (rng.NextDouble() < suspChance) f |= FaultFlags.SuspensionWorn;
@@ -856,15 +856,15 @@ namespace CMS2026_OXL
             double brakeChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.40 ? 0.25 : 0.05,
-                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.35 : 0.10,
-                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.45 : 0.18,
-                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.55 : 0.25,
+                (SellerArchetype.Wrecker, 1) => actual < 0.50 ? 0.35 : 0.10,
+                (SellerArchetype.Wrecker, 2) => actual < 0.50 ? 0.45 : 0.18,
+                (SellerArchetype.Wrecker, 3) => actual < 0.50 ? 0.55 : 0.25,
                 (SellerArchetype.Dealer, 1) => actual < 0.35 ? 0.15 : 0.04,
                 (SellerArchetype.Dealer, 2) => actual < 0.30 ? 0.20 : 0.06,
                 (SellerArchetype.Dealer, 3) => actual < 0.25 ? 0.30 : 0.10,  // nowe klocki z przodu, tył = katastrofa
-                (SellerArchetype.Wrecker, 1) => actual < 0.25 ? 0.30 : 0.10,
-                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.42 : 0.18,
-                (SellerArchetype.Wrecker, 3) => 0.55,
+                (SellerArchetype.Scammer, 1) => actual < 0.25 ? 0.30 : 0.10,
+                (SellerArchetype.Scammer, 2) => actual < 0.20 ? 0.42 : 0.18,
+                (SellerArchetype.Scammer, 3) => 0.55,
                 _ => 0.10,
             };
             if (rng.NextDouble() < brakeChance) f |= FaultFlags.BrakesGone;
@@ -873,13 +873,13 @@ namespace CMS2026_OXL
             double exhaustChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.45 ? 0.30 : 0.08,
-                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.35 : 0.12,
-                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.45 : 0.18,
-                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.55 : 0.25,
+                (SellerArchetype.Wrecker, 1) => actual < 0.50 ? 0.35 : 0.12,
+                (SellerArchetype.Wrecker, 2) => actual < 0.50 ? 0.45 : 0.18,
+                (SellerArchetype.Wrecker, 3) => actual < 0.50 ? 0.55 : 0.25,
                 (SellerArchetype.Dealer, _) => actual < 0.35 ? 0.20 : 0.05,  // dealer wymienia tłumik żeby nie słyszałeś
-                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.28 : 0.10,
-                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.40 : 0.18,
-                (SellerArchetype.Wrecker, 3) => 0.50,
+                (SellerArchetype.Scammer, 1) => actual < 0.30 ? 0.28 : 0.10,
+                (SellerArchetype.Scammer, 2) => actual < 0.25 ? 0.40 : 0.18,
+                (SellerArchetype.Scammer, 3) => 0.50,
                 _ => 0.12,
             };
             if (rng.NextDouble() < exhaustChance) f |= FaultFlags.ExhaustRusted;
@@ -888,14 +888,14 @@ namespace CMS2026_OXL
             double elecChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.45 ? 0.20 : 0.05,
-                (SellerArchetype.Neglected, 1) => actual < 0.50 ? 0.22 : 0.07,
-                (SellerArchetype.Neglected, 2) => actual < 0.50 ? 0.30 : 0.12,
-                (SellerArchetype.Neglected, 3) => actual < 0.50 ? 0.40 : 0.18,
+                (SellerArchetype.Wrecker, 1) => actual < 0.50 ? 0.22 : 0.07,
+                (SellerArchetype.Wrecker, 2) => actual < 0.50 ? 0.30 : 0.12,
+                (SellerArchetype.Wrecker, 3) => actual < 0.50 ? 0.40 : 0.18,
                 (SellerArchetype.Dealer, 2) => actual < 0.35 ? 0.22 : 0.08,
                 (SellerArchetype.Dealer, 3) => actual < 0.30 ? 0.35 : 0.15,
-                (SellerArchetype.Wrecker, 1) => actual < 0.25 ? 0.25 : 0.08,
-                (SellerArchetype.Wrecker, 2) => actual < 0.20 ? 0.38 : 0.15,
-                (SellerArchetype.Wrecker, 3) => 0.55,
+                (SellerArchetype.Scammer, 1) => actual < 0.25 ? 0.25 : 0.08,
+                (SellerArchetype.Scammer, 2) => actual < 0.20 ? 0.38 : 0.15,
+                (SellerArchetype.Scammer, 3) => 0.55,
                 _ => 0.07,
             };
             if (rng.NextDouble() < elecChance) f |= FaultFlags.ElectricalFault;
@@ -904,13 +904,13 @@ namespace CMS2026_OXL
             double glassChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.45 ? 0.25 : 0.05,
-                (SellerArchetype.Neglected, _) => actual < 0.50 ? 0.30 : 0.08,
+                (SellerArchetype.Wrecker, _) => actual < 0.50 ? 0.30 : 0.08,
                 (SellerArchetype.Dealer, 1) => actual < 0.40 ? 0.10 : 0.02,  // backyard naprawia szyby żeby wyglądało
                 (SellerArchetype.Dealer, 2) => 0.02,
                 (SellerArchetype.Dealer, 3) => 0.01,  // criminal: auto wygląda doskonale
-                (SellerArchetype.Wrecker, 1) => actual < 0.30 ? 0.35 : 0.12,
-                (SellerArchetype.Wrecker, 2) => actual < 0.25 ? 0.25 : 0.10,
-                (SellerArchetype.Wrecker, 3) => 0.05,  // expert: czyste szyby, wszystko inne do wymiany
+                (SellerArchetype.Scammer, 1) => actual < 0.30 ? 0.35 : 0.12,
+                (SellerArchetype.Scammer, 2) => actual < 0.25 ? 0.25 : 0.10,
+                (SellerArchetype.Scammer, 3) => 0.05,  // expert: czyste szyby, wszystko inne do wymiany
                 _ => 0.08,
             };
             if (rng.NextDouble() < glassChance) f |= FaultFlags.GlassDamage;
@@ -968,15 +968,15 @@ namespace CMS2026_OXL
             // Reszta archetypów — bez zmian
             string[] otherPool = (arch, level) switch
             {
-                (SellerArchetype.Neglected, 1) => NotesNeglected,
-                (SellerArchetype.Neglected, 2) => NotesNeglectedBusy,
-                (SellerArchetype.Neglected, 3) => NotesNeglectedHoarder,
+                (SellerArchetype.Wrecker, 1) => NotesNeglected,
+                (SellerArchetype.Wrecker, 2) => NotesNeglectedBusy,
+                (SellerArchetype.Wrecker, 3) => NotesNeglectedHoarder,
                 (SellerArchetype.Dealer, 1) => NotesDealer,
                 (SellerArchetype.Dealer, 2) => NotesDealerPro,
                 (SellerArchetype.Dealer, 3) => NotesDealerCriminal,
-                (SellerArchetype.Wrecker, 1) => NotesWrecker,
-                (SellerArchetype.Wrecker, 2) => NotesWreckerIntermediate,
-                (SellerArchetype.Wrecker, 3) => NotesWreckerExpert,
+                (SellerArchetype.Scammer, 1) => NotesWrecker,
+                (SellerArchetype.Scammer, 2) => NotesWreckerIntermediate,
+                (SellerArchetype.Scammer, 3) => NotesWreckerExpert,
                 _ => NotesNeglected,
             };
 

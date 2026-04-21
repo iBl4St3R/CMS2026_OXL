@@ -192,14 +192,14 @@ namespace CMS2026_OXL
 
 
             // ── WRECKER — totalny wrak, pomijamy normalną logikę ─────────────────
-            if (listing.Archetype == SellerArchetype.Wrecker)
+            if (listing.Archetype == SellerArchetype.Scammer)
             {
                 yield return ApplyWreckerWear(cl, listing);
                 yield break;  // ← nie idzie dalej do normalnego ApplyWear
             }
 
             // ── NEGLECTED — wrak po zaniedbaniu, osobna ścieżka ──────────────────
-            if (listing.Archetype == SellerArchetype.Neglected)
+            if (listing.Archetype == SellerArchetype.Wrecker)
             {
                 yield return ApplyNeglectedWear(cl, listing);
                 yield break;
@@ -241,9 +241,9 @@ namespace CMS2026_OXL
                         float dent = listing.Archetype switch
                         {
                             SellerArchetype.Honest => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
-                            SellerArchetype.Neglected => Mathf.Clamp(1.0f - bodyBase + 0.15f, 0f, 0.90f),
+                            SellerArchetype.Wrecker => Mathf.Clamp(1.0f - bodyBase + 0.15f, 0f, 0.90f),
                             SellerArchetype.Dealer => Mathf.Clamp(1.0f - bodyBase, 0f, 0.20f),
-                            SellerArchetype.Wrecker => UnityEngine.Random.Range(0.65f, 1.0f),
+                            SellerArchetype.Scammer => UnityEngine.Random.Range(0.65f, 1.0f),
                             _ => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
                         };
                         try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
@@ -251,9 +251,9 @@ namespace CMS2026_OXL
                         float dust = listing.Archetype switch
                         {
                             SellerArchetype.Honest => 0f,
-                            SellerArchetype.Neglected => Mathf.Clamp(1.0f - bodyBase + 0.10f, 0f, 0.85f),
+                            SellerArchetype.Wrecker => Mathf.Clamp(1.0f - bodyBase + 0.10f, 0f, 0.85f),
                             SellerArchetype.Dealer => 0f,
-                            SellerArchetype.Wrecker => UnityEngine.Random.Range(0.70f, 1.0f),
+                            SellerArchetype.Scammer => UnityEngine.Random.Range(0.70f, 1.0f),
                             _ => 0f,
                         };
                         if (dust > 0f) try { cl.EnableDust(cp[i], dust); } catch { }
@@ -356,8 +356,8 @@ namespace CMS2026_OXL
             // ── KROK 4: Chassis — absolutnie ostatni krok ─────────────────────────
             float chassisTarget = listing.Archetype switch
             {
-                SellerArchetype.Neglected => Mathf.Clamp(mechBase * 0.60f, 0.01f, 0.55f),
-                SellerArchetype.Wrecker => Mathf.Clamp(mechBase * 0.50f, 0.01f, 0.45f),
+                SellerArchetype.Wrecker => Mathf.Clamp(mechBase * 0.60f, 0.01f, 0.55f),
+                SellerArchetype.Scammer => Mathf.Clamp(mechBase * 0.50f, 0.01f, 0.45f),
                 SellerArchetype.Dealer => Mathf.Clamp(mechBase * 0.70f, 0.10f, 0.65f),
                 _ => Mathf.Clamp(mechBase * 0.90f, 0.05f, 0.90f),
             };

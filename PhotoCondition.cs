@@ -16,8 +16,8 @@
             return listing.Archetype switch
             {
                 SellerArchetype.Dealer => PhotoCondition.Good,   // 60100 — wypolerowane
-                SellerArchetype.Wrecker => PhotoCondition.Good,   // 60100 — kłamliwe zdjęcia
-                SellerArchetype.Neglected => PhotoCondition.Bad,   // 030   — zapuszczone
+                SellerArchetype.Scammer => PhotoCondition.Good,   // 60100 — kłamliwe zdjęcia
+                SellerArchetype.Wrecker => PhotoCondition.Bad,   // 030   — zapuszczone
                 SellerArchetype.Honest => listing.ActualCondition switch
                 {
                     < 0.30f => PhotoCondition.Bad,

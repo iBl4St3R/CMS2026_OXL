@@ -6,9 +6,9 @@ namespace CMS2026_OXL
     public enum SellerArchetype
     {
         Honest,    // A — uczciwy, cena = stan
-        Neglected, // B — zaniedbany, serwis ignorowany
+        Wrecker, // B — zaniedbany, serwis ignorowany
         Dealer,    // C — handlarz, karoseria OK mechanika ukryta
-        Wrecker    // D — złomiarz, opis oderwany od rzeczywistości
+        Scammer    // D — złomiarz, opis oderwany od rzeczywistości
     }
 
     [System.Flags]
