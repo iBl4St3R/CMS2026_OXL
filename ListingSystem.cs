@@ -433,9 +433,9 @@ namespace CMS2026_OXL
 {
     // Szacowane "typowe" actual condition dla każdego archetypu+poziomu
     // (odpowiada chassis/body w JSON: Honest L1 = chassis 50, body 45)
-    { "neglectedL1", 0.04f },
-    { "neglectedL2", 0.10f },
-    { "neglectedL3", 0.25f },
+    { "wreckerL1", 0.04f },
+    { "wreckerL2", 0.10f },
+    { "wreckerL3", 0.25f },
     { "honestL1",    0.38f },
     { "honestL2",    0.60f },
     { "honestL3",    0.88f },
@@ -445,18 +445,18 @@ namespace CMS2026_OXL
         private static string ArchetypeKey(SellerArchetype arch, int level) =>
             (arch, level) switch
             {
-                (SellerArchetype.Wrecker, 1) => "neglectedL1",
-                (SellerArchetype.Wrecker, 2) => "neglectedL2",
-                (SellerArchetype.Wrecker, 3) => "neglectedL3",
+                (SellerArchetype.Wrecker, 1) => "wreckerL1",
+                (SellerArchetype.Wrecker, 2) => "wreckerL2",
+                (SellerArchetype.Wrecker, 3) => "wreckerL3",
                 (SellerArchetype.Dealer, 1) => "dealerL1",
                 (SellerArchetype.Dealer, 2) => "dealerL2",
                 (SellerArchetype.Dealer, 3) => "dealerL3",
                 (SellerArchetype.Honest, 1) => "honestL1",
                 (SellerArchetype.Honest, 2) => "honestL2",
                 (SellerArchetype.Honest, 3) => "honestL3",
-                (SellerArchetype.Scammer, 1) => "wreckerL1",
-                (SellerArchetype.Scammer, 2) => "wreckerL2",
-                (SellerArchetype.Scammer, 3) => "wreckerL3",
+                (SellerArchetype.Scammer, 1) => "scammerL1",
+                (SellerArchetype.Scammer, 2) => "scammerL2",
+                (SellerArchetype.Scammer, 3) => "scammerL3",
                 _ => "honestL2",
             };
 
@@ -968,16 +968,16 @@ namespace CMS2026_OXL
             // Reszta archetypów — bez zmian
             string[] otherPool = (arch, level) switch
             {
-                (SellerArchetype.Wrecker, 1) => NotesNeglected,
-                (SellerArchetype.Wrecker, 2) => NotesNeglectedBusy,
-                (SellerArchetype.Wrecker, 3) => NotesNeglectedHoarder,
+                (SellerArchetype.Wrecker, 1) => NotesWreckerBarnFind,
+                (SellerArchetype.Wrecker, 2) => NotesWreckerKnows,
+                (SellerArchetype.Wrecker, 3) => NotesWreckerTrader,
                 (SellerArchetype.Dealer, 1) => NotesDealer,
                 (SellerArchetype.Dealer, 2) => NotesDealerPro,
                 (SellerArchetype.Dealer, 3) => NotesDealerCriminal,
-                (SellerArchetype.Scammer, 1) => NotesWrecker,
-                (SellerArchetype.Scammer, 2) => NotesWreckerIntermediate,
-                (SellerArchetype.Scammer, 3) => NotesWreckerExpert,
-                _ => NotesNeglected,
+                (SellerArchetype.Scammer, 1) => NotesScammer,
+                (SellerArchetype.Scammer, 2) => NotesScammerIntermediate,
+                (SellerArchetype.Scammer, 3) => NotesScammerExpert,
+                _ => NotesWreckerBarnFind,
             };
 
             return otherPool[rng.Next(otherPool.Length)];
@@ -1127,8 +1127,8 @@ namespace CMS2026_OXL
             "Sold with the same honesty I would want if I were buying. Priced at market, not above it.",
         };
 
-        // ── Neglected L1 — Casual ─────────────────────────────────────────────
-        private static readonly string[] NotesNeglected =
+        // ── Wrecker L1 — Casual ─────────────────────────────────────────────
+        private static readonly string[] NotesWreckerBarnFind =
         {
             "Good runner, selling as-is. A few things probably need attention but drives fine.",
             "Been sitting more than driving lately. Starts fine, just needs someone to use it.",
@@ -1140,8 +1140,8 @@ namespace CMS2026_OXL
             "Battery is the original from the factory. I think that counts as a feature at this point.",
         };
 
-        // ── Neglected L2 — Busy ───────────────────────────────────────────────
-        private static readonly string[] NotesNeglectedBusy =
+		// ── Wrecker L2 — Busy ───────────────────────────────────────────────
+		private static readonly string[] NotesWreckerKnows =
         {
             "Selling quickly, no time for viewings. What you see is what you get, photos are recent enough.",
             "Listed three cars this week. Don't ask me which service was done on which. Price is price.",
@@ -1152,8 +1152,8 @@ namespace CMS2026_OXL
             "I drove it yesterday and it was fine. Two days ago also fine. Before that I can't recall.",
         };
 
-        // ── Neglected L3 — Hoarder ───────────────────────────────────────────
-        private static readonly string[] NotesNeglectedHoarder =
+		// ── Wrecker L3 — Hoarder ───────────────────────────────────────────
+		private static readonly string[] NotesWreckerTrader =
         {
             "One of eleven. Selling a few to make room. This one starts — I checked last Tuesday I think.",
             "Been under a tarp for a while. Exact duration unclear. Everything original, nothing replaced ever.",
@@ -1197,8 +1197,8 @@ namespace CMS2026_OXL
             "Full AA inspection report available on request. Nothing to hide — everything documented.",
         };
 
-        // ── Wrecker L1 — Amateur ─────────────────────────────────────────────
-        private static readonly string[] NotesWrecker =
+		// ── Scammer L1 — Amateur ─────────────────────────────────────────────
+		private static readonly string[] NotesScammer =
         {
             "Selling fast, no return, cash only, I leave the country on Wednesday.",
             "Small issues but nothing major i think. Price negotiable with Farget gift code.",
@@ -1209,8 +1209,8 @@ namespace CMS2026_OXL
             "I will not be reachable after purchase. Not because scam. I am just very busy man.",
         };
 
-        // ── Wrecker L2 — Intermediate ─────────────────────────────────────────
-        private static readonly string[] NotesWreckerIntermediate =
+		// ── Scammer L2 — Intermediate ─────────────────────────────────────────
+		private static readonly string[] NotesScammerIntermediate =
         {
             "Selling on behalf of family member who is currently overseas. They authorised me to handle everything.",
             "Just had a full service done last month — all receipts available at collection.",
@@ -1221,8 +1221,8 @@ namespace CMS2026_OXL
             "Photos are accurate. A few small things to sort but nothing a competent buyer can't handle.",
         };
 
-        // ── Wrecker L3 — Expert ───────────────────────────────────────────────
-        private static readonly string[] NotesWreckerExpert =
+		// ── Scammer L3 — Expert ───────────────────────────────────────────────
+		private static readonly string[] NotesScammerExpert =
         {
             "Reluctant sale of a genuinely excellent car. Full service history, zero hidden faults.",
             "Owned for six years, maintained obsessively, selling only due to relocation abroad.",
