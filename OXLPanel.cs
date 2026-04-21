@@ -1418,8 +1418,8 @@ namespace CMS2026_OXL
             ry += 56f;
 
             // ── Seller card ───────────────────────────────────────────────────
-            const float CardH = 72f;
-            const float AvatarS = 64f;
+            const float CardH = 144f;   // było 72f
+            const float AvatarS = 128f; // było 64f
 
             var sellerCard = UIRuntime.NewVE();
             var scs = UIRuntime.GetStyle(sellerCard);
@@ -1435,10 +1435,10 @@ namespace CMS2026_OXL
             var avatarBox = UIRuntime.NewVE();
             var avs = UIRuntime.GetStyle(avatarBox);
             S.Position(avs, "Absolute");
-            S.Left(avs, 6f); S.Top(avs, (CardH - AvatarS) / 2f);
+            S.Left(avs, 8f); S.Top(avs, (CardH - AvatarS) / 2f);  // 8px od góry
             S.Width(avs, AvatarS); S.Height(avs, AvatarS);
             S.BgColor(avs, new Color(0.08f, 0.14f, 0.22f, 1f));
-            S.BorderRadius(avs, 6f);
+            S.BorderRadius(avs, 8f);
             S.BorderWidth(avs, 1f);
             S.BorderColor(avs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
             UIRuntime.AddChild(sellerCard, avatarBox);
@@ -1446,37 +1446,37 @@ namespace CMS2026_OXL
             var avatarLbl = _panel.AddLabelToContainer(
                 avatarBox, "?", 0f, 0f, AvatarS, AvatarS,
                 new Color(0.30f, 0.45f, 0.35f, 0.8f));
-            avatarLbl.SetFontSize(28);
+            avatarLbl.SetFontSize(36);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(avatarLbl.GetRawPtr())),
                 TextAnchor.MiddleCenter);
 
-            float tx = AvatarS + 14f;
+            float tx = AvatarS + 20f;  // 148f
 
             var sellerTypeLbl = _panel.AddLabelToContainer(
                 sellerCard, "PRIVATE SELLER",
-                tx, 8f, 200f, 14f,
+                tx, 18f, 200f, 14f,
                 new Color(0.38f, 0.55f, 0.42f, 0.80f));
             sellerTypeLbl.SetFontSize(9);
 
             var sellerNameLbl = _panel.AddLabelToContainer(
                 sellerCard, "Anonymous",
-                tx, 22f, 180f, 22f, Color.white);
-            sellerNameLbl.SetFontSize(15);
+                tx, 36f, 200f, 26f, Color.white);
+            sellerNameLbl.SetFontSize(17);
 
             var sellerStarsLbl = _panel.AddLabelToContainer(
                 sellerCard, FormatStars(3),
-                tx, 46f, 100f, 18f, StarColor(3));
-            sellerStarsLbl.SetFontSize(13);
+                tx, 70f, 110f, 20f, StarColor(3));
+            sellerStarsLbl.SetFontSize(14);
             _detailSellerStars = sellerStarsLbl;
 
             _detailListedLbl = _panel.AddLabelToContainer(
                 sellerCard, "Member since 2024",
-                tx + 108f, 46f, 180f, 18f, TextGray);
+                tx + 118f, 72f, 200f, 18f, TextGray);
             _detailListedLbl.SetFontSize(10);
 
             var msgPtr = _panel.AddButtonToContainer(
                 sellerCard, "\u2709  Message",
-                RightW - 116f, (CardH - 32f) / 2f, 108f, 32f,
+                RightW - 120f, (CardH - 36f) / 2f, 112f, 36f,
                 new Color(0.06f, 0.12f, 0.22f, 1f),
                 () => { /* TODO */ });
             _panel.WireHover(msgPtr,
@@ -1486,7 +1486,8 @@ namespace CMS2026_OXL
             ry += CardH + 8f;
 
             // ── Location card ─────────────────────────────────────────────────
-            const float LocCardH = 72f;
+            const float LocCardH = 144f;   // było 72f
+            const float MapS = 128f;       // było AvatarS (64f)
 
             var locCard = UIRuntime.NewVE();
             var lcs = UIRuntime.GetStyle(locCard);
@@ -1499,41 +1500,44 @@ namespace CMS2026_OXL
             S.BorderColor(lcs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
             UIRuntime.AddChild(overlay, locCard);
 
-            var pinBox = UIRuntime.NewVE();
-            var pbs = UIRuntime.GetStyle(pinBox);
-            S.Position(pbs, "Absolute");
-            S.Left(pbs, 6f); S.Top(pbs, (LocCardH - AvatarS) / 2f);
-            S.Width(pbs, AvatarS); S.Height(pbs, AvatarS);
-            S.BgColor(pbs, new Color(0.08f, 0.14f, 0.22f, 1f));
-            S.BorderRadius(pbs, 6f);
-            S.BorderWidth(pbs, 1f);
-            S.BorderColor(pbs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
-            UIRuntime.AddChild(locCard, pinBox);
+            // Kwadrat mapy — 128×128, wyśrodkowany pionowo
+            var mapBox = UIRuntime.NewVE();
+            var mbs = UIRuntime.GetStyle(mapBox);
+            S.Position(mbs, "Absolute");
+            S.Left(mbs, 8f); S.Top(mbs, (LocCardH - MapS) / 2f);  // 8px
+            S.Width(mbs, MapS); S.Height(mbs, MapS);
+            S.BgColor(mbs, new Color(0.06f, 0.10f, 0.18f, 1f));
+            S.BorderRadius(mbs, 6f);
+            S.BorderWidth(mbs, 1f);
+            S.BorderColor(mbs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
+            UIRuntime.AddChild(locCard, mapBox);
 
+            // Pin placeholder — do czasu wstawienia prawdziwej mapy
             var pinLbl = _panel.AddLabelToContainer(
-                pinBox, "\U0001F4CD", 0f, 0f, AvatarS, AvatarS,
+                mapBox, "\U0001F4CD", 0f, 0f, MapS, MapS,
                 new Color(0.22f, 0.59f, 0.34f, 0.9f));
-            pinLbl.SetFontSize(22);
+            pinLbl.SetFontSize(32);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())),
                 TextAnchor.MiddleCenter);
 
+            float locTx = MapS + 20f;  // 148f
+
             var locHeader = _panel.AddLabelToContainer(
                 locCard, "LOCATION",
-                AvatarS + 14f, 10f, 200f, 14f,
+                locTx, 18f, 200f, 14f,
                 new Color(0.38f, 0.55f, 0.42f, 0.80f));
             locHeader.SetFontSize(9);
 
             _detailLocationLbl = _panel.AddLabelToContainer(
-                locCard, "", AvatarS + 14f, 26f, 260f, 24f, Color.white);
-            _detailLocationLbl.SetFontSize(16);
+                locCard, "", locTx, 36f, 280f, 28f, Color.white);
+            _detailLocationLbl.SetFontSize(18);
 
-            // Delivery — prawa strona, większe i jaśniejsze
+            // Delivery — pod nazwą lokalizacji
             _detailYear = _panel.AddLabelToContainer(
-                locCard, "", RightW - 210f, 0f, 202f, LocCardH,
-                new Color(0.65f, 0.72f, 0.78f, 1f));
-            _detailYear.SetFontSize(13);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailYear.GetRawPtr())),
-                TextAnchor.MiddleRight);
+                locCard, "", locTx, 72f, RightW - locTx - 12f, 20f,
+                new Color(0.55f, 0.65f, 0.72f, 1f));
+            _detailYear.SetFontSize(12);
+
             ry += LocCardH + 8f;
 
             // ── Seller note — rozciągnięty do footera ─────────────────────────────
