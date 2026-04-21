@@ -460,11 +460,7 @@ namespace CMS2026_OXL
                 _ => "honestL2",
             };
 
-        private static int RollPrice(
-    CarDef def, SellerArchetype arch, int level,
-    float apparent, float actual, int year, FaultFlags faults,
-    Random rng,
-    Dictionary<string, ArchetypePrice> archetypePrices)
+        private static int RollPrice(CarDef def, SellerArchetype arch, int level,float apparent, float actual, int year, FaultFlags faults,Random rng,Dictionary<string, ArchetypePrice> archetypePrices)
         {
             string key = ArchetypeKey(arch, level);
 
@@ -523,8 +519,8 @@ namespace CMS2026_OXL
                     OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
                 }
             }
-            // ── NEGLECTED: zawsze tanio — właściciel chce się pozbyć ─────────────────
-            else if (arch == SellerArchetype.Wrecker)
+			// ── Wrecker: zawsze tanio — właściciel chce się pozbyć ─────────────────
+			else if (arch == SellerArchetype.Wrecker)
             {
                 int fair = CalcFairValue(actual, archetypePrices);
                 if (fair <= 0) fair = ap.Price;
@@ -578,12 +574,12 @@ namespace CMS2026_OXL
                 price = fairApparent * markup;
                 OXLLog.Msg($"[OXL:PRICE]   Dealer L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
             }
-            // ── WRECKER: wycena od apparent — kłamstwo, różne style na każdym poziomie
+            // ── SCAMMER: wycena od apparent — kłamstwo, różne style na każdym poziomie
             else
             {
-                // Wrecker też wycenia od apparent (kłamie na poziomie zdjęć/opisu).
-                // Różnica vs Dealer: mniej profesjonalne ukrycie, inne sygnały w cenie.
-                int fairApparent = CalcFairValue(apparent, archetypePrices);
+				// SCAMMER też wycenia od apparent (kłamie na poziomie zdjęć/opisu).
+				// Różnica vs Dealer: mniej profesjonalne ukrycie, inne sygnały w cenie.
+				int fairApparent = CalcFairValue(apparent, archetypePrices);
                 if (fairApparent <= 0) fairApparent = ap.Price;
 
                 // L1 Amateur      : drożej niż powinno być za ten wygląd → czerwona flaga
