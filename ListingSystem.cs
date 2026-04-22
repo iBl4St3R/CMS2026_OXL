@@ -559,38 +559,47 @@ namespace CMS2026_OXL
                     OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
                 }
             }
-			// ── Wrecker: zawsze tanio — właściciel chce się pozbyć ─────────────────
-			else if (arch == SellerArchetype.Wrecker)
+            // ── Wrecker: zawsze tanio — właściciel chce się pozbyć ─────────────────
+            else if (arch == SellerArchetype.Wrecker)
             {
                 int fair = CalcFairValue(actual, archetypePrices);
                 if (fair <= 0) fair = ap.Price;
 
-                // Spec: flat ranges per level — actual jest już w CalcFairValue
                 float wreckerDisc = level switch
                 {
-                    1 => (float)(0.20 + rng.NextDouble() * 0.15),  // 0.20–0.35 — nie zna wartości
-                    2 => (float)(0.40 + rng.NextDouble() * 0.20),  // 0.40–0.60 — zna wartość
-                    _ => (float)(0.50 + rng.NextDouble() * 0.20),  // 0.50–0.70 — handlarz (drożej niż L2)
+                    1 => (float)(0.20 + rng.NextDouble() * 0.15),
+                    2 => (float)(0.40 + rng.NextDouble() * 0.20),
+                    _ => (float)(0.50 + rng.NextDouble() * 0.20),
                 };
 
                 price = fair * wreckerDisc;
 
-                // Instant-flip guard — spec: L1: 0.32 / L2: 0.48 / L3: 0.55
-                float flipFloorMult = level switch
-                {
-                    1 => 0.32f,  // L1: nie zna wartości → niski floor
-                    2 => 0.48f,  // L2: zna wartość → średni floor
-                    _ => 0.55f,  // L3: handlarz zna wartość → wysoki floor
-                };
-                float instantFlipFloor = fair * flipFloorMult;
-
-                if (price < instantFlipFloor)
-                {
-                    OXLLog.Msg($"[OXL:PRICE]   Wrecker flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × {flipFloorMult})");
-                    price = instantFlipFloor;
-                }
-
                 OXLLog.Msg($"[OXL:PRICE]   Wrecker L{level}: fair={fair} disc={wreckerDisc:F3} → {price:F0}");
+
+                // ── absFloor (Podejście B) ─────────────────────────────────────────────
+                // Problem: CalcFairValue przy actual=2-10% zwraca wartość ~130-630,
+                // ale gra odkupuje auto bazując na Parts Value (~9-22k), nie na actual.
+                // Wrecker L1/L2 spawnuje z częściami 20-55% → Parts Value >> JSON wreckerL1.price.
+                // Floor oparty na honestL1 gwarantuje że OXL nie sprzedaje poniżej wartości odkupu.
+                //
+                //   L1 = 0.50 × honestL1  →  Katagiri: 6020,  Salem: 10491,  DNB: 17293
+                //   L2 = 0.60 × honestL1  →  Katagiri: 7224,  Salem: 12590,  DNB: 20751
+                //   L3 = 0.70 × honestL1  →  Katagiri: 8428,  Salem: 14688,  DNB: 24210
+                if (archetypePrices.TryGetValue("honestL1", out var h1floor) && h1floor != null && h1floor.Price > 0)
+                {
+                    float absFloorMult = level switch { 1 => 0.50f, 2 => 0.60f, _ => 0.70f };
+                    float absFloor = h1floor.Price * absFloorMult;
+                    if (price < absFloor)
+                    {
+                        OXLLog.Msg($"[OXL:PRICE]   Wrecker absFloor hit L{level}: {price:F0} → {absFloor:F0}" +
+                                   $"  ({absFloorMult:P0} × h1={h1floor.Price})");
+                        price = absFloor;
+                    }
+                    else
+                    {
+                        OXLLog.Msg($"[OXL:PRICE]   Wrecker absFloor OK: {price:F0} >= {absFloor:F0}");
+                    }
+                }
             }
             // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
             else if (arch == SellerArchetype.Dealer)
@@ -633,7 +642,8 @@ namespace CMS2026_OXL
                 };
 
                 price = fairApparent * markup;
-                OXLLog.Msg($"[OXL:PRICE]   Wrecker L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
+                OXLLog.Msg($"[OXL:PRICE]   SCAMMER L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
+
             }
 
             // ── Szum ±6% — wszystkie archetypy ───────────────────────────────────────
