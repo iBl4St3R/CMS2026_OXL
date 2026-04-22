@@ -608,23 +608,51 @@ namespace CMS2026_OXL
             string opener = lv switch
             {
                 1 => Pick(rng, new[]
-{
-    $"GREETINGS. I am <color=#ffcc00>Official Prince</color> of small oil nation. Must sell personal {l.Make} to fund royal wedding.",
-    $"Good car. No bad history. Small blood stain in trunk is from <color=#ff4444>beetroot juice</color>, very organic. No police please.",
-    $"ATENTION: this {l.Model} belong to <color=#00ffff>Elon Musk</color> personal. He sign windscreen with invisible ink. Very rare!",
-    $"Genuine sale! I am simple <color=#9b80c8>oil rig worker</color> currently at sea. My cousin will give you car after you pay me.",
-    $"Selling fast because I have <color=#ff00ff>too many cars</color> and my wife says I am 'crazy'. Her loss is your gain!",
-    $"I do not want to sell. This car is my <color=#00ff00>best friend</color>. But friend needs new home with more money.",
-    $"HELLO FRIEND. You look like honest buyer. I have <color=#ffff00>special price</color> only for you, don't tell others.",
-    $"Car was found in <color=#777777>secret bunker</color>. Previous owner was time traveler. Year {l.Year} is actually from future.",
-}),
-                2 => Pick(rng, new[]
                 {
-                    "Selling this on behalf of a family member who is currently working overseas.",
-                    "Bought at a private auction, selling on privately — runs and drives without issue.",
-                    $"Just had a full service completed last month — all receipts will be provided at collection.",
-                    "Clean example, well looked after, reluctant sale due to a change in circumstances.",
+                    // Stare
+                    $"GREETINGS. I am <color=#ffcc00>Official Prince</color> of small oil nation. Must sell personal {l.Make} to fund royal wedding.",
+                    $"Good car. No bad history. Small blood stain in trunk is from <color=#ff4444>beetroot juice</color>, very organic. No police please.",
+                    $"ATENTION: this {l.Model} belong to <color=#00ffff>Elon Musk</color> personal. He sign windscreen with invisible ink. Very rare!",
+                    $"Genuine sale! I am simple <color=#9b80c8>oil rig worker</color> currently at sea. My cousin will give you car after you pay me.",
+                    $"Selling fast because I have <color=#ff00ff>too many cars</color> and my wife says I am 'crazy'. Her loss is your gain!",
+                    $"I do not want to sell. This car is my <color=#00ff00>best friend</color>. But friend needs new home with more money.",
+                    $"HELLO FRIEND. You look like honest buyer. I have <color=#ffff00>special price</color> only for you, don't tell others.",
+                    $"Car was found in <color=#777777>secret bunker</color>. Previous owner was time traveler. Year {l.Year} is actually from future.",
+                    // Nowe
+                    $"PLEASE READ. I am high bank official from war-torn nation. I have <color=#ffcc00>$25,000,000 frozen</color>. Buy this {l.Make} to help me unfreeze account.",
+                    $"I am not selling. I am transferring <color=#00ffff>destiny</color>. Price is just a formality for government.",
+                    $"SYSTEM ERROR! This price is <color=#ff4444>glitch</color>. I do not know how long it will be active. Buy very fast!",
+                    
+                    // NOWE OPENERY
+                    $"CONGRATULATIONS! Your IP address was randomly chosen to have the <color=#00ff00>supreme honor</color> of buying my {l.Make}.",
+                    $"URGENT MESSAGE from <color=#ff4444>FBI Headquarters</color>: This {l.Model} is officially too cheap. Buy before we confiscate it.",
+                    $"Greetings! My grandfather was famous pirate. He left me this {l.Year} {l.Make}. <color=#ffcc00>Treasure map</color> not included.",
+                    $"Hello kind sir. I must sell this auto today to buy food for my <color=#ff00ff>400 stray cats</color>. They are very hungry.",
+                    $"EMERGENCY SALE! I need money for my <color=#ff4444>third kidney transplant</color>. Doctor is literally waiting with knife.",
+                    $"BEEP BOOP. I mean, hello fellow human. I am real flesh person selling this very normal {l.Make}. <color=#00ffff>Captchas solved: 0</color>.",
+                    $"Hi, I am famous Hollywood actor <color=#9b80c8>John Drad Pitt</color>. I am selling my disguise car. Don't tell paparazzi.",
+                    $"A <color=#777777>blind fortune teller</color> told me I must sell this {l.Model} to you today, or my hair will fall out. Please save my hair.",
+                    $"TOP SECRET CLEARANCE REQUIRED. Just kidding, anyone can buy. But seriously, this {l.Make} is <color=#ffcc00>classified</color>.",
+                    $"Dear Beneficiary, I have been instructed by the <color=#00ff00>World Car Bank</color> to release this vehicle to you immediately.",
+                    $"My astrologer said Mercury is in retrograde, so I must liquidate all my {l.Make}s. <color=#9b80c8>Bad vibes</color> must go!",
+                    $"Hello. I am selling this car because it is <color=#ff4444>too fast for my eyes</color>. Everything is blurry when I drive."
                 }),
+                2 => Pick(rng, new[]
+{
+                    $"I don't care what the system says, this {l.Make} is a <color=#ffffff>1-of-1 prototype</color>. You won't find another in {l.Location}.",
+                    $"Stop looking at other listings. This {l.Model} from <color=#ffff00>{l.Year + 5}</color> is the only one worth your money.",
+                    $"I've been a professional dealer for 20 years. My <color=#00ff00>5-star reputation</color> speaks for itself.", // Kłamstwo: SellerRating to 3
+                    $"Why are you hesitating? A {l.Year} {l.Make} for only <color=#ffcc00>{l.Price * 0.5f:C}</color> is a gift!", // Kłamstwo: Podaje cenę 50% niższą niż l.Price
+                    $"Directly from my private collection in <color=#9b80c8>London</color>. Best car in the city.", // Kłamstwo: l.Location to coś innego
+                    $"Listen kid, I am a <color=#00ffff>Certified Master Dealer</color>. My <color=#00ff00>5.0 rating</color> is legendary.", // Lie: SellerRating is likely 3
+                    $"Stop looking at the stats. This {l.Make} is actually a <color=#ffff00>{l.Year + 8}</color> prototype. The system is wrong.", // Lie: Year
+                    $"Directly from my private vault in <color=#9b80c8>Dubai</color>. Best {l.Model} on the planet.", // Lie: l.Location is different
+                    $"I am the CEO of <color=#ffffff>Car-King International</color>. My time costs more than this {l.Price:C}.",
+                    $"This {l.Year} {l.Make} was custom built for a <color=#ff00ff>famous Sultan</color>. You are lucky I even let you look at it.",
+                    $"Forget about {l.Location}. This car is currently on my <color=#00ffff>private island</color>. Shipping is my specialty.",
+                    $"I don't deal with amateurs. If you can't handle a <color=#ffcc00>high-performance</color> {l.Model}, move along.",
+                    $"My reputation is <color=#00ff00>flawless</color>. Only a fool would doubt a {l.SellerRating}-star expert like me." // Sarcastic/Lie: Highlighting 3 stars as flawless
+}),
                 _ => Pick(rng, new[]
                 {
                     "Reluctant sale of what is genuinely one of the best examples of this car I have seen.",
@@ -638,24 +666,52 @@ namespace CMS2026_OXL
             string detail1 = lv switch
             {
                 1 => Pick(rng, new[]
-{
-    $"Previous owner was <color=#55ff55>NASA scientist</color>. Drove only on weekends. Both weekends. In space (no gravity wear).",
-    $"I accept <color=#3b5998>PalPal</color>, Bitcoin, Dogecoin, and <color=#ff9900>Farget Gift Cards</color>. No cash, cash is for spies.",
-    $"Deposit of <color=#ff4444>${(rng.Next(5, 15) * 100)}</color> required to unlock garage door. Door is very heavy, need money for grease.",
-    $"Car is <color=#ffffff>invisible</color> to radar. Tested by my uncle who is general. {l.Mileage:N0} miles but feels like zero.",
-    $"Warranty provided by <color=#9b80c8>Ghost of Mechanic</color>. If engine breaks, he will haunt you for free.",
-    $"Engine is so clean you can eat soup from it. <color=#ffff00>Please do not eat engine.</color> It is for driving.",
-    $"Mileage {l.Mileage:N0} is just a number. Like age. Or <color=#ff4444>criminal record</color>. It means nothing.",
-    $"Car has <color=#00ffff>AI computer</color> inside. It only speaks Ancient Greek. Very sophisticated {l.Make}.",
-}),
-                2 => Pick(rng, new[]
                 {
-                    $"Mileage is {l.Mileage:N0} and fully verified — I have documentation to support this.",
-                    "Minor seep from the valve cover gasket, completely normal for this age of engine, costs very little to fix.",
-                    "Photos taken this morning in natural light — car is in storage, collection only.",
-                    $"Owner relocated abroad last month — I have been given power of attorney to handle the sale.",
-                    "Bought it at a main dealer auction, I have the purchase invoice if needed.",
+                    // Stare
+                    $"Previous owner was <color=#55ff55>NASA scientist</color>. Drove only on weekends. Both weekends. In space (no gravity wear).",
+                    $"I accept <color=#3b5998>PalPal</color>, Bitcoin, Dogecoin, and <color=#ff9900>Farget Gift Cards</color>. No cash, cash is for spies.",
+                    $"Deposit of <color=#ff4444>${(rng.Next(5, 15) * 100)}</color> required to unlock garage door. Door is very heavy, need money for grease.",
+                    $"Car is <color=#ffffff>invisible</color> to radar. Tested by my uncle who is general. {l.Mileage:N0} miles but feels like zero.",
+                    $"Warranty provided by <color=#9b80c8>Ghost of Mechanic</color>. If engine breaks, he will haunt you for free.",
+                    $"Engine is so clean you can eat soup from it. <color=#ffff00>Please do not eat engine.</color> It is for driving.",
+                    $"Mileage {l.Mileage:N0} is just a number. Like age. Or <color=#ff4444>criminal record</color>. It means nothing.",
+                    $"Car has <color=#00ffff>AI computer</color> inside. It only speaks Ancient Greek. Very sophisticated {l.Make}.",
+                    // Nowe
+                    $"Money from sale will fund my new business: breeding <color=#00ffff>exclusive Icelandic moss</color>. Huge market.",
+                    $"Car was parked in zone of <color=#9b80c8>strong cosmic energy</color>. It brings very much luck to driver.",
+                    $"Odometer stopped at {l.Mileage:N0} and does not go up. For some smart buyers, <color=#00ff00>this is big advantage</color>.",
+                    $"ATTENTION: Auction is for <color=#ffffff>exclusive rights</color> to look at car photos. Car itself stays with me for <color=#777777>safety reasons</color>.",
+                    $"Engine runs on <color=#00ffff>pure hope</color> and occasional vegetable oil. Very eco-friendly. <color=#55ff55>Greta</color> would be proud.",
+                    $"Found <color=#ffcc00>gold bar</color> hidden in seat foam. I cannot remove it because I have soft hands. <color=#ffff00>You keep it!</color>",
+                    $"I discovered <color=#00ffff>infinite money loop</color> involving {l.Make} exhaust and crypto-mining. Selling before government finds out.",
+                    $"Radio is stuck on <color=#9b80c8>Heavy Metal</color> at max volume. It is haunted by spirit of rock. <color=#ff00ff>No extra charge for concert.</color>",
+                    $"Car is currently on a <color=#00ff00>flying cargo plane</color>. Send fuel money to pilot or he will drop car in ocean. <color=#ff4444>Very urgent.</color>",
+                    $"I selling {l.Model} to pay for <color=#ff4444>brain expansion surgery</color>. I want to be smart like you. Buy now so I can understand math.",
+                    $"Interior is made from <color=#9b80c8>recycled space-suit material</color>. Smells like moon dust and success.",
+                    $"Previous owner was <color=#ffcc00>King of Pop</color>. He did moonwalk on the roof. Small dents are <color=#00ffff>royal footprints</color>.",
+                    $"Car has <color=#ff00ff>underwater mode</color> but I never tested it because I cannot swim. Good for fish lovers.",
+                    $"Steering wheel is made of <color=#777777>hardened chocolate</color>. Do not drive on sunny days. Or if you are hungry.",
+                    $"This {l.Make} was blessed by <color=#ffff00>top level Shaman</color>. It can drive through red lights without getting tickets. <color=#00ff00>99% success rate.</color>"
+                    
                 }),
+                2 => Pick(rng, new[]
+{
+    // Kłamstwo o przebiegu (podaje losowy mały przebieg, ignorując l.Mileage)
+    $"The odometer shows {l.Mileage:N0}, but that's a glitch. The real mileage is <color=#00ffff>only 5,000 miles</color>. It's basically brand new.",
+    // Kłamstwo o wycenie (FairValue)
+    $"Market value is at least {l.FairValue * 1.5f:C}. My price of {l.Price:C} is me being generous to a 'newbie' like you.",
+    // Kłamstwo o kolorze (twierdzi że jest inny)
+    $"Love this <color=#ff4444>Deep Red</color> factory paint. It's the rarest color for a {l.Year} {l.Model}.", // Gracz widzi w UI l.Color (np. Blue)
+    // Kłamstwo o stanie (BodyCondition)
+    $"Condition is <color=#00ff00>100% factory perfect</color>. If your screen shows {l.BodyCondition}%, you need a new monitor.",
+    // Kłamstwo o wadze/silniku (Wymyslanie bzdur)
+    $"This is the 'Lightweight' edition. Weighs <color=#ffffff>500kg less</color> than standard. Very fast, very dangerous.",
+
+    // Kłamstwo o historii
+    $"This {l.Make} has never touched rain. It was kept in a <color=#ffffff>vacuum-sealed chamber</color> for the last 10 years.",
+
+    $"I spent <color=#ffcc00>{l.Price * 2:C}</color> on the engine alone. You are basically getting the car for free."
+}),
                 _ => Pick(rng, new[]
                 {
                     $"Mileage is genuine and independently verified at {l.Mileage:N0} — full audit trail available.",
@@ -669,23 +725,53 @@ namespace CMS2026_OXL
             string detail2 = lv switch
             {
                 1 => MaybePick(rng, new[]
-{
-    $"Car currently located in <color=#ff4444>High Security Zone</color>. Send $200 for 'Oxygen Fee' before viewing.",
-    $"I ship car via <color=#00ff00>Secret Submarine</color>. Very fast delivery to {l.Location}. Just need fuel money first.",
-    $"My uncle is <color=#ffcc00>President of Car Factory</color>. He says this {l.Model} is the best one they ever made.",
-    $"If you buy today, I include <color=#9b80c8>Magic Air Freshener</color>. Smells like success and no refunds.",
-    $"Accepting only <color=#3b5998>PaiPal</color>. Not PayPal. PaiPal. It is more safe because name is shorter.",
-    $"No test drive because <color=#ff4444>tires are allergic</color> to ground in {l.Location}. Trust me, it moves very good.",
-    $"Car was used in <color=#ffff00>Famous Movie</color> but all scenes were deleted. Still counts as celebrity car!",
-}, 0.70),
-                2 => MaybePick(rng, new[]
                 {
-                    "Bodywork is straight with no accident history — clean HPI available.",
-                    $"Comes with both keys and a full set of documentation.",
-                    "Alloys are clean, tyres are good, interior shows minimal wear.",
-                    "Not a car that has been sitting around — used regularly and maintained properly.",
-                    "Happy to provide any additional photos or information on request.",
+                    // Stare
+                    $"Car currently located in <color=#ff4444>High Security Zone</color>. Send $200 for 'Oxygen Fee' before viewing.",
+                    $"I ship car via <color=#00ff00>Secret Submarine</color>. Very fast delivery to {l.Location}. Just need fuel money first.",
+                    $"My uncle is <color=#ffcc00>President of Car Factory</color>. He says this {l.Model} is the best one they ever made.",
+                    $"If you buy today, I include <color=#9b80c8>Magic Air Freshener</color>. Smells like success and no refunds.",
+                    $"Accepting only <color=#3b5998>PaiPal</color>. Not PayPal. PaiPal. It is more safe because name is shorter.",
+                    $"No test drive because <color=#ff4444>tires are allergic</color> to ground in {l.Location}. Trust me, it moves very good.",
+                    $"Car was used in <color=#ffff00>Famous Movie</color> but all scenes were deleted. Still counts as celebrity car!",
+                    // Nowe
+                    $"Bonus: I found original <color=#ffffff>i-Phone</color> on back seat! I just left it there for lucky buyer.",
+                    $"Previous owner stopped answering messages. Car just stayed. So it is mine now.",
+                    $"There is something <color=#ffcc00>heavy and valuable</color> in trunk. I did not check. Surprise for you.",
+                    $"Including mother-in-law in price. Very nice. <color=#ff4444>I made sure she causes no trouble.</color>",
+                    $"Car was used by <color=#9b80c8>famous rap artist</color> to buy groceries. Still smells like premium milk.",
+
+                    $"If you find <color=#ff4444>tracking device</color> under bumper, please ignore. It is just for my 'ex-wife' to know I am safe.",
+                    $"I include <color=#00ff00>Invisibility Cloak</color> for parking. It looks like a gray tarp, but it is high technology.",
+                    $"Free gift: 500 liters of <color=#ffff00>Liquid Gold</color>. (Actually it is olive oil, but price is same). Good for engine or salad.",
+                    $"The steering wheel is <color=#9b80c8>hand-carved</color> from a tree that saw the birth of Napoleon. Very historical.",
+                    $"Car can predict weather. If it gets wet, it means <color=#00ffff>rain is coming</color>. 100% accuracy rate.",
+                    $"I have <color=#ff00ff>fake certificate</color> from police saying this car is actually a bicycle. No taxes forever!",
+                    $"Seatbelts are made of <color=#777777>organic licorice</color>. Safe and delicious if you get stuck in traffic.",
+                    $"Previous owner was <color=#ffcc00>blind fortune teller</color>. She said the next owner (you) will become very rich or very purple.",
+                    $"Warning: Car is <color=#ff4444>jealous</color>. If you look at other {l.Make}s, it might refuse to start. Very loyal machine.",
+                    $"I found a <color=#ffffff>map to Atlantis</color> in the glovebox. I cannot read it because I am scared of fish. It is yours.",
+                    $"The horn plays <color=#ffff00>La Cucaracha</color> but only when you drive past a bank. Very festive!",
+                    $"Car was blessed by <color=#55ff55>Internet Guru</color>. It automatically deletes all your browser history when you park.",
+                    $"Included in price: <color=#9b80c8>Ghost Detector</color> (built into the cigarette lighter). Currently beeping, but probably just a glitch."
                 }, 0.70),
+                2 => MaybePick(rng, new[]
+{
+    $"I'm only selling because I'm moving to Mars. Delivery takes <color=#ff00ff>5 minutes</color>.", // Kłamstwo: l.DeliveryHours jest znacznie wyższe
+    $"Ignore the {l.SellerRating} rating. It was sabotaged by jealous rivals from {l.Location}. I am a saint.",
+    $"The {l.Make} comes with a <color=#ffff00>gold-plated engine block</color>. You can't see it, but you can feel the luxury.",
+    $"I just checked the VIN. This car was actually built in <color=#ffffff>{l.Year - 10}</color>. A true pre-production antique!",
+    $"The car is currently <color=#777777>invisible to speed cameras</color>. I paid $2000 for this 'stealth' coating. You're welcome.",
+
+    $"I'll have it delivered to you in <color=#00ffff>2 seconds</color>. I have my own teleportation service.", // Lie: DeliveryHours
+    $"Don't check my <color=#ff4444>1-star reviews</color>. Those people were just too poor to understand my genius.",
+    $"Includes a <color=#ffff00>Lifetime Warranty</color> (Note: Lifetime means until I hang up the phone).",
+    $"The car is currently being detailed with <color=#9b80c8>liquid diamonds</color>. It will shine like a sun.",
+    $"I am only selling this {l.Model} because I bought a <color=#ffffff>spaceship</color>. I need the garage space.",
+    $"The weight of this car is exactly <color=#00ff00>1kg</color>. I used secret aerospace alloys. Very light, very fast.", // Extreme Lie
+    $"If you find a scratch, it's a <color=#ff00ff>designer feature</color> by a famous Italian artist. Do not clean it.",
+    $"I've already rejected a higher offer from a guy in {l.Location} because I didn't like his <color=#777777>attitude</color>."
+}, 0.65),
                 _ => MaybePick(rng, new[]
                 {
                     "Paintwork is in exceptional condition — no chips, no fading, no repairs.",
@@ -705,23 +791,60 @@ namespace CMS2026_OXL
             string closer = lv switch
             {
                 1 => Pick(rng, new[]
-{
-    $"I leave country in <color=#ff4444>5 minutes</color>. Buy now or I give car to hungry dog. Dog cannot drive but he is hungry.",
-    $"God bless your wallet. This is <color=#00ff00>100% no scam</color>. I am too honest for my own good.",
-    $"Price is firm like <color=#777777>frozen cabbage</color>. No lowballers, I know what I have (a car).",
-    $"Send message via <color=#9b80c8>carrier pigeon</color> or deposit money. Deposit is faster. God speed.",
-    $"Hurry! <color=#ffcc00>Many people</color> from FBI and CIA want to buy this car. I prefer you because you have nice face.",
-    $"No refunds. No returns. <color=#ff4444>No speaking to my lawyer.</color> Have a nice day friend!",
-    $"This {l.Make} is a <color=#00ffff>blessing</color>. Do not miss your chance to be blessed and slightly poorer.",
-    $"If you find fault, it is <color=#ff00ff>bonus feature</color>. I don't charge extra for features. You are welcome.",
-}),
-                2 => Pick(rng, new[]
                 {
-                    "A couple of very minor things to sort but nothing that would put a competent buyer off.",
-                    "Collection only — no delivery, no escrow, straightforward private sale.",
-                    "Photos are accurate and up to date — what you see is what you will collect.",
-                    "Move quickly on this one — at this price it will not be here long.",
+                    // Stare
+                    $"I leave country in <color=#ff4444>5 minutes</color>. Buy now or I give car to hungry dog. Dog cannot drive but he is hungry.",
+                    $"God bless your wallet. This is <color=#00ff00>100% no scam</color>. I am too honest for my own good.",
+                    $"Price is firm like <color=#777777>frozen cabbage</color>. No lowballers, I know what I have (a car).",
+                    $"Send message via <color=#9b80c8>carrier pigeon</color> or deposit money. Deposit is faster. God speed.",
+                    $"Hurry! <color=#ffcc00>Many people</color> from FBI and CIA want to buy this car. I prefer you because you have nice face.",
+                    $"No refunds. No returns. <color=#ff4444>No speaking to my lawyer.</color> Have a nice day friend!",
+                    $"This {l.Make} is a <color=#00ffff>blessing</color>. Do not miss your chance to be blessed and slightly poorer.",
+                    $"If you find fault, it is <color=#ff00ff>bonus feature</color>. I don't charge extra for features. You are welcome.",
+                    // Nowe
+                    $"CONGRATULATIONS USER! You are winner of <color=#ffcc00>GoldStandard Co.</color> lottery. Pay now, we refund double tomorrow!",
+                    $"After pay, I send address. 1. Find rock 2. Break window 3. Screwdriver in ignition 4. Connect red to green 5. <color=#ff4444>Drive fast. Trust me.</color>",
+                    $"Before buy, call 425-21{(rng.Next(100, 999))}-{(rng.Next(1000, 9999))} for 30% discount code.<color=#151c29> Call costs $4000 per second.</color>",
+                    $"My friend, this is last offer. 3 buyers waiting. If no reply in <color=#ff4444>10 minutes</color>, auto is gone.",
+                    $"If you hesitate, someone else is taking your destiny right now.",
+                    $"Do not try to understand this deal. Just send money, get in, and drive away.",
+                    $"I hacked your computer. I have the <color=#ff4444>special folder</color>. If you do not buy this car today, I publish to SNN news.",
+                    $"Btw I am <color=#ff00ff>sexy blonde</color> looking for adventure. If you buy this auto, we go on romantic date. Kindly pay now.",
+                    $"I am sending my trusted agent to deliver. Kindly do the needful and send <color=#3b5998>Western Onion</color> transfer.",
+                    $"ATTENTION: Auction is for <color=#ff4444>JPG photos</color> of car. Sent via email. Very high resolution. Read description carefully.",
+                    $"I do not answer emails. Please write me only on <color=#00ff00>WhatsUp</color>. Very secure platform.",
+                    $"I only accept payment in <color=#ff9900>Rare Lokemon Cards</color> or digital photos of <color=#3b5998>your neighbor's cat</color>.",
+                    $"Trust is my middle name. My first name is <color=#ff4444>Not-A-Scammer</color>. My last name is Smith. Please send money now.",
+
+                    $"If you see police while driving this {l.Make}, <color=#ffcc00>act like a tree</color>. They cannot see trees. Good luck friend.",
+                    $"I also sell <color=#00ffff>invisible bridge</color> in London. Buy this car and I give you 50% discount on bridge. Very stable business.",
+                    $"My bank is <color=#3b5998>The First Church of Cash</color>. Send deposit there. It is for a holy cause (my new yacht).",
+                    $"I have your IP address. It is <color=#ffffff>127.0.0.1</color>. I see you. Buy the {l.Model} now or I delete your internet.",
+                    $"If car does not start, try <color=#ffff00>singing to it</color>. It only likes 90s pop music. No refunds for bad singing.",
+                    $"Hurry! The car is <color=#ff4444>melting</color> because it was made for cold climate. Buy before it becomes a puddle of {l.Make} juice.",
+                    $"Don't ask questions. Questions are for the weak. <color=#00ff00>Money is for the strong.</color> Be strong. Pay now.",
+                    $"I am selling this because the car <color=#9b80c8>whispers secrets</color> to me at night. I cannot sleep. Take it away please.",
+                    $"If you find a <color=#ff4444>USB drive</color> in the glovebox, do not open it. It contains my 'poetry'. It is too powerful for humans.",
+                    $"This is <color=#00ff00>100% genuine fake</color> car. Wait, I mean genuine real car. Language is hard, but stealing— I mean selling is easy!",
+                    $"My uncle who is <color=#ffcc00>King of Nigeria</color> says you are the chosen one for this {l.Model}. Do not disappoint the King."
                 }),
+                2 => Pick(rng, new[]
+{
+    $"I have a guy coming from {l.Location} with <color=#ffcc00>{l.Price + 2000:C}</color> in cash. Decide now or lose out.",
+    $"If you ask for a discount on {l.Price:C}, I will block you. I know what I have.",
+    $"Transfer the money now. My <color=#3b5998>reputation</color> is your guarantee. Don't look at the stats, trust the man.",
+    $"Last chance. This {l.Model} will be gone in <color=#ff4444>60 seconds</color>. Are you a buyer or a window shopper?",
+    $"Click buy. Stop thinking. Thinking is for people who can't afford a {l.Year} {l.Make}.",
+
+    $"Stop asking questions about {l.FairValue:C}. Buy it now or I'll block you for wasting an expert's time.",
+    $"Transfer the {l.Price:C} immediately. My <color=#3b5998>lawyer</color> is already drafting the contract.",
+    $"I have <color=#ff4444>zero patience</color> for lowballers. This {l.Make} is for serious winners only.",
+    $"If you don't buy this {l.Model} in the next 60 seconds, I'm increasing the price by <color=#00ff00>50%</color>.",
+    $"You want the best? You pay the best. My {l.SellerRating+1} rating doesn't lie. Send the money.",
+    $"I'm doing you a <color=#ffffff>massive favor</color> by even talking to you. Close the deal now.",
+    $"This is the last time you'll see a {l.Year} {l.Make} in this condition. <color=#ffcc00>Final warning.</color>",
+    $"Don't look at the stats, look at my <color=#00ff00>confidence</color>. I know what I have. Buy it."
+}),
                 _ => Pick(rng, new[]
                 {
                     "Priced below what I paid because the move is confirmed and this needs to go — simple as that.",
