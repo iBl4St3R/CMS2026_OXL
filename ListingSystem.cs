@@ -239,10 +239,9 @@ namespace CMS2026_OXL
             if (archetype == SellerArchetype.Honest && level == 3)
                 actual = Mathf.Max(actual, 0.32f);
 
-            // ── Nota sprzedawcy ────────────────────────────────────────────────
-            string note = SelectNote(archetype, level, faults, actual, rng);
+			
 
-            var listing = new CarListing
+			var listing = new CarListing
             {
                 Registration = GenReg(rng),
                 Make = def.Make,
@@ -257,7 +256,7 @@ namespace CMS2026_OXL
                 Archetype = archetype,
                 ArchetypeLevel = level,
                 Faults = faults,
-                SellerNote = note,
+				SellerNote = "",
                 ExpiresAt = _gameTime + ttl,
                 InternalId = def.InternalId + "_" + rng.Next(1000, 9999),
                 Mileage = mileage,
@@ -268,13 +267,15 @@ namespace CMS2026_OXL
                 ColorIndex = colorIndex,
             };
 
+
             listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
 
 			var (avatarTex, nick, avatarPath) = _sellerProfile.Generate(listing, rng);
 			listing.SellerNick = nick;
 			listing.AvatarPath = avatarPath;
 
-
+			// ── Nota sprzedawcy ────────────────────────────────────────────────
+			listing.SellerNote = SellerNoteBuilder.BuildNote(listing, rng);
 
 			OXLPlugin.Log.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} Body={bodyCondition:P0} | Price=${price:N0} Fair=${fairValue:N0} ({(fairValue > 0 ? (float)price / fairValue : 0):F2}x) | Faults={faults} | Color={color} | TTL={ttl:F0}s");
 

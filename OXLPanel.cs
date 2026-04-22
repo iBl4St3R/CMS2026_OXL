@@ -1583,10 +1583,12 @@ namespace CMS2026_OXL
             quoteIcon.SetFontSize(30);
 
             _detailSellerNote = _panel.AddLabelToContainer(
-                noteBox, "",
-                30f, 10f, RightW - 42f, noteH - 20f,
-                new Color(0.80f, 0.84f, 0.86f, 1f));
-            _detailSellerNote.SetFontSize(13);
+            noteBox, "",
+            30f, 0f, RightW - 42f, noteH,   // top=0, height=pełny noteBox
+             new Color(0.80f, 0.84f, 0.86f, 1f));
+            _detailSellerNote.SetFontSize(15);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailSellerNote.GetRawPtr())),
+                TextAnchor.MiddleLeft);
 
 
 
