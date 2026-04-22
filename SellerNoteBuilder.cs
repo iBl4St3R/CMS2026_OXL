@@ -91,67 +91,199 @@ namespace CMS2026_OXL
         private static bool IsMid(CarListing l) => l.ActualCondition >= 0.30f && l.ActualCondition < 0.65f;
         private static bool IsGood(CarListing l) => l.ActualCondition >= 0.65f;
 
-        private static string DominantFaultLine(CarListing l, SellerArchetype arch, int level)
+        private static string DominantFaultLine(CarListing l, SellerArchetype arch, int level, Random _rng)
         {
             if (l.Faults.HasFlag(FaultFlags.HeadGasket))
                 return arch switch
                 {
-                    SellerArchetype.Honest => level == 1
-                        ? "A mechanic looked at it and mentioned something about the head gasket — I did not fully understand what that meant but it sounds expensive."
-                        : "Head gasket has failed — coolant is mixing with oil and the engine needs proper work before it goes anywhere.",
-                    SellerArchetype.Wrecker => "There is white smoke on startup sometimes, usually clears after a minute or two.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"A mechanic had a look at the <b>{l.Model}</b> and mentioned something about the <color=#ff9944>head gasket</color> — <color=#aaaaaa>I did not fully understand what that meant but it sounded expensive.</color>",
+                $"There is <color=#ff9944>white smoke</color> coming from the back of the <b>{l.Make}</b> when it starts up. <color=#aaaaaa>My neighbour said it could be the head gasket but I honestly have no idea.</color>",
+                $"The <b>{l.Model}</b> has been <color=#ff9944>losing coolant</color> and I cannot figure out where it is going. <color=#aaaaaa>Someone at the garage said it might be internal — whatever that means.</color>",
+                $"I noticed the oil in the <b>{l.Make}</b> looked <color=#ff9944>a bit milky</color> the last time I checked it. <color=#aaaaaa>I googled it and the results were not encouraging, hence the price.</color>",
+                $"There is <color=#ff9944>a sweet smell</color> from the engine bay of the <b>{l.Model}</b> that I cannot explain. <color=#aaaaaa>A friend said it might be coolant leaking somewhere it should not be.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> <color=#ff9944>runs hot sometimes</color> and I do not know why. <color=#aaaaaa>Had it looked at briefly and the mechanic said something about the gasket — I nodded like I understood.</color>",
+                $"Someone told me the <b>{l.Model}</b> might have a <color=#ff9944>head gasket problem</color>. <color=#aaaaaa>I do not know enough about engines to confirm or deny that, which is partly why I am selling it.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>steams a bit from under the bonnet</color> on cold mornings. <color=#aaaaaa>It clears after a few minutes but I was told that is not a good sign.</color>",
+                $"Oil and coolant levels on the <b>{l.Model}</b> keep dropping and I <color=#aaaaaa>cannot find any obvious leaks outside the engine. Priced low because I suspect it needs serious work.</color>",
+                $"A bloke at work had a listen to the <b>{l.Year}</b> <b>{l.Make}</b> and said <color=#ff9944>'that sounds like a gasket job'</color>. <color=#aaaaaa>He works in IT so take that with a pinch of salt, but the price reflects the uncertainty.</color>",
+            }) :
+                    // level 2+
+                    "Head gasket has failed — coolant is mixing with oil and the engine needs proper work before it goes anywhere.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"There is <color=#ff9944>white smoke on startup</color> sometimes, usually clears after a minute or two.",
+                $"The <b>{l.Make}</b> <color=#ff9944>drinks coolant</color> a bit. I just top it up when the light comes on, never been a problem.",
+                $"Runs a little <color=#ff9944>rough when cold</color> but settles down. Probably nothing.",
+                $"There is a <color=#ff9944>slight mist</color> from the exhaust on startup. Does it on cold days mostly.",
+                $"Oil looks a <color=#ff9944>bit off</color> but I figured it just needed a change. Never got around to it.",
+            }) : "There is white smoke on startup sometimes, usually clears after a minute or two.",
+
                     SellerArchetype.Dealer => null,
-                    SellerArchetype.Scammer => "Engine runs perfectly, starts first time every time, no smoke, no leaks.",
+
+                    SellerArchetype.Scammer => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Engine runs <color=#99ff99>perfectly</color>, starts first time every time, <color=#99ff99>no smoke, no leaks</color>.",
+                $"Just had the engine <color=#99ff99>fully inspected</color> last week — mechanic said it was in <color=#99ff99>great shape</color>.",
+                $"<color=#99ff99>Zero issues</color> with the engine on this <b>{l.Make}</b>. <color=#99ff99>Starts like a dream</color> every single time.",
+                $"Engine on the <b>{l.Model}</b> is <color=#99ff99>strong and clean</color>. <color=#aaaaaa>Oil is crystal clear, coolant full, no problems at all.</color>",
+            }) : "Engine runs perfectly, starts first time every time, no smoke, no leaks.",
+
                     _ => null,
                 };
 
             if (l.Faults.HasFlag(FaultFlags.TimingBelt))
                 return arch switch
                 {
-                    SellerArchetype.Honest => level == 1
-                        ? "My mate who knows cars said the timing belt might be overdue but I honestly have no idea when it was last done."
-                        : "Timing belt is overdue for replacement — I would not drive it far before sorting that, and the price has been set accordingly.",
-                    SellerArchetype.Wrecker => "I could not tell you when the timing belt was last changed — no paperwork for that.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"My mate who knows cars said the <color=#ff9944>timing belt</color> on the <b>{l.Model}</b> might be overdue. <color=#aaaaaa>I honestly have no idea when it was last done — there is no paperwork for it.</color>",
+                $"I <color=#aaaaaa>cannot find any record of the timing belt being changed</color> on this <b>{l.Make}</b>. <color=#ff9944>It could be fine, it could be urgent — I genuinely do not know.</color>",
+                $"Someone mentioned the <b>{l.Year}</b> <b>{l.Model}</b> <color=#ff9944>should have its cambelt checked</color>. <color=#aaaaaa>I have owned it three years and never done it, which probably tells you something.</color>",
+                $"No idea when the <color=#ff9944>timing belt</color> was last replaced on the <b>{l.Make}</b>. <color=#aaaaaa>I asked the previous owner and they did not know either. Buyer beware and price reflects that.</color>",
+                $"The <b>{l.Model}</b> has <b>{l.Mileage:N0} miles</b> on it and I have <color=#ff9944>no cambelt history</color>. <color=#aaaaaa>A mechanic friend said that is something to sort sooner rather than later.</color>",
+                $"I was told the <color=#ff9944>timing belt is something you should not ignore</color> on these <b>{l.Make}</b>s. <color=#aaaaaa>I have been meaning to get it checked but never got around to it — hence the honest price.</color>",
+                $"There is <color=#ff9944>no stamp or receipt for the cambelt</color> in the <b>{l.Model}</b>'s history. <color=#aaaaaa>Could have been done, could not have — I cannot say either way.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> is at <b>{l.Mileage:N0} miles</b>. <color=#aaaaaa>I looked up the service interval for the timing belt and I think it is probably overdue. Priced low to account for that.</color>",
+            }) :
+                    level == 2
+                        ? "Timing belt is overdue for replacement — I would not drive it far before sorting that, and the price has been set accordingly."
+                        : "Timing belt has not been changed in a long time. Needs doing before driving, hence the price.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"I could not tell you when the <color=#ff9944>timing belt</color> was last changed — <color=#aaaaaa>no paperwork for that one.</color>",
+                $"Never changed the <color=#ff9944>cambelt</color> myself. <color=#aaaaaa>Maybe the previous owner did, maybe not.</color>",
+                $"The <b>{l.Make}</b> has done <b>{l.Mileage:N0} miles</b>. <color=#aaaaaa>Whether the belt has been done in that time I honestly could not say.</color>",
+            }) : "I could not tell you when the timing belt was last changed — no paperwork for that.",
+
                     SellerArchetype.Dealer => null,
-                    SellerArchetype.Scammer => "Full service history with the car, timing belt was replaced as part of the last service.",
+
+                    SellerArchetype.Scammer => level == 1 ? Pick(_rng, new[]
+                    {
+                $"<color=#99ff99>Full service history</color> with the <b>{l.Model}</b>, <color=#99ff99>timing belt was replaced</color> as part of the last service.",
+                $"Timing belt was <color=#99ff99>done recently</color> by a proper garage — <color=#aaaaaa>I have the receipt somewhere, will dig it out on viewing.</color>",
+                $"<color=#99ff99>Cambelt, water pump, tensioner — all replaced</color> at the correct mileage. <color=#aaaaaa>Nothing to worry about there.</color>",
+            }) : "Full service history with the car, timing belt was replaced as part of the last service.",
+
                     _ => null,
                 };
 
             if (l.Faults.HasFlag(FaultFlags.BrakesGone))
                 return arch switch
                 {
-                    SellerArchetype.Honest => "Brakes are worn down and need replacing before this goes on a public road — pads are basically metal on metal at this point.",
-                    SellerArchetype.Wrecker => "Stopping distance feels a little longer than it used to but I have always been a cautious driver.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"The <color=#ff9944>brakes</color> on the <b>{l.Model}</b> are worn down — <color=#aaaaaa>I could feel it getting worse over the last few weeks. Definitely needs new pads before it goes on a road.</color>",
+                $"Stopping distance on the <b>{l.Make}</b> feels <color=#ff9944>longer than it used to</color>. <color=#aaaaaa>I think the pads are pretty much gone at this point, hence the price.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> makes a <color=#ff9944>grinding noise when braking</color>. <color=#aaaaaa>I am told that means the pads are metal on metal. Needs sorting before driving.</color>",
+                $"Brakes have been <color=#ff9944>squealing</color> on the <b>{l.Model}</b> for a while. <color=#aaaaaa>I kept meaning to get it seen to. They work, just about, but they need replacing.</color>",
+                $"The <b>{l.Make}</b> pulls <color=#ff9944>slightly to one side under braking</color>. <color=#aaaaaa>Someone told me that could be a worn caliper or uneven pads. Either way it needs attention.</color>",
+                $"I will be honest — the <color=#ff9944>brakes on this <b>{l.Model}</b> need doing</color>. <color=#aaaaaa>Nothing dangerous at low speeds but I would not take it on a motorway. Price reflects that.</color>",
+            }) : "Brakes are worn down and need replacing before this goes on a public road — pads are basically metal on metal at this point.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Stopping distance feels a <color=#ff9944>little longer</color> than it used to. <color=#aaaaaa>I have always been a cautious driver so it has not been a problem.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>squeaks a bit</color> when you brake. <color=#aaaaaa>Probably just the pads, nothing dramatic.</color>",
+                $"Brakes work. <color=#aaaaaa>Not as sharp as they were when I bought it but I have not had any near misses.</color>",
+            }) : "Stopping distance feels a little longer than it used to but I have always been a cautious driver.",
+
                     SellerArchetype.Dealer => null,
-                    SellerArchetype.Scammer => "Brakes were checked and adjusted at the last service, no issues found.",
+
+                    SellerArchetype.Scammer => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Brakes on the <b>{l.Model}</b> were <color=#99ff99>checked and adjusted</color> at the last service. <color=#aaaaaa>No issues found.</color>",
+                $"<color=#99ff99>Brand new brake pads</color> fitted all round on the <b>{l.Make}</b>. <color=#99ff99>Stops on a sixpence.</color>",
+                $"Brakes are <color=#99ff99>excellent</color> on this one. <color=#aaaaaa>One of the things the mechanic specifically commented on.</color>",
+            }) : "Brakes were checked and adjusted at the last service, no issues found.",
+
                     _ => null,
                 };
 
             if (l.Faults.HasFlag(FaultFlags.SuspensionWorn))
                 return arch switch
                 {
-                    SellerArchetype.Honest => "Suspension is worn out — shocks are soft and there are some clunks over bumps that need sorting.",
-                    SellerArchetype.Wrecker => "Rides a bit firm maybe, could be the roads around here, never bothered checking.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"The <b>{l.Model}</b> <color=#ff9944>bounces a bit more than it should</color> over bumps. <color=#aaaaaa>A friend said the shocks might be on their way out but I am not sure how serious that is.</color>",
+                $"There is a <color=#ff9944>clunking noise</color> from the front of the <b>{l.Make}</b> when going over speed bumps. <color=#aaaaaa>I have been meaning to get it looked at for months. Here we are.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> <color=#ff9944>rides a bit wallowy</color>. <color=#aaaaaa>I am told that is the shock absorbers. They probably need replacing but I never got around to it.</color>",
+                $"Suspension on the <b>{l.Model}</b> <color=#ff9944>makes a noise over rough ground</color>. <color=#aaaaaa>I have just been avoiding potholes. Priced to allow for whatever it needs.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>sits a little low on one corner</color>. <color=#aaaaaa>Not sure if it is a spring or a shock but something is not right. Obvious once you see it.</color>",
+                $"Handling on the <b>{l.Model}</b> feels <color=#ff9944>vague and floaty</color>. <color=#aaaaaa>I was told that is usually suspension-related on these. Not dangerous at normal speeds but it needs attention.</color>",
+            }) : "Suspension is worn out — shocks are soft and there are some clunks over bumps that need sorting.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Rides a bit <color=#ff9944>firm</color> maybe. <color=#aaaaaa>Could be the roads around here, never bothered checking.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>bounces a little</color> on bad roads. <color=#aaaaaa>I just drive slowly over the bumps.</color>",
+                $"There is <color=#ff9944>a knock somewhere at the front</color>. <color=#aaaaaa>Comes and goes. Never stopped the car from driving so I ignored it.</color>",
+            }) : "Rides a bit firm maybe, could be the roads around here, never bothered checking.",
+
                     SellerArchetype.Dealer => null,
-                    SellerArchetype.Scammer => "Suspension feels tight and responsive, no knocks or creaks.",
+
+                    SellerArchetype.Scammer => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Suspension on the <b>{l.Model}</b> feels <color=#99ff99>tight and responsive</color>. <color=#aaaaaa>No knocks or creaks at all.</color>",
+                $"Just had <color=#99ff99>new shocks fitted</color> on the <b>{l.Make}</b>. <color=#99ff99>Rides like a new car.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> handles <color=#99ff99>beautifully</color>. <color=#aaaaaa>Suspension is solid, no issues whatsoever.</color>",
+            }) : "Suspension feels tight and responsive, no knocks or creaks.",
+
                     _ => null,
                 };
 
             if (l.Faults.HasFlag(FaultFlags.ElectricalFault))
                 return arch switch
                 {
-                    SellerArchetype.Honest => "There is an electrical fault — the alternator is not charging properly and the battery keeps going flat, which is why the price is what it is.",
-                    SellerArchetype.Wrecker => "A warning light comes on occasionally, turns itself off after a while, never figured out what it was.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"The <b>{l.Model}</b> has a <color=#ff9944>warning light on the dash</color> that I cannot get to go away. <color=#aaaaaa>I had it plugged in at Halfords and they said something about the alternator but I did not really follow it.</color>",
+                $"The <color=#ff9944>battery keeps going flat</color> on the <b>{l.Make}</b>. <color=#aaaaaa>I have replaced the battery twice now and the problem came back both times, so it must be something else.</color>",
+                $"There is an <color=#ff9944>intermittent electrical issue</color> with the <b>{l.Year}</b> <b>{l.Make}</b>. <color=#aaaaaa>Sometimes things on the dash just stop working for a bit then come back. I cannot reproduce it on demand.</color>",
+                $"The <b>{l.Model}</b> <color=#ff9944>occasionally does not start first time</color>. <color=#aaaaaa>Jump leads always sort it but that is clearly not a long term solution. I am told it could be the alternator not charging properly.</color>",
+                $"There is a <color=#ff9944>drain on the electrics</color> somewhere in the <b>{l.Make}</b>. <color=#aaaaaa>Mechanic said something about a parasitic draw but could not find the source without more time spent on it. Price reflects the unknown.</color>",
+                $"Some <color=#ff9944>electrics cut out randomly</color> on the <b>{l.Model}</b>. <color=#aaaaaa>Windows, radio, interior lights — they just stop sometimes. Comes back after turning it off and on. Very annoying.</color>",
+            }) : "There is an electrical fault — the alternator is not charging properly and the battery keeps going flat, which is why the price is what it is.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"A <color=#ff9944>warning light</color> comes on occasionally. <color=#aaaaaa>Turns itself off after a while, never figured out what it was.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>takes a few tries to start</color> sometimes. <color=#aaaaaa>Usually fine once it gets going.</color>",
+                $"One of the <color=#ff9944>windows stopped working</color> a while back. <color=#aaaaaa>I just leave it closed. Not a big deal really.</color>",
+            }) : "A warning light comes on occasionally, turns itself off after a while, never figured out what it was.",
+
                     SellerArchetype.Dealer => null,
-                    SellerArchetype.Scammer => "All electrics working perfectly, no warning lights on the dash.",
+
+                    SellerArchetype.Scammer => level == 1 ? Pick(_rng, new[]
+                    {
+                $"<color=#99ff99>All electrics working perfectly</color> on the <b>{l.Model}</b>. <color=#aaaaaa>No warning lights on the dash at all.</color>",
+                $"Electrics on the <b>{l.Make}</b> are <color=#99ff99>absolutely fine</color>. <color=#99ff99>New battery fitted</color> recently too.",
+                $"<color=#99ff99>Everything works</color> — windows, lights, radio, all of it. <color=#aaaaaa>Had no electrical issues in all the time I have owned the <b>{l.Model}</b>.</color>",
+            }) : "All electrics working perfectly, no warning lights on the dash.",
+
                     _ => null,
                 };
 
             if (l.Faults.HasFlag(FaultFlags.ExhaustRusted))
                 return arch switch
                 {
-                    SellerArchetype.Honest => "Exhaust has some rust on it and will need attention before long — nothing structural but worth knowing.",
-                    SellerArchetype.Wrecker => "It is a bit louder than it used to be, especially when cold, but it quiets down once it warms up.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"The exhaust on the <b>{l.Model}</b> is <color=#ff9944>getting rusty</color>. <color=#aaaaaa>Nothing hanging off yet but I was told it will need attention before long.</color>",
+                $"There is <color=#ff9944>visible rust on the exhaust</color> of the <b>{l.Make}</b>. <color=#aaaaaa>It is a bit louder than it used to be because of it. Disclosed in the photos.</color>",
+                $"The <b>{l.Year}</b> <b>{l.Make}</b> exhaust <color=#ff9944>rattles slightly</color>. <color=#aaaaaa>I think it is the rust causing it to work loose at one of the joints. Should not be a huge job.</color>",
+                $"Exhaust on the <b>{l.Model}</b> has <color=#ff9944>seen better days</color>. <color=#aaaaaa>Rusty in places — nothing has fallen off yet but it is not far away. Honest price for an honest car.</color>",
+            }) : "Exhaust has some rust on it and will need attention before long — nothing structural but worth knowing.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"It is a <color=#ff9944>bit louder</color> than it used to be, especially when cold. <color=#aaaaaa>Quiets down once it warms up.</color>",
+                $"The <b>{l.Make}</b> <color=#ff9944>blows a tiny bit</color> from somewhere under the car. <color=#aaaaaa>I can barely hear it inside with the radio on.</color>",
+            }) : "It is a bit louder than it used to be, especially when cold, but it quiets down once it warms up.",
+
                     SellerArchetype.Dealer => null,
                     SellerArchetype.Scammer => null,
                     _ => null,
@@ -160,8 +292,20 @@ namespace CMS2026_OXL
             if (l.Faults.HasFlag(FaultFlags.GlassDamage))
                 return arch switch
                 {
-                    SellerArchetype.Honest => "There is a small chip in the windscreen — not a crack, just a chip, disclosed in the photos.",
-                    SellerArchetype.Wrecker => "Small mark on the windscreen that I never got around to fixing, barely notice it when driving.",
+                    SellerArchetype.Honest => level == 1 ? Pick(_rng, new[]
+                    {
+                $"There is a <color=#ff9944>small chip in the windscreen</color> of the <b>{l.Model}</b>. <color=#aaaaaa>Not a crack, just a chip — visible in the photos. Probably repairable for not much money.</color>",
+                $"The <b>{l.Make}</b> has a <color=#ff9944>stone chip on the windscreen</color>. <color=#aaaaaa>I kept meaning to get it repaired. It has not spread in the year I have had the car.</color>",
+                $"Windscreen on the <b>{l.Year}</b> <b>{l.Make}</b> has <color=#ff9944>a small mark on the passenger side</color>. <color=#aaaaaa>Barely noticeable from the driver's seat but I wanted to mention it. Shown in photos.</color>",
+                $"There is a <color=#ff9944>chip in the glass</color> on the <b>{l.Model}</b>. <color=#aaaaaa>Insurance might cover a repair — I just never bothered to claim. Worth mentioning either way.</color>",
+            }) : "There is a small chip in the windscreen — not a crack, just a chip, disclosed in the photos.",
+
+                    SellerArchetype.Wrecker => level == 1 ? Pick(_rng, new[]
+                    {
+                $"Small <color=#ff9944>mark on the windscreen</color> that I never got around to fixing. <color=#aaaaaa>Barely notice it when driving.</color>",
+                $"There is a <color=#ff9944>chip in the glass</color>. <color=#aaaaaa>Has been there since I bought it. Never got worse.</color>",
+            }) : "Small mark on the windscreen that I never got around to fixing, barely notice it when driving.",
+
                     SellerArchetype.Dealer => null,
                     SellerArchetype.Scammer => null,
                     _ => null,
@@ -183,20 +327,78 @@ namespace CMS2026_OXL
             if (lv == 1)
             {
                 opener = IsBad(l) ? Pick(rng, new[]
-                {
-                    $"Starts and drives but honestly something does not feel quite right with it, I just cannot put my finger on what.",
-                    $"Runs, not brilliantly, but it gets from A to B without stopping — has some issues I cannot properly describe.",
-                    $"Drove this every day for a while then things started going wrong, decided to sell before spending money I do not have.",
+        {
+            $"Starts and drives but honestly something <color=#ff9944><b>does not feel quite right</b></color> with this <b>{l.Make}</b>, <color=#aaaaaa>I just cannot put my finger on what.</color>",
+            $"My <b>{l.Model}</b> runs, not brilliantly, but it <color=#99ff99>gets from A to B</color> without stopping — <color=#ff9944>has some issues I cannot properly describe.</color>",
+            $"Drove this <b>{l.Year}</b> <b>{l.Make}</b> every day for a while then <color=#ff9944>things started going wrong</color>, <color=#aaaaaa>decided to sell before spending money I do not have.</color>",
+            $"Honestly, this <b>{l.Make}</b> is <color=#ff9944>showing its age now</color> and I just want a quick sale. <color=#aaaaaa>I'm not sure what it needs to be perfect again.</color>",
+            $"Selling my <b>{l.Year}</b> <b>{l.Model}</b> <color=#ff9944>as it is</color>. It's been <color=#ff9944>a bit temperamental</color> lately and <color=#aaaaaa>I don't have the patience to figure out why.</color>",
+            $"This <b>{l.Color}</b> <b>{l.Make}</b> has <color=#ff9944>seen better days</color>, I'll be the first to admit it. <color=#99ff99>Might be an easy fix</color> for someone who actually knows about cars.",
+            $"It starts and it goes, but this <b>{l.Model}</b> is definitely <color=#ff9944>a bit of a project now</color>. <color=#aaaaaa>I've just been using it for short trips to the shops.</color>",
+            $"Time for this <b>{l.Year}</b> <b>{l.Make}</b> to go. It's got <color=#ff9944>some quirks</color> that I've just learned to live with, <color=#aaaaaa>but you might want to look at them.</color>",
+            $"Selling my old <b>{l.Model}</b>. It’s been sitting for a bit because <color=#ff9944>it started acting up</color>. <color=#aaaaaa>I'm tired of looking at it on the driveway.</color>",
+            $"My <b>{l.Year}</b> <b>{l.Make}</b> is <color=#ff9944>a bit rough around the edges</color>. <color=#aaaaaa>I think it's just tired from all the miles.</color>",
+            $"If you're looking for a showroom car, this <b>{l.Color}</b> <b>{l.Model}</b> isn't it. <color=#ff9944>It's just a basic old car with some issues.</color>",
+            $"This <b>{l.Make}</b> has <color=#ff9944>a few groans and creaks</color>. <color=#aaaaaa>I’m selling it cheap because I just want it gone today.</color>",
+            $"Listing my <b>{l.Year}</b> <b>{l.Model}</b>. <color=#ff9944>It’s not been the same since the winter</color>. <color=#aaaaaa>I'm not a mechanic, so I'm selling it as I found it.</color>",
+            $"Old <b>{l.Make}</b> for sale. <color=#ff9944>It’s got a mind of its own sometimes</color>. <color=#aaaaaa>I've just been driving it very carefully lately.</color>",
+            $"Selling this <b>{l.Color}</b> <b>{l.Model}</b>. It's <color=#ff9944>a bit of a 'fixer-upper'</color> as they say. <color=#aaaaaa>I don't even know where the toolkit is.</color>",
+            $"My <b>{l.Year}</b> <b>{l.Make}</b> is definitely <color=#ff9944>a 'budget' option</color>. <color=#aaaaaa>It gets me there, eventually.</color>",
+            $"Listing my <b>{l.Model}</b>. It's had a long life and <color=#ff9944>it's starting to show</color>. <color=#aaaaaa>I'd keep it but I need something I don't have to worry about.</color>",
+            $"This <b>{l.Make}</b> <b>{l.Model}</b> is what it is. <color=#ff9944>A bit noisy, a bit slow</color>, <color=#aaaaaa>but it's still technically a car.</color>",
+            $"Selling my <b>{l.Year}</b> <b>{l.Color}</b> <b>{l.Make}</b>. <color=#ff9944>It’s not perfect</color>, but it’s honest. <color=#aaaaaa>I just can't afford to keep guessing what's wrong with it.</color>",
+            $"Had this <b>{l.Model}</b> for years, but it's time to part ways. <color=#ff9944>It’s developed a few 'noises'</color> that I don't like.",
+            $"Listing my <b>{l.Make}</b>. It's <color=#ff9944>a bit grumpy in the mornings</color>. <color=#aaaaaa>Once it's warm it's okay-ish, I think.</color>"
+
+
                 }) : IsMid(l) ? Pick(rng, new[]
                 {
-                    $"Daily driver for the last couple of years, been mostly reliable and never left me stranded.",
-                    $"Starts every time and drives fine as far as I can tell, not a car person so cannot say much more than that.",
-                    $"Got this a few years ago and it has done the job, time to move on now that I have something newer.",
+            $"Daily driver for the last couple of years, this <b>{l.Make}</b> has been <color=#99ff99>mostly reliable</color> and never left me stranded.",
+            $"Starts every time and <color=#99ff99>drives fine</color> as far as I can tell, <color=#aaaaaa>not a car person so cannot say much more about the <b>{l.Model}</b> than that.</color>",
+            $"Got this <b>{l.Color}</b> <b>{l.Make}</b> a few years ago and <color=#99ff99>it has done the job</color>, time to move on now.",
+            $"Selling my <b>{l.Year}</b> <b>{l.Make}</b>. It's just a <color=#99ff99>normal car</color> that does normal car things. <color=#aaaaaa>Never really let me down.</color>",
+            $"Here is my <b>{l.Color}</b> <b>{l.Model}</b>. I've used it for work and back, and it's been <color=#99ff99>totally fine</color>.",
+            $"Up for sale is my <b>{l.Make}</b>. It’s got some age, but it’s been <color=#99ff99>a good servant</color> to me. <color=#aaaaaa>I'll be sad to see it go, actually.</color>",
+            $"This <b>{l.Year}</b> <b>{l.Model}</b> is a <color=#99ff99>decent little runner</color>. <color=#aaaaaa>Nothing fancy, but it gets the job done without any fuss.</color>",
+            $"Selling the <b>{l.Make}</b> because I've upgraded. It’s <color=#99ff99>served me well</color> for three years now.",
+            $"My <b>{l.Color}</b> <b>{l.Model}</b> is ready for a new owner. <color=#aaaaaa>I’ve just used it for the school run mostly.</color>",
+            $"Listing my <b>{l.Year}</b> <b>{l.Make}</b>. It’s a <color=#99ff99>solid car</color> for the price. <color=#aaaaaa>It's not perfect, but it's been very reliable for me.</color>",
+            $"This <b>{l.Model}</b> has been a <color=#99ff99>great first car</color> for me. <color=#aaaaaa>Easy to drive and doesn't cost much to run.</color>",
+            $"Selling my <b>{l.Make}</b> <b>{l.Model}</b>. It's been through a few MOTs with me and always <color=#99ff99>seems to pass eventually</color>.",
+            $"Got this <b>{l.Year}</b> <b>{l.Color}</b> <b>{l.Make}</b> from a neighbor. <color=#99ff99>It's been a steady car</color> for as long as I've had it.",
+            $"It's a <b>{l.Model}</b>. It drives, it stops, <color=#99ff99>the heater works</color>. <color=#aaaaaa>That's about all I know about cars!</color>",
+            $"Selling my <b>{l.Make}</b>. It's <color=#aaaaaa>a bit of a plain Jane</color>, but she's <color=#99ff99>never left me stranded</color> on the motorway.",
+            $"This <b>{l.Year}</b> <b>{l.Model}</b> is a <color=#99ff99>fair car for fair money</color>. <color=#aaaaaa>I’ve kept it clean inside at least!</color>",
+            $"My <b>{l.Color}</b> <b>{l.Make}</b> is up for grabs. <color=#aaaaaa>I've not had any major dramas with it since I bought it.</color>",
+            $"Listing my <b>{l.Model}</b>. It's been a <color=#99ff99>faithful workhorse</color> for me and my family.",
+            $"This <b>{l.Year}</b> <b>{l.Make}</b> is just a <color=#99ff99>sensible choice</color>. <color=#aaaaaa>I’m only selling because I don't need two cars anymore.</color>",
+            $"Decent <b>{l.Model}</b> for sale. <color=#aaaaaa>I've always found it quite comfy for long trips.</color>",
+            $"Selling my <b>{l.Color}</b> <b>{l.Make}</b>. <color=#99ff99>It’s not a race car, but it’s very dependable.</color>"
+
+
                 }) : Pick(rng, new[]
                 {
-                    $"Well looked after as best I could, always garaged and kept clean, runs really well.",
-                    $"Pretty good condition I think — always started first time and never gave me any real trouble.",
-                    $"Bought this new and kept it properly, full records available, genuinely one careful owner.",
+            $"<color=#99ff99>Well looked after</color> <b>{l.Year}</b> <b>{l.Make}</b> as best I could, <color=#99ff99>always garaged</color> and kept clean, runs really well.",
+            $"<color=#99ff99>Pretty good condition</color> I think — my <b>{l.Model}</b> <color=#99ff99>always started first time</color> and never gave me any real trouble.",
+            $"Bought this <b>{l.Color}</b> <b>{l.Make}</b> new and kept it properly, <color=#aaaaaa>genuinely one careful owner.</color>",
+            $"<color=#99ff99>Really proud</color> of my <b>{l.Year}</b> <b>{l.Make}</b>. I've tried to keep it in the <color=#99ff99>best shape possible</color>. <color=#aaaaaa>It's a lovely car.</color>",
+            $"Selling my <b>{l.Color}</b> <b>{l.Model}</b>. I've <color=#99ff99>always looked after it</color> and I think it shows. <color=#99ff99>It still feels very fresh to drive.</color>",
+            $"This <b>{l.Make}</b> <b>{l.Model}</b> has been my <color=#99ff99>pride and joy</color>. <color=#aaaaaa>I always wash it on Sundays if it's not raining.</color>",
+            $"Up for sale is a <color=#99ff99>very clean</color> <b>{l.Year}</b> <b>{l.Make}</b>. <color=#aaaaaa>I've never even smoked in it, kept it really tidy.</color>",
+            $"Listing my <b>{l.Model}</b>. It's in <color=#99ff99>great condition</color> for its age. <color=#aaaaaa>I've always taken it to the same garage for everything.</color>",
+            $"This <b>{l.Color}</b> <b>{l.Make}</b> is a <color=#99ff99>fantastic example</color>. <color=#aaaaaa>I really don't want to sell it, but I need the space.</color>",
+            $"Selling my <b>{l.Year}</b> <b>{l.Model}</b>. It's been <color=#99ff99>pampered its whole life</color>, always kept in the garage at night.",
+            $"My <b>{l.Make}</b> <b>{l.Model}</b> is a <color=#99ff99>little gem</color>. <color=#99ff99>Runs like a clock</color> and looks great in <b>{l.Color}</b>.",
+            $"<color=#99ff99>Beautiful</color> <b>{l.Year}</b> <b>{l.Make}</b> for sale. <color=#aaaaaa>I’ve spent a lot of time keeping it looking this good.</color>",
+            $"This <b>{l.Model}</b> is probably <color=#99ff99>one of the better ones out there</color>. <color=#aaaaaa>It’s never given me a day of worry.</color>",
+            $"Selling my <b>{l.Make}</b>. It’s a <color=#99ff99>really smooth drive</color>. <color=#aaaaaa>I think the next owner will be very happy with it.</color>",
+            $"Listing my <b>{l.Color}</b> <b>{l.Year}</b> <b>{l.Model}</b>. I've really enjoyed owning this car, <color=#99ff99>it's never missed a beat</color>.",
+            $"This <b>{l.Make}</b> <b>{l.Model}</b> is in <color=#99ff99>wonderful shape</color>. <color=#aaaaaa>I've always been very careful where I park it.</color>",
+            $"My <b>{l.Year}</b> <b>{l.Make}</b> is a <color=#99ff99>very honest, clean car</color>. <color=#aaaaaa>No surprises here, just a well-kept vehicle.</color>",
+            $"Selling this <b>{l.Model}</b>. It’s been <color=#99ff99>very reliable</color> and still looks almost new in some places!",
+            $"This <b>{l.Color}</b> <b>{l.Make}</b> is a <color=#99ff99>real pleasure to drive</color>. <color=#aaaaaa>I'll probably regret selling it later.</color>",
+            $"Listing my <b>{l.Year}</b> <b>{l.Model}</b>. It’s a <color=#99ff99>top-notch car</color>, always had whatever it needed.",
+            $"Selling my <b>{l.Make}</b>. <color=#99ff99>It’s been a very loyal car</color> to me and I’ve treated it well in return."
                 });
             }
             else if (lv == 2)
@@ -243,12 +445,36 @@ namespace CMS2026_OXL
             if (lv == 1)
             {
                 detail1 = Pick(rng, new[]
-                {
-                    $"Has {l.Mileage:N0} miles on it which is quite a lot I know, but it has always run.",
-                    $"It is a {l.Year} so there is definitely some age on it — shows in places but nothing shocking.",
-                    $"I am not very mechanically minded so I cannot give you a detailed rundown, but I have tried to be honest about what I know.",
-                    $"A friend who knows about cars had a look and said it needs a few things but nothing that would make it undriveable.",
-                });
+        {
+            $"Has <b>{l.Mileage:N0} miles</b> on it which is quite a lot I know, but <color=#99ff99>it has always run</color>.",
+            $"It is a <b>{l.Year}</b> model so there is definitely <color=#ff9944>some age on it</color> — <color=#aaaaaa>shows in places but nothing shocking.</color>",
+            $"I am <color=#aaaaaa><b>not very mechanically minded</b> so I cannot give you a detailed rundown</color>, but I have tried to be honest about what I know.",
+            $"A friend who knows about cars had a look at the <b>{l.Model}</b> and said it <color=#ff9944>needs a few things</color> but <color=#99ff99>nothing major</color>.",
+            $"It has <b>{l.Mileage:N0} miles</b> on the clock. <color=#aaaaaa>I don't know if that's high for a <b>{l.Make}</b>, but most of them were on the motorway.</color>",
+            $"Being a <b>{l.Year}</b>, it's got <color=#ff9944>a few marks here and there</color>. <color=#aaaaaa>I think they call it 'character'!</color>",
+            $"The <b>{l.Model}</b> is showing <b>{l.Mileage:N0} miles</b>. <color=#aaaaaa>I've not noticed anything major, but then again, I just drive it.</color>",
+            $"I've had the <b>{l.Make}</b> for a while. <color=#99ff99>It’s never really let me down</color>, but <color=#aaaaaa>I'm not the type to poke around under the bonnet.</color>",
+            $"It's a <b>{l.Year}</b> model. <color=#aaaaaa>I bought it because I liked the color, I didn't really look at the engine much.</color>",
+            $"The mileage is <b>{l.Mileage:N0}</b>. <color=#aaaaaa>I've tried to keep an eye on the oil levels every few months.</color>",
+            $"I'm <color=#aaaaaa><b>not a car expert</b></color>, but the <b>{l.Model}</b> seems to <color=#99ff99>go through the gears okay</color>. <color=#aaaaaa>No loud bangs yet!</color>",
+            $"A guy at the petrol station said these <b>{l.Make}</b>s are <color=#99ff99>built like tanks</color>. <color=#aaaaaa>I hope he was right!</color>",
+            $"It's done <b>{l.Mileage:N0} miles</b>. <color=#aaaaaa>I've got some paper scraps in the dash from the last service.</color>",
+            $"The <b>{l.Year}</b> <b>{l.Model}</b> <color=#99ff99>feels okay on the road</color>. <color=#ff9944>It’s a bit floaty</color>, <color=#aaaaaa>but I think it’s supposed to be like that.</color>",
+            $"I've got the logbook and <b>{l.Mileage:N0} miles</b> on the odometer. <color=#aaaaaa>Everything seems to be where it should be.</color>",
+            $"Being a <b>{l.Color}</b> car, it stays quite cool in the summer. <color=#aaaaaa>That's about the extent of my technical knowledge.</color>",
+            $"The <b>{l.Make}</b> is an old friend now. <b>{l.Mileage:N0} miles</b> and counting. <color=#aaaaaa>I've never had a reason to doubt it.</color>",
+            $"I asked my brother to look at the <b>{l.Model}</b> and he said it <color=#99ff99>'sounds healthy'</color>. <color=#aaaaaa>He works in a bank, but he likes cars.</color>",
+            $"It's a <b>{l.Year}</b>. <color=#ff9944>There's a bit of wear on the driver's seat</color>, but <color=#99ff99>it's still comfy enough</color>.",
+            $"The <b>{l.Mileage:N0} miles</b> are <color=#99ff99>all genuine</color>. <color=#aaaaaa>I've mostly used it to visit my mum on weekends.</color>",
+            $"I <color=#aaaaaa>don't really understand all the technical stuff</color>, but the <b>{l.Make}</b> <b>{l.Model}</b> <color=#99ff99>starts first time every time</color>.",
+            $"The <b>{l.Year}</b> model has <b>{l.Mileage:N0} miles</b>. <color=#99ff99>I've kept the receipts</color> for the new tyres I got last year.",
+            $"It's <b>{l.Color}</b>, which is a nice shade. <b>{l.Mileage:N0}</b> mileage is <color=#aaaaaa>what I'm told is average for its age.</color>",
+            $"I once saw a <b>{l.Make}</b> with double this <b>{l.Mileage:N0} mileage</b>, <color=#99ff99>so it's got plenty of life left!</color>",
+            $"The <b>{l.Model}</b> <color=#ff9944>isn't a new car</color>, so don't expect one. <color=#99ff99>But for a <b>{l.Year}</b>, it's doing alright.</color>",
+            $"I've got some service history for the <b>{l.Make}</b>. <color=#aaaaaa>It's mostly stamps from the local 'while-you-wait' place.</color>",
+            $"The <b>{l.Mileage:N0}</b> on the clock is all mine. <color=#aaaaaa>I've never been a fast driver.</color>",
+            $"I'm selling the <b>{l.Model}</b> exactly as I've been driving it. <color=#aaaaaa>I haven't even had time to hoover it yet, sorry!</color>"
+        });
             }
             else if (lv == 2)
             {
@@ -277,12 +503,42 @@ namespace CMS2026_OXL
             {
                 detail2 = MaybePick(rng, new[]
                 {
-                    "Tyres look alright to me but I am no expert — might be worth a proper look.",
-                    "Interior is a bit lived in but clean enough, nothing broken inside.",
-                    $"Bought it from a private sale in {l.Location} and it has been fine since.",
-                    "Never had any warning lights on the dash the whole time I have owned it.",
-                    "Had it looked over by a local garage a while back and they said it was fine.",
-                }, 0.70);
+            $"Tyres on the <b>{l.Make}</b> <color=#99ff99>look alright to me</color> but <color=#aaaaaa>I am no expert — might be worth a proper look.</color>",
+            $"Interior of this <b>{l.Model}</b> is <color=#ff9944>a bit lived in</color> but <color=#99ff99>clean enough</color>, nothing broken inside.",
+            $"Bought it from a private sale in <b>{l.Location}</b> and <color=#99ff99>it has been fine since</color>.",
+            $"<color=#99ff99>Never had any warning lights</color> on the dash the whole time I have owned it.",
+            $"<color=#aaaaaa>Had it looked over by a local garage a while back and they said it was fine.</color>",
+            $"The spare tyre in the <b>{l.Make}</b> <color=#99ff99>has never been used</color>, <color=#aaaaaa>which is a good sign, I guess?</color>",
+            $"I think the air conditioning in the <b>{l.Model}</b> <color=#ff9944>needs a top-up</color>, <color=#aaaaaa>it's not as cold as it used to be.</color>",
+            $"The radio works fine, though <color=#ff9944>the volume knob is a bit sticky sometimes</color>.",
+            $"It's been parked on my drive in <b>{l.Location}</b>. <color=#99ff99>Safe neighborhood.</color>",
+            $"The back seats of the <b>{l.Make}</b> have <color=#99ff99>hardly been sat in</color>, <color=#aaaaaa>mostly just had my coat on them.</color>",
+            $"I've still got <color=#99ff99>both keys</color> for the <b>{l.Year}</b> <b>{l.Model}</b>. <color=#aaaaaa>That's quite rare for an old car, apparently.</color>",
+            $"The <b>{l.Color}</b> paint has <color=#ff9944>a few stone chips</color> on the front. <color=#aaaaaa>I think that's just from the motorway.</color>",
+            $"I had the <color=#99ff99>battery replaced</color> in the <b>{l.Make}</b> last winter when it got really cold.",
+            $"The wipers on the <b>{l.Model}</b> are <color=#99ff99>brand new</color>, <color=#aaaaaa>I changed them myself last week!</color>",
+            $"<color=#99ff99>Never been involved in any accidents</color> that I know of. <color=#aaaaaa>I've certainly never crashed it.</color>",
+            $"The electric windows in the <b>{l.Year}</b> <b>{l.Make}</b> <color=#99ff99>all go up and down fine</color>, <color=#aaaaaa>which is always a relief.</color>",
+            $"I've got the <color=#99ff99>original manual</color> for the <b>{l.Model}</b> in the glovebox. <color=#aaaaaa>I've never read it, though.</color>",
+            $"The <b>{l.Color}</b> <color=#99ff99>looks really nice</color> when the sun hits it. <color=#aaaaaa>It's my favorite part of the car.</color>",
+            $"I've only ever used 'premium' fuel in this <b>{l.Make}</b>, <color=#aaaaaa>my uncle said it keeps the engine clean.</color>",
+            $"The boot in the <b>{l.Model}</b> is <color=#99ff99>actually quite big</color>, <color=#aaaaaa>fit my golf clubs in there no problem.</color>",
+            $"There's <color=#ff9944>a little bit of rust</color> on the wheel arch of the <b>{l.Year}</b> <b>{l.Make}</b>. <color=#aaaaaa>Nothing a bit of paint wouldn't hide.</color>",
+            $"The interior of the <b>{l.Model}</b> <color=#99ff99>doesn't smell of dogs or smoke</color>, <color=#aaaaaa>I can't stand that.</color>",
+            $"I've got a folder of MOT certificates for the <b>{l.Make}</b> in the house somewhere.",
+            $"The clutch on the <b>{l.Year}</b> <b>{l.Model}</b> <color=#99ff99>feels fine to me</color>, <color=#aaaaaa>not too heavy or anything.</color>",
+            $"I bought some floor mats for the <b>{l.Make}</b> to <color=#99ff99>keep the carpets nice</color>. <color=#aaaaaa>You can have them too.</color>",
+            $"The <b>{l.Color}</b> <b>{l.Model}</b> is <color=#99ff99>quite easy to park</color>, <color=#aaaaaa>the mirrors are nice and big.</color>",
+            $"It's a <color=#99ff99>non-smoker car</color>, <color=#aaaaaa>and I don't have any pets, so it's pretty clean inside.</color>",
+            $"I've always <color=#99ff99>warmed the <b>{l.Make}</b> up</color> for a minute before driving off on cold days.",
+            $"The <b>{l.Year}</b> <b>{l.Model}</b> has a <color=#99ff99>full-size spare wheel</color>, <color=#aaaaaa>not one of those tiny 'space saver' ones.</color>",
+            $"I had the tracking done on the <b>{l.Make}</b> recently because it was <color=#ff9944>pulling to the left a bit</color>.",
+            $"The <b>{l.Model}</b> has a <color=#99ff99>decent sound system</color>, <color=#aaaaaa>plenty of bass for when you're stuck in traffic.</color>",
+            $"I've <color=#99ff99>never taken this <b>{l.Year}</b> <b>{l.Make}</b> through a car wash</color>, <color=#aaaaaa>I always do it by hand with a sponge.</color>",
+            $"The <b>{l.Color}</b> paint is <color=#99ff99>all original</color> as far as I can tell. <color=#aaaaaa>No weird patches.</color>",
+            $"It’s been a <color=#99ff99>really lucky car</color> for me, <color=#aaaaaa>hope it brings the same luck to you!</color>",
+            $"The <b>{l.Model}</b> <color=#99ff99>comes with a half tank of petrol</color>, <color=#aaaaaa>so you can at least get home!</color>"
+        }, 0.70);
             }
             else if (lv == 2)
             {
@@ -308,7 +564,7 @@ namespace CMS2026_OXL
             }
 
             // ── FAULT ────────────────────────────────────────────────────────
-            string fault = DominantFaultLine(l, SellerArchetype.Honest, lv);
+            string fault = DominantFaultLine(l, SellerArchetype.Honest, lv, rng);
             if (lv == 1 && fault != null && rng.NextDouble() < 0.25)
                 fault = null;
 
@@ -318,15 +574,57 @@ namespace CMS2026_OXL
             {
                 closer = Pick(rng, fault != null ? new[]
                 {
-                    "Priced low to account for that — someone who knows what they are doing will get good value here.",
-                    "That is why the price is what it is — not trying to hide anything.",
-                    "I would rather be upfront and price it honestly than waste everyone's time.",
+            $"<color=#aaaaaa>Priced low to account for that</color> — someone who knows what they are doing with a <b>{l.Make}</b> will get <color=#99ff99>good value here</color>.",
+            $"That is why the price for the <b>{l.Model}</b> is what it is — <color=#aaaaaa>not trying to hide anything.</color>",
+            $"I would rather be <color=#99ff99>upfront and price it honestly</color> than waste everyone's time.",
+            $"I've <color=#ff9944>lowered the price because of the noise</color>, <color=#aaaaaa>I think it's fair for someone who can fix it.</color>",
+            $"If you're handy with a wrench, this <b>{l.Make}</b> is a <color=#99ff99>bargain</color>. <color=#aaaaaa>I just can't deal with it anymore.</color>",
+            $"<color=#99ff99>Priced for a quick sale</color> due to the issues mentioned. <color=#aaaaaa>No point in me lying about it.</color>",
+            $"It's a <b>{l.Model}</b> with <color=#ff9944>a bit of a headache</color>, hence the low price. <color=#aaaaaa>Any inspection is welcome.</color>",
+            $"I'd rather be <b>honest about the faults</b> and sell it cheap than have someone complain later.",
+            $"Selling <color=#ff9944>as it is</color>. <color=#aaaaaa>The price reflects the fact it needs a little bit of love.</color>",
+            $"I've been as <color=#99ff99>clear as I can</color> about the problems with the <b>{l.Year}</b> <b>{l.Make}</b>. <color=#aaaaaa>Open to sensible offers.</color>",
+            $"This <b>{l.Model}</b> <color=#ff9944>needs a bit of work</color>, but the price is right. <color=#aaaaaa>I just want it off my drive now.</color>",
+            $"<color=#aaaaaa>I'm not a mechanic, so I've priced it low enough</color> that you can afford to take it to one.",
+            $"Listing it honestly so we don't waste each other's time. <color=#aaaaaa>The price is firm-ish.</color>",
+            $"Take it as it stands. It’s a <color=#ff9944>cheap <b>{l.Make}</b> for a reason</color>, but <color=#99ff99>it still has potential</color>.",
+            $"The <b>{l.Year}</b> <b>{l.Model}</b> is <color=#99ff99>priced to go</color>. <color=#aaaaaa>I've accounted for the fault in the asking price.</color>",
+            $"If you can ignore the issue, it's a <color=#99ff99>great car</color>. <color=#aaaaaa>Or just fix it and have a bargain!</color>",
+            $"I'm <color=#99ff99><b>not hiding anything</b></color>, that's why the <b>{l.Make}</b> is so cheap. <color=#aaaaaa>Come and see for yourself.</color>",
+            $"It’s a bit of a gamble, maybe, but for this price the <b>{l.Model}</b> is worth a look.",
+            $"Price is low because I don't want any hassle. <color=#aaaaaa>You know what you're buying.</color>",
+            $"Selling for <color=#ff9944>'spares or repairs'</color> really, <color=#aaaaaa>though it does still drive if you're brave!</color>",
+            $"I've told you everything I know. <color=#aaaaaa>Price is negotiable, but be fair.</color>"
                 } : new[]
                 {
-                    "Priced to reflect what it is — not asking the earth.",
-                    "Selling because I got something newer, no longer needed.",
-                    "Come and have a look if you are interested, no pressure at all.",
-                    "Just want it gone to a good home, priced accordingly.",
+            $"Priced to <color=#99ff99>reflect what it is</color> — not asking the earth.",
+            $"Selling the <b>{l.Make}</b> because I got something newer, <color=#99ff99>no longer needed</color>.",
+            $"Come and have a look at the <b>{l.Model}</b> if you are interested, <color=#aaaaaa>no pressure at all.</color>",
+            $"Just want it gone to a <color=#99ff99>good home</color>, priced accordingly.",
+            $"It's a <color=#99ff99>solid <b>{l.Make}</b> for the money</color>. <color=#aaaaaa>First person to see it will probably take it.</color>",
+            $"Just a <color=#99ff99><b>genuine, honest car</b></color> looking for a new home. <color=#aaaaaa>No games here.</color>",
+            $"The <b>{l.Year}</b> <b>{l.Model}</b> is <color=#99ff99>ready to drive away today</color>. <color=#aaaaaa>Hope you like it!</color>",
+            $"I've priced it to sell quickly as I've already got my new car. <color=#aaaaaa>No silly offers please.</color>",
+            $"Come and have a look, <color=#aaaaaa>bring a friend who knows about <b>{l.Make}</b>s if you like!</color>",
+            $"It's been a <color=#99ff99>great car for me</color> and I'm sure it will be for you too. <color=#aaaaaa>Good luck!</color>",
+            $"Selling the <b>{l.Model}</b> at what I think is a <color=#99ff99>fair price</color>. <color=#aaaaaa>Not looking to make a fortune.</color>",
+            $"I'm available most evenings if you want to come and test drive the <b>{l.Make}</b>.",
+            $"A very <color=#99ff99><b>straightforward sale</b></color> for a straightforward <b>{l.Year}</b> <b>{l.Model}</b>.",
+            $"I've tried to be as accurate as I can. It's just a <color=#99ff99>good, reliable vehicle</color>.",
+            $"No rush to sell, but I'd like the <b>{l.Make}</b> to go to someone who will use it.",
+            $"Feel free to ask any questions, <color=#aaaaaa>though I might have to ask my brother for the technical bits!</color>",
+            $"The <b>{l.Model}</b> is a <color=#99ff99>good buy</color> for anyone wanting a simple car.",
+            $"<color=#99ff99>Priced fairly</color> according to the market. <color=#aaaaaa>It’s a lot of car for the money.</color>",
+            $"I’ve been the only driver for years, so I <color=#99ff99>know this <b>{l.Year}</b> <b>{l.Make}</b> inside out</color>.",
+            $"Just looking for a <color=#99ff99><b>hassle-free sale</b></color>. <color=#aaaaaa>Bank transfer or cash is fine.</color>",
+            $"It’s a <color=#99ff99>lovely <b>{l.Color}</b> car</color> and it’s never let me down. <color=#aaaaaa>You won't be disappointed.</color>",
+            $"Selling my <b>{l.Model}</b> as I’m moving abroad. <color=#aaaaaa>Need it gone by Friday if possible!</color>",
+            $"This <b>{l.Make}</b> is a <color=#99ff99>real bargain</color> for someone. <color=#aaaaaa>I've kept it as clean as I could.</color>",
+            $"I’m a <b>private seller</b>, so no warranties, but you’re welcome to spend as much time looking at it as you need.",
+            $"The <b>{l.Year}</b> <b>{l.Model}</b> is a <color=#99ff99>great runner</color>. <color=#aaaaaa>Very cheap on insurance too, I found.</color>",
+            $"Come and see it in <b>{l.Location}</b>. <color=#aaaaaa>I'll even put the kettle on!</color>",
+            $"I'm selling it for exactly what I'd want to pay for it. <color=#99ff99>Fair's fair</color>.",
+            $"It’s been a part of the family, this <b>{l.Make}</b>. <color=#99ff99>Treat her well!</color>"
                 });
             }
             else if (lv == 2)
@@ -448,7 +746,7 @@ namespace CMS2026_OXL
             };
 
             // ── FAULT ────────────────────────────────────────────────────────
-            string fault = DominantFaultLine(l, SellerArchetype.Wrecker, lv);
+            string fault = DominantFaultLine(l, SellerArchetype.Honest, lv, rng);
             double faultChance = lv switch { 1 => 0.65, 2 => 0.40, _ => 0.20 };
             if (fault != null && rng.NextDouble() > faultChance) fault = null;
 
@@ -783,7 +1081,7 @@ namespace CMS2026_OXL
             };
 
             // ── FAULT ────────────────────────────────────────────────────────
-            string fault = DominantFaultLine(l, SellerArchetype.Scammer, lv);
+            string fault = DominantFaultLine(l, SellerArchetype.Honest, lv, rng);
             double faultChance = lv switch { 1 => 0.70, 2 => 0.45, _ => 0.25 };
             if (fault != null && rng.NextDouble() > faultChance) fault = null;
 
