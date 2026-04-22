@@ -750,8 +750,110 @@ namespace CMS2026_OXL
 					}
 				}
 
-				cl.ClearEnginePartsConditionCache();
-			}
+
+                const float HonestStartFloor = 0.22f;
+                // Krok 1: explicit ID-based (akumulator, rozrusznik, ECU, rozrząd, pompa wody)
+                var honestStartCritical = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "akumulator", "akumulator_4", "akumulator_5",
+    "v8_rozrusznik_1", "r4_rozrusznik_1",
+    "alternator", "i6_old_alternator",
+    "ecu_1", "ecu_3", "ecu_4",
+    "v6_231_listwa_wtryskowa", "v8_350_listwa_wtryskowa",
+    "v8_filtr_oleju", "r4_filtr_oleju",
+    "filtr_paliwa_1", "pompa_1",
+    "v6_231_rozdzielaczZaplonu", "v8_350_rozdzielaczZaplonu",
+    "v8_zz_lancuch", "v6_231_pasek",
+    "v8_350_lancuch", "v8_350_pasek_1", "v8_350_pasek_2",
+    "v8_350_napinacz", "v8_350_rolkaWalka",
+    "i4_lancuch",
+    "v6_231_pompa_wody", "v8_350_pompa_wody", "r4_pompa_wody",
+    "fuseMedium_1", "fuseMedium_2", "fuseMedium_3",
+    "relay_1", "relay_2", "relay_3",
+    "fuseBox_1_bottom", "fuseBox_1_top",
+    "fuseBox_2_bottom", "fuseBox_2_top",
+};
+
+                for (int i = 0; i < ip.Count; i++)
+                {
+                    if (ip[i] == null) continue;
+                    if (!honestStartCritical.Contains(ip[i].id ?? "")) continue;
+                    if (ip[i].condition < HonestStartFloor)
+                    {
+                        float g = HonestStartFloor + UnityEngine.Random.Range(0f, 0.08f);
+                        try { ip[i].SetCondition(g, false); } catch { ip[i].condition = g; }
+                    }
+                }
+
+                // Krok 2: category-based (głowica, wał, tłoki, przepustnica, wtrysk, cewka)
+                var honestStartCats = new HashSet<WearCat>
+{
+    // ── Silnik — blok, wał, tłoki, głowica, wałek ────────────────────────
+    WearCat.EngineBlock,        // ← DODANE
+    WearCat.Crankshaft,
+    WearCat.Piston,
+    WearCat.CylinderHead,
+    WearCat.CamValve,
+
+    // ── Rozrząd ───────────────────────────────────────────────────────────
+    WearCat.TimingChain,
+    WearCat.TimingTensioner,
+    WearCat.TimingRoller,
+
+    // ── Zapłon / wtrysk ───────────────────────────────────────────────────
+    WearCat.SparkPlug,          
+    WearCat.IgnitionCoil,
+    WearCat.Distributor,
+    WearCat.Injector,
+    WearCat.Throttle,
+
+    // ── Paliwo ────────────────────────────────────────────────────────────
+    WearCat.FuelPump,          
+
+    // ── Elektryka ─────────────────────────────────────────────────────────
+    WearCat.Battery,
+    WearCat.Starter,
+    WearCat.Alternator,
+    WearCat.Ecu,
+    WearCat.Relay,
+    WearCat.Fuse,
+
+    // ── Chłodzenie (przegrzanie = silnik nie pracuje) ─────────────────────
+    WearCat.WaterPump,
+    WearCat.Radiator,
+    WearCat.CoolingFan,
+
+    // ── Sprzęgło (bez niego auto nie ruszy z miejsca) ─────────────────────
+    WearCat.Clutch,
+    WearCat.Flywheel,
+
+    // ── Skrzynia biegów (bez niej auto nie ruszy) ─────────────────────────
+    WearCat.Gearbox,           
+};
+
+                for (int i = 0; i < ip.Count; i++)
+                {
+                    if (ip[i] == null) continue;
+                    var cat = PartCatalog.Classify(ip[i].id ?? "");
+                    if (!honestStartCats.Contains(cat)) continue; 
+
+                    bool isTimingPart = cat == WearCat.TimingChain
+                                     || cat == WearCat.TimingTensioner
+                                     || cat == WearCat.TimingRoller;
+                    if (isTimingPart && faults.HasFlag(FaultFlags.TimingBelt)) continue;
+
+                    if (cat == WearCat.CylinderHead && faults.HasFlag(FaultFlags.HeadGasket)) continue;
+
+                    if (ip[i].condition < HonestStartFloor)
+                    {
+                        float g = HonestStartFloor + UnityEngine.Random.Range(0f, 0.06f);
+                        try { ip[i].SetCondition(g, false); } catch { ip[i].condition = g; }
+                        OXLLog.Msg($"[OXL:HONEST] startFloor: '{ip[i].id}' → {g:P0}");
+                    }
+                }
+
+                cl.ClearEnginePartsConditionCache();
+            }
 
 			// Chassis
 			float chassisTarget = Mathf.Clamp(actual * UnityEngine.Random.Range(0.85f, 1.0f), 0.05f, 0.95f);
