@@ -345,7 +345,7 @@ namespace CMS2026_OXL
 
         private int RollLevel(SellerArchetype arch, Random rng)
         {
-            // SellerArchetype enum: Honest=0, Neglected=1, Dealer=2, Wrecker=3
+            // SellerArchetype enum: Honest=0, wrecker=1, Dealer=2, scammer=3
             int archIdx = (int)arch;
             int[] w = _config.LvlWeights[archIdx];
             int total = w[0] + w[1] + w[2];
@@ -360,8 +360,8 @@ namespace CMS2026_OXL
         }
 
         // ── ApparentCondition — co gracz widzi w ogłoszeniu ──────────────────
-        // Dealer i Wrecker kłamią na poziomie apparent (zdjęcia, opis)
-        // Honest i Neglected — apparent ≈ actual (bez manipulacji)
+        // Dealer i scammer kłamią na poziomie apparent (zdjęcia, opis)
+        // Honest i wrecker — apparent ≈ actual (bez manipulacji)
 
         private static float RollApparent(SellerArchetype arch, int level, Random rng)
         {
@@ -441,7 +441,7 @@ namespace CMS2026_OXL
                 // Honest: karoseria odzwierciedla stan faktyczny — bez manipulacji
                 SellerArchetype.Honest => Mathf.Clamp(actual * (float)(0.92 + rng.NextDouble() * 0.12), 0.05f, 0.95f),
 
-                // Neglected: zaniedbana karoseria — ciut gorsza niż actual
+                // Wrecker: zaniedbana karoseria — ciut gorsza niż actual
                 SellerArchetype.Wrecker => (float)(rng.NextDouble() * 0.30),
 
                 // Dealer: karoseria naprawiona niezależnie od mechaniki — to jest ich "produkt"
@@ -452,7 +452,7 @@ namespace CMS2026_OXL
                     _ => (float)(0.90 + rng.NextDouble() * 0.09),  // 0.90–0.99 — Criminal: perfekcyjne, nie do odróżnienia
                 },
 
-                // Wrecker: próbuje ukryć — L3 wygląda OK, L1 łatwy do wykrycia
+                // Scammer: próbuje ukryć — L3 wygląda OK, L1 łatwy do wykrycia
                 SellerArchetype.Scammer => level switch
                 {
                     1 => Mathf.Clamp(actual * (float)(0.90 + rng.NextDouble() * 0.20), 0.05f, 0.75f),
@@ -566,14 +566,14 @@ namespace CMS2026_OXL
                 if (fair <= 0) fair = ap.Price;
 
                 // Spec: flat ranges per level — actual jest już w CalcFairValue
-                float neglectedDisc = level switch
+                float wreckerDisc = level switch
                 {
                     1 => (float)(0.20 + rng.NextDouble() * 0.15),  // 0.20–0.35 — nie zna wartości
                     2 => (float)(0.40 + rng.NextDouble() * 0.20),  // 0.40–0.60 — zna wartość
                     _ => (float)(0.50 + rng.NextDouble() * 0.20),  // 0.50–0.70 — handlarz (drożej niż L2)
                 };
 
-                price = fair * neglectedDisc;
+                price = fair * wreckerDisc;
 
                 // Instant-flip guard — spec: L1: 0.32 / L2: 0.48 / L3: 0.55
                 float flipFloorMult = level switch
@@ -586,11 +586,11 @@ namespace CMS2026_OXL
 
                 if (price < instantFlipFloor)
                 {
-                    OXLLog.Msg($"[OXL:PRICE]   Neglected flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × {flipFloorMult})");
+                    OXLLog.Msg($"[OXL:PRICE]   Wrecker flip guard: {price:F0} → {instantFlipFloor:F0}  (fair={fair} × {flipFloorMult})");
                     price = instantFlipFloor;
                 }
 
-                OXLLog.Msg($"[OXL:PRICE]   Neglected L{level}: fair={fair} disc={neglectedDisc:F3} → {price:F0}");
+                OXLLog.Msg($"[OXL:PRICE]   Wrecker L{level}: fair={fair} disc={wreckerDisc:F3} → {price:F0}");
             }
             // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
             else if (arch == SellerArchetype.Dealer)
@@ -764,9 +764,9 @@ namespace CMS2026_OXL
             float hi = _config.DurMaxSec;
 
             // Każdy archetype preferuje inny zakres w obrębie [lo, hi]:
-            //   Neglected — szybko znika (dolne 0–50% zakresu)
+            //   Wrecker — szybko znika (dolne 0–50% zakresu)
             //   Honest    — środek (30–80%)
-            //   Wrecker   — środek-dolny (20–70%)
+            //   Scammer   — środek-dolny (20–70%)
             //   Dealer    — cierpliwy (50–100%)
             // Wyższy level = bardziej skrajne zachowanie.
 
@@ -888,7 +888,7 @@ namespace CMS2026_OXL
             };
             if (rng.NextDouble() < suspChance) f |= FaultFlags.SuspensionWorn;
 
-            // BrakesGone — typowe dla Neglected i Wrecker
+            // BrakesGone — typowe dla Wrecker i Scammer
             double brakeChance = (arch, level) switch
             {
                 (SellerArchetype.Honest, _) => actual < 0.40 ? 0.25 : 0.05,

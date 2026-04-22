@@ -7,8 +7,8 @@
         /// <summary>
         /// Zwraca folder kondycji zdjęć dla danego listingu.
         /// Dealer: zawsze 60100 (auto wypolerowane na zewnątrz).
-        /// Wrecker: zawsze 60100 ale cena okazyjna — "wygląda OK".
-        /// Neglected: zawsze 030 — brudne, zapuszczone.
+        /// Scammer: zawsze 60100 ale cena okazyjna — "wygląda OK".
+        /// Wrecker: zawsze 030 — brudne, zapuszczone.
         /// Honest: mapuje ActualCondition na prawdziwy przedział.
         /// </summary>
         public static PhotoCondition Resolve(CarListing listing)

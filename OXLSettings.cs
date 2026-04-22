@@ -143,9 +143,9 @@ namespace CMS2026_OXL
 
                         // ── ListingGen — wagi poziomów (3 wartości, CSV) ─────
                         // Format: lg_lvl_weights_0 = 40,35,25  (Honest)
-                        //         lg_lvl_weights_1 = 35,35,30  (Neglected)
+                        //         lg_lvl_weights_1 = 35,35,30  (Wrecker)
                         //         lg_lvl_weights_2 = 30,40,30  (Dealer)
-                        //         lg_lvl_weights_3 = 45,30,25  (Wrecker)
+                        //         lg_lvl_weights_3 = 45,30,25  (Scammer)
                         case "lg_lvl_weights_0":
                         case "lg_lvl_weights_1":
                         case "lg_lvl_weights_2":
@@ -208,14 +208,14 @@ namespace CMS2026_OXL
                     $"lg_dur_min_h      = {durMinH}\n" +
                     $"lg_dur_max_h      = {durMaxH}\n" +
                     "#\n" +
-                    "# Archetype weights — Honest, Neglected, Dealer, Wrecker (sum=100)\n" +
+                    "# Archetype weights — Honest, Wrecker, Dealer, Scammer (sum=100)\n" +
                     $"lg_arch_weights   = {cfg.ArchWeights[0]},{cfg.ArchWeights[1]},{cfg.ArchWeights[2]},{cfg.ArchWeights[3]}\n" +
                     "#\n" +
                     "# Level weights per archetype — L1, L2, L3 (sum=100 each row)\n" +
                     $"lg_lvl_weights_0  = {cfg.LvlWeights[0][0]},{cfg.LvlWeights[0][1]},{cfg.LvlWeights[0][2]}  # Honest\n" +
-                    $"lg_lvl_weights_1  = {cfg.LvlWeights[1][0]},{cfg.LvlWeights[1][1]},{cfg.LvlWeights[1][2]}  # Neglected\n" +
+                    $"lg_lvl_weights_1  = {cfg.LvlWeights[1][0]},{cfg.LvlWeights[1][1]},{cfg.LvlWeights[1][2]}  # Wrecker\n" +
                     $"lg_lvl_weights_2  = {cfg.LvlWeights[2][0]},{cfg.LvlWeights[2][1]},{cfg.LvlWeights[2][2]}  # Dealer\n" +
-                    $"lg_lvl_weights_3  = {cfg.LvlWeights[3][0]},{cfg.LvlWeights[3][1]},{cfg.LvlWeights[3][2]}  # Wrecker\n"
+                    $"lg_lvl_weights_3  = {cfg.LvlWeights[3][0]},{cfg.LvlWeights[3][1]},{cfg.LvlWeights[3][2]}  # Scammer\n"
                 );
 
                 OXLPlugin.Log.Msg($"[OXL] Config saved — difficulty={CurrentDifficulty}" +

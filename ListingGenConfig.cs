@@ -17,16 +17,16 @@ namespace CMS2026_OXL
         public float DurMinSec { get; set; } = 12f * SecondsPerGameHour;  // 43200f
         public float DurMaxSec { get; set; } = 36f * SecondsPerGameHour;  // 129600f
 
-        // ── Wagi archetypów [0]=Honest [1]=Neglected [2]=Dealer [3]=Wrecker ──
+        // ── Wagi archetypów [0]=Honest [1]=Wrecker [2]=Dealer [3]=Scammer ──
         public int[] ArchWeights { get; set; } = { 20, 35, 30, 15 };
 
         // ── Wagi poziomów [arch][L1/L2/L3] ────────────────────────────────────
         public int[][] LvlWeights { get; set; } =
         {
             new[] { 40, 35, 25 },  // Honest
-            new[] { 35, 35, 30 },  // Neglected
+            new[] { 35, 35, 30 },  // Wrecker
             new[] { 30, 40, 30 },  // Dealer
-            new[] { 45, 30, 25 },  // Wrecker
+            new[] { 45, 30, 25 },  // Scammer
         };
 
         /// <summary>

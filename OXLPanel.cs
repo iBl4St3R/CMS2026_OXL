@@ -196,16 +196,16 @@ namespace CMS2026_OXL
         private int _draftDurMinH = 12;   // 1–167 h
         private int _draftDurMaxH = 36;   // 2–168 h
 
-        // [0]=Honest [1]=Neglected [2]=Dealer [3]=Wrecker — linked, sum=100, step=5
+        // [0]=Honest [1]=Wrecker[2]=Dealer [3]=Scammer — linked, sum=100, step=5
         private readonly int[] _draftArchW = { 20, 35, 30, 15 };
 
         // [arch][L1/L2/L3] — linked per archetype, sum=100, step=5
         private readonly int[][] _draftLvlW =
         {
     new[] { 40, 35, 25 },  // Honest
-    new[] { 35, 35, 30 },  // Neglected
+    new[] { 35, 35, 30 },  // Wrecker
     new[] { 30, 40, 30 },  // Dealer
-    new[] { 45, 30, 25 },  // Wrecker
+    new[] { 45, 30, 25 },  // Scammer
 };
 
         // ── UI handle refs — aktualizowane live przy zmianie wartości ────────────────
@@ -2646,7 +2646,7 @@ namespace CMS2026_OXL
             LgDescLabel(sc, "Click L1/L2/L3 ▶ to configure the level distribution within each archetype.", Pad, cy);
             cy += 22f + Sg;
 
-            string[] archNames = { "Honest", "Neglected", "Dealer", "Scammer" };
+            string[] archNames = { "Honest", "Wrecker", "Dealer", "Scammer" };
             Color[] archAccents =
             {
         new Color(0.22f, 0.75f, 0.40f, 1f),
@@ -3377,7 +3377,7 @@ namespace CMS2026_OXL
                 S.BorderColor(st, lk ? LockBdrOn : LockBdrOff);
             }
 
-            string[] names = { "Honest", "Neglected", "Dealer", "Scammer" };
+            string[] names = { "Honest", "Wrecker", "Dealer", "Scammer" };
             _lgLvlTitleLbl?.SetText($"{names[archIdx]}  —  Level Distribution");
             RefreshLgLvlDisplays();
 

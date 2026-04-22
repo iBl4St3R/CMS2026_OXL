@@ -1,4 +1,4 @@
-# OXL — Archetype System
+﻿# OXL — Archetype System
 ## Technical Reference v0.3.0
 ### Checkpoint
 
@@ -17,16 +17,16 @@ cenę, rating, TTL, opis i stan mechaniczny po spawnie.
 ## Enum SellerArchetype
 
 ```
-public enum SellerArchetype { Honest, Neglected, Dealer, Wrecker }
+public enum SellerArchetype { Honest, Wrecker, Dealer, Scammer }
 ```
 
 ### Prawdopodobieństwo losowania (RollArchetype)
 | Archetype | Szansa |
 |---|---|
 | Honest | 20% |
-| Neglected | 35% |
+| Wrecker | 35% |
 | Dealer | 30% |
-| Wrecker | 15% |
+| Scammer | 15% |
 
 ---
 
@@ -86,7 +86,7 @@ StartFloor = 0.20 (Dealer i Honest — auto musi odpalaé).
 
 ---
 
-## NEGLECTED
+## Wrecker
 
 ### Filozofia
 Auta to de facto wraki — stojące latami na posesjach, nieużywane.
@@ -107,7 +107,7 @@ Wie dokładnie co ma i ile to jest warte. Sprawdził, zinwentaryzował.
 Brak szansy na lepsze części jak u L1 — wycenił wszystko.
 Ceny realne za wrak, negocjuje twardo.
 
-**L3 — Handlarz NEGLECTED**
+**L3 — Handlarz Wrecker**
 Skupuje auta od L1 i L2, zabiera lepsze części, wystawia resztę
 drożej. IndexedParts zawsze 0.02 — dobre już zabrał.
 Ceny lekko wyższe niż L2 mimo gorszego stanu mechaniki.
@@ -214,7 +214,7 @@ Normalny ApplyWear() — StartFloor = 0.20 (auto odpala).
 
 ---
 
-## WRECKER (SCAMER)
+## SCAMER
 
 ### Filozofia
 Totalne kłamstwo. Zdjęcia i opis wiarygodne — auto które
@@ -275,7 +275,7 @@ Historia: mileage, year, tablica rejestracyjna
 ## CalcFairValue — interpolacja ceny rynkowej
 
 Używana przez Honest (cena = fair) i jako punkt odniesienia
-dla Dealer/Wrecker (cena = fairApparent).
+dla Dealer/Scammer (cena = fairApparent).
 actual < 0.38 → lerp(honestL1 × 0.25, honestL1, t)
 actual < 0.70 → lerp(honestL1, honestL2, t)
 actual ≥ 0.70 → lerp(honestL2, honestL3, t)
@@ -306,7 +306,7 @@ FaultFlags wpływają na:
 - `SelectNote()` — Honest ujawnia usterki w opisie
 - `RollPrice()` — Honest obniża cenę za każdą usterkę
 
-**Wrecker ignoruje FaultFlags** — wszystko i tak idzie na 0.02.
+**Scammer ignoruje FaultFlags** — wszystko i tak idzie na 0.02.
 
 ---
 
@@ -328,8 +328,8 @@ Dotyczy wszystkich archetypów. Nie zmienia FairValue.
 | Archetype | Folder zdjęć | Sens |
 |---|---|---|
 | Dealer | `60100` (Good) | wypolerowane niezależnie od actual |
-| Wrecker | `60100` (Good) | kłamliwe zdjęcia |
-| Neglected | `030` (Bad) | zapuszczone, brudne |
+| Scammer | `60100` (Good) | kłamliwe zdjęcia |
+| Wrecker | `030` (Bad) | zapuszczone, brudne |
 | Honest | zależnie od actual | 030 / 3060 / 60100 |
 
 ---
@@ -339,7 +339,7 @@ Dotyczy wszystkich archetypów. Nie zmienia FairValue.
 | Plik | Odpowiedzialność |
 |---|---|
 | `ListingSystem.cs` | generowanie listingów, RollArchetype/Level/Apparent/Honesty/Body/Price/TTL/Rating/Faults/Note |
-| `GameBridge.cs` | ApplyWear(), ApplyWreckerWear(), WearForPart() |
+| `GameBridge.cs` | ApplyWear(), ApplyScammerWear(), WearForPart() |
 | `PartCatalog.cs` | klasyfikacja części → WearCat |
 | `CarListing.cs` | model danych listingu |
 | `PhotoCondition.cs` | mapowanie archetype → folder zdjęć |

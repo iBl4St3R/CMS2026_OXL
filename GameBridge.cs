@@ -107,7 +107,7 @@ namespace CMS2026_OXL
             }
         }
 
-        // ── Helper: kolor lakieru — wydzielony żeby dzielić między ApplyWear i ApplyNeglectedWear ──
+        // ── Helper: kolor lakieru — wydzielony żeby dzielić między ApplyWear i ApplyWreckerWear ──
         private static void TrySetCarColor(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
             try
