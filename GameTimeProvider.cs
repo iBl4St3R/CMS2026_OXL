@@ -22,6 +22,9 @@ namespace CMS2026_OXL
         private static double _lastMinuteVal = -1.0;
         private static float _lastMinuteRealtime = 0f;
 
+        private static bool _isReadingFromTM = false;
+        public static bool IsReadingFromTM => _typeResolved && !_failed && _isReadingFromTM;
+
 
 
         public static double TotalGameSeconds
@@ -35,7 +38,13 @@ namespace CMS2026_OXL
                 try
                 {
                     var objs = UnityEngine.Object.FindObjectsOfType(_tmIl2Type, true);
-                    if (objs == null || objs.Length == 0) return Fallback();
+
+
+                    if (objs == null || objs.Length == 0)
+                    {
+                        _isReadingFromTM = false; 
+                        return Fallback();
+                    }
 
                     var inst = Activator.CreateInstance(_tmType, new object[] { objs[0].Pointer });
 
@@ -57,6 +66,8 @@ namespace CMS2026_OXL
                     double subMinute = Math.Min(sinceMinuteTick * FallbackMultiplier, 59.0);
 
                     double val = minuteVal + subMinute;
+
+                    _isReadingFromTM = true;
                     _lastKnown = val;
                     _lastRealtime = Time.realtimeSinceStartup;
                     return val;
@@ -77,6 +88,8 @@ namespace CMS2026_OXL
             _lastRealtime = 0f;
             _lastMinuteVal = -1.0;
             _lastMinuteRealtime = 0f;
+
+            _isReadingFromTM = false;
         }
 
         private static double Fallback()

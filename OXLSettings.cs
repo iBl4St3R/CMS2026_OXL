@@ -81,7 +81,14 @@ namespace CMS2026_OXL
                     if (eq < 0) continue;
 
                     string key = line.Substring(0, eq).Trim().ToLower();
-                    string value = line.Substring(eq + 1).Trim();
+                    string rawValue = line.Substring(eq + 1);
+
+                    // Strip inline comments (np. "100,0,0  # Honest" → "100,0,0")
+                    int commentIdx = rawValue.IndexOf('#');
+                    string value = (commentIdx >= 0
+                        ? rawValue.Substring(0, commentIdx)
+                        : rawValue).Trim();
+
 
                     switch (key)
                     {

@@ -67,34 +67,64 @@ namespace CMS2026_OXL
         public float GameTime => _gameTime;
 
 
-		private readonly SellerProfile _sellerProfile;
+        private bool _originFromRealTM = false;
+        private readonly SellerProfile _sellerProfile;
 
-		// ═════════════════════════════════════════════════════════════════════════
-		//  TICK
-		// ═════════════════════════════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════════════════════════════
+        //  TICK
+        // ═════════════════════════════════════════════════════════════════════════
 
-		public void Tick(float deltaTime)
+        private float _tmWaitTimer = 0f;
+        private const float TmWaitSec = 3f;
+
+        public void Tick(float deltaTime)
         {
-            // ── Odczyt czasu gry z TimeManager ───────────────────────────────────
             double gameSecs = GameTimeProvider.TotalGameSeconds;
 
             if (_gameTimeOrigin < 0.0)
             {
+                if (GameTimeProvider.IsReadingFromTM)
+                {
+                    // TM instance found — safe to anchor here
+                    _gameTimeOrigin = gameSecs;
+                    _originFromRealTM = true;
+                    OXLLog.Msg($"[OXL:LGSYS] GameTime origin (TM)={gameSecs:F1}s ({gameSecs / 3600.0:F2}h)");
+                }
+                else
+                {
+                    // TM not yet returning real values — wait
+                    _tmWaitTimer += deltaTime;
+                    if (_tmWaitTimer < TmWaitSec)
+                        return;
+                    // Hard timeout: TM never showed up, use fallback
+                    _gameTimeOrigin = gameSecs;
+                    _originFromRealTM = false;
+                    OXLLog.Msg($"[OXL:LGSYS] GameTime origin (fallback after {_tmWaitTimer:F1}s)={gameSecs:F1}s");
+                }
+            }
+            else if (!_originFromRealTM && GameTimeProvider.IsReadingFromTM)
+            {
+                // TM became available AFTER we anchored to a fallback value.
+                // Re-anchor to prevent the huge _gameTime jump that wipes all listings.
+                float elapsed = _gameTime;
+                foreach (var l in ActiveListings)
+                    l.ExpiresAt = Mathf.Max(0f, l.ExpiresAt - elapsed);
                 _gameTimeOrigin = gameSecs;
-                OXLLog.Msg($"[OXL:LGSYS] GameTime origin={gameSecs:F1}s" +
-                           $" ({gameSecs / 3600.0:F2}h)" +
-                           $" TM={GameTimeProvider.IsAvailable}");
+                _originFromRealTM = true;
+                _gameTime = 0f;
+                _lastGenCheckTime = 0f;
+                OXLLog.Msg($"[OXL:LGSYS] Re-anchored to TM={gameSecs:F1}s (fallback elapsed={elapsed:F1}s)");
             }
 
             _gameTime = (float)(gameSecs - _gameTimeOrigin);
+            if (_gameTime < 0f) _gameTime = 0f;
 
-            // ── Usuń wygasłe i zapisz jeśli coś wygasło ──────────────────────────
+            // reszta IDENTYCZNA jak dotychczas od "Usuń wygasłe" wzwyż
             int before = ActiveListings.Count;
             ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
             if (ActiveListings.Count != before)
                 Save();
 
-            // ── Jednorazowy seed przy starcie ─────────────────────────────────────
             if (!_initialSeeded)
             {
                 int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
@@ -105,7 +135,6 @@ namespace CMS2026_OXL
                 return;
             }
 
-            // ── Okresowa generacja — raz na GenCheckInterval ──────────────────────
             if (_gameTime - _lastGenCheckTime >= GenCheckInterval)
             {
                 _lastGenCheckTime = _gameTime;
