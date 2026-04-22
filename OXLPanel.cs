@@ -1712,7 +1712,7 @@ namespace CMS2026_OXL
 
             _detailSellerType?.SetText(listing.Archetype switch
             {
-                SellerArchetype.Dealer => "DEALER",
+                SellerArchetype.Dealer => "PRIVATE SELLER",
                 SellerArchetype.Scammer => "PRIVATE SELLER",   // ukrywa tożsamość
                 SellerArchetype.Wrecker => "PRIVATE SELLER",
                 _ => "PRIVATE SELLER",
