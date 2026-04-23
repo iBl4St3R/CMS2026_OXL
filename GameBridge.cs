@@ -73,7 +73,9 @@ namespace CMS2026_OXL
             var debugComp = free.gameObject.GetComponent<Il2Cpp.CarDebug>();
             if (debugComp == null) { onDone?.Invoke(SpawnResult.NoCarDebug); yield break; }
 
-            debugComp.LoadCar(gameCarId, gameCarId == "car_mayenm5" ? 1 : 0);
+            OXLPlugin.Log.Msg($"CONFIG DO RESPA: {listing.CarConfig}");
+            //zawsze respi 0 -> dziwne...
+            debugComp.LoadCar(gameCarId, listing.CarConfig);
 
             float timeout = 10f;
             while (!free.done && timeout > 0f)

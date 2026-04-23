@@ -33,6 +33,13 @@ namespace CMS2026_OXL
         public List<string> PhotoFiles { get; set; } = new();
         public string Make { get; set; } = "";
         public string Model { get; set; } = "";
+
+        /// <summary>
+        /// Config index for the car model (0 = default, 1+ = variant engine/body).
+        /// Used for both spawning (GameBridge) and photo lookup (CarPhotoLoader).
+        /// </summary>
+        public int CarConfig { get; set; } = 0;
+
         public int Year { get; set; }
         public int Price { get; set; }
         public string SellerNote { get; set; } = "";

@@ -54,8 +54,10 @@ namespace CMS2026_OXL
     /// </summary>
     public class CarSpecLoader
     {
-        private readonly Dictionary<string, CarSpec> _specs =
-            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, CarSpec> _specs = new(StringComparer.OrdinalIgnoreCase);
+
+        // Klucz pomocniczy
+        private static string SpecKey(string carId, int configIdx) => $"{carId}:{configIdx}";
 
         // carId aliases — internal listing IDs → game carId used in spec files
         private static readonly Dictionary<string, string> IdAliases =
@@ -70,12 +72,12 @@ namespace CMS2026_OXL
 
         public CarSpecLoader(string modsRoot)
         {
-            // Try MEDRES first, fall back to LOWRES
             string[] roots = {
         Path.Combine(modsRoot, "CarImages_MEDRES"),
         Path.Combine(modsRoot, "CarImages_LOWRES"),
     };
 
+            // carId:config → już załadowany (MEDRES ma priorytet)
             var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (string root in roots)
@@ -84,48 +86,93 @@ namespace CMS2026_OXL
 
                 foreach (var carDir in Directory.GetDirectories(root))
                 {
-                    string specPath = Path.Combine(carDir, "car_spec.json");
-                    if (!File.Exists(specPath)) continue;
-
-                    try
+                    // Sprawdź czy są numeryczne subdir (config structure)
+                    bool hasConfigDirs = false;
+                    foreach (var d in Directory.GetDirectories(carDir))
                     {
-                        var spec = ParseSpec(File.ReadAllText(specPath));
-                        if (spec == null || string.IsNullOrEmpty(spec.CarId)) continue;
-
-                        // Skip if already loaded from a higher-priority root
-                        if (loaded.Contains(spec.CarId)) continue;
-
-                        _specs[spec.CarId] = spec;
-                        loaded.Add(spec.CarId);
-
-                        OXLPlugin.Log.Msg(
-                            $"[CarSpecLoader] Loaded spec for '{spec.CarId}' from {Path.GetFileName(root)}: " +
-                            $"priceModel=(base={spec.PriceModel.BaseValue} parts={spec.PriceModel.MaxParts}) " +
-                            $"archetypeKeys=[{string.Join(", ", spec.ArchetypePrices.Keys)}]");
+                        if (int.TryParse(Path.GetFileName(d), out _))
+                        { hasConfigDirs = true; break; }
                     }
-                    catch (Exception ex)
+
+                    if (hasConfigDirs)
                     {
-                        OXLPlugin.Log.Msg($"[CarSpecLoader] Failed to load {specPath}: {ex.Message}");
+                        // Nowa struktura: carDir/0/car_spec.json, carDir/1/car_spec.json ...
+                        foreach (var configDir in Directory.GetDirectories(carDir))
+                        {
+                            string configName = Path.GetFileName(configDir);
+                            if (!int.TryParse(configName, out int configIdx)) continue;
+
+                            string specPath = Path.Combine(configDir, "car_spec.json");
+                            if (!File.Exists(specPath)) continue;
+
+                            TryLoadSpec(specPath, configIdx, loaded);
+                        }
+                    }
+                    else
+                    {
+                        // Stara/płaska struktura — config 0
+                        string specPath = Path.Combine(carDir, "car_spec.json");
+                        if (File.Exists(specPath))
+                            TryLoadSpec(specPath, 0, loaded);
                     }
                 }
             }
         }
 
-        /// <summary>
-        /// Returns spec for a listing's internalId (e.g. "car_salem_aries_1234").
-        /// Returns an empty CarSpec (all fields "—") if not found.
-        /// </summary>
-        public CarSpec Get(string internalId)
+        private void TryLoadSpec(string specPath, int configIdx, HashSet<string> loaded)
         {
-            // Strip the trailing _NNNN suffix to get base id
-            string baseId = Regex.Replace(internalId, @"_\d+$", "");
+            try
+            {
+                var spec = ParseSpec(File.ReadAllText(specPath));
+                if (spec == null || string.IsNullOrEmpty(spec.CarId)) return;
 
-            // Try alias first
+                string key = SpecKey(spec.CarId, configIdx);
+                if (loaded.Contains(key)) return;
+
+                _specs[key] = spec;
+                loaded.Add(key);
+
+                OXLPlugin.Log.Msg(
+                    $"[CarSpecLoader] Loaded spec for '{spec.CarId}' cfg={configIdx}" +
+                    $" from {Path.GetFileName(Path.GetDirectoryName(specPath))}: " +
+                    $"carName='{spec.CarName}' priceModel=(base={spec.PriceModel.BaseValue}" +
+                    $" parts={spec.PriceModel.MaxParts}) " +
+                    $"archetypeKeys=[{string.Join(", ", spec.ArchetypePrices.Keys)}]");
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[CarSpecLoader] Failed to load {specPath}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Zwraca spec dla danego internalId i carConfig.
+        /// Najpierw szuka dokładnego config, potem config=0, potem cokolwiek.
+        /// </summary>
+        public CarSpec Get(string internalId, int carConfig = 0)
+        {
+            string baseId = Regex.Replace(internalId, @"_\d+$", "");
             string lookupId = IdAliases.TryGetValue(baseId, out var alias) ? alias : baseId;
 
-            if (_specs.TryGetValue(lookupId, out var spec)) return spec;
+            // 1. Exact config
+            if (_specs.TryGetValue(SpecKey(lookupId, carConfig), out var spec))
+                return spec;
 
-            // Return empty spec so callers never get null
+            // 2. Fallback config 0
+            if (carConfig != 0 && _specs.TryGetValue(SpecKey(lookupId, 0), out spec))
+            {
+                OXLPlugin.Log.Msg(
+                    $"[CarSpecLoader] cfg={carConfig} not found for '{lookupId}', using cfg=0");
+                return spec;
+            }
+
+            // 3. Any config
+            foreach (var kvp in _specs)
+            {
+                if (kvp.Key.StartsWith(lookupId + ":", StringComparison.OrdinalIgnoreCase))
+                    return kvp.Value;
+            }
+
             return new CarSpec { CarId = lookupId, AutoDetected = new CarSpecData() };
         }
 

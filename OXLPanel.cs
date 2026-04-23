@@ -1980,7 +1980,7 @@ namespace CMS2026_OXL
 
         private void BuildDetailSpecsTags(object container, CarListing listing)
         {
-            var spec = _specLoader?.Get(listing.InternalId) ?? new CarSpec();
+            var spec = _specLoader?.Get(listing.InternalId, listing.CarConfig) ?? new CarSpec();
             var d = spec.AutoDetected;
 
             // Condition text + colour
@@ -2112,45 +2112,40 @@ namespace CMS2026_OXL
             return new Color(0.22f, 0.75f, 0.40f, 1f);     // zielony default
         }
 
-        public static Color HexColor(string colorName)
-        {
-            return colorName?.ToLower() switch
-            {
-                "white" => new Color(0.93f, 0.93f, 0.93f),
-                "black" => new Color(0.08f, 0.08f, 0.08f),
-                "red" => new Color(0.80f, 0.10f, 0.10f),
-                "red2" => new Color(0.80f, 0.07f, 0.12f),
-                "darkred" => new Color(0.50f, 0.05f, 0.05f),
-                "silver" => new Color(0.70f, 0.72f, 0.74f),
-                "gray" => new Color(0.45f, 0.45f, 0.45f),
-                "gray2" => new Color(0.53f, 0.55f, 0.55f),
-                "darkgray" => new Color(0.30f, 0.30f, 0.30f),
-                "charcoal" => new Color(0.22f, 0.22f, 0.22f),
-                "nearblack" => new Color(0.10f, 0.10f, 0.10f),
-                "nearblack2" => new Color(0.12f, 0.13f, 0.14f),
-                "cyan" => new Color(0.10f, 0.75f, 0.80f),
-                "lightblue" => new Color(0.50f, 0.70f, 0.90f),
-                "lightblue2" => new Color(0.62f, 0.79f, 0.87f),
-                "blue" => new Color(0.10f, 0.20f, 0.80f),
-                "darkblue" => new Color(0.05f, 0.10f, 0.50f),
-                "navy" => new Color(0.05f, 0.08f, 0.38f),
-                "green" => new Color(0.10f, 0.60f, 0.20f),
-                "darkgreen" => new Color(0.05f, 0.35f, 0.10f),
-                "teal" => new Color(0.10f, 0.55f, 0.52f),
-                "darkteal" => new Color(0.05f, 0.35f, 0.32f),
-                "gold" => new Color(0.85f, 0.68f, 0.10f),
-                "beige" => new Color(0.90f, 0.85f, 0.72f),
-                "cream" => new Color(0.95f, 0.92f, 0.80f),
-                "offwhite" => new Color(0.92f, 0.90f, 0.86f),
-                "maroon" => new Color(0.50f, 0.05f, 0.15f),
-                "darkmaroon" => new Color(0.32f, 0.02f, 0.08f),
-                "rust" => new Color(0.70f, 0.28f, 0.05f),
-                "purple" => new Color(0.55f, 0.10f, 0.80f),
-                "darkpurple" => new Color(0.35f, 0.05f, 0.50f),
-                "pink" => new Color(0.90f, 0.45f, 0.65f),
-                _ => new Color(0.55f, 0.55f, 0.55f),
-            };
-        }
+        public static Color HexColor(string colorName) => colorName?.ToLower() switch
+    {
+        "white" => new Color(0.97f, 0.97f, 0.97f),
+        "nearblack" => new Color(0.08f, 0.08f, 0.08f),
+        "nearblack2" => new Color(0.12f, 0.13f, 0.14f),
+        "black" => new Color(0.06f, 0.06f, 0.06f),
+        "red" => new Color(0.80f, 0.10f, 0.10f),
+        "darkred" => new Color(0.50f, 0.05f, 0.08f),
+        "maroon" => new Color(0.40f, 0.02f, 0.09f),
+        "darkmaroon" => new Color(0.28f, 0.01f, 0.06f),
+        "silver" => new Color(0.70f, 0.72f, 0.74f),
+        "gray" => new Color(0.45f, 0.45f, 0.45f),
+        "gray2" => new Color(0.59f, 0.60f, 0.63f),  // 969DA0
+        "darkgray" => new Color(0.24f, 0.28f, 0.30f),  // 3D484C
+        "charcoal" => new Color(0.16f, 0.18f, 0.18f),  // 292F2F
+        "cyan" => new Color(0.11f, 0.83f, 0.81f),
+        "lightblue" => new Color(0.03f, 0.73f, 0.85f),  // 08BBDA
+        "lightblue2" => new Color(0.62f, 0.79f, 0.88f),
+        "blue" => new Color(0.05f, 0.27f, 0.55f),
+        "darkblue" => new Color(0.00f, 0.20f, 0.33f),  // 003253
+        "navy" => new Color(0.07f, 0.17f, 0.31f),  // 132B4F
+        "green" => new Color(0.10f, 0.60f, 0.20f),
+        "darkgreen" => new Color(0.22f, 0.38f, 0.18f),  // 38602E
+        "teal" => new Color(0.10f, 0.55f, 0.52f),
+        "darkteal" => new Color(0.05f, 0.35f, 0.32f),
+        "gold" => new Color(0.85f, 0.68f, 0.10f),
+        "beige" => new Color(0.90f, 0.85f, 0.72f),
+        "cream" => new Color(0.95f, 0.92f, 0.80f),
+        "offwhite" => new Color(0.92f, 0.90f, 0.86f),
+        "rust" => new Color(0.70f, 0.28f, 0.05f),
+        "purple" => new Color(0.27f, 0.21f, 0.75f),  // 4536C0
+        "pink" => new Color(0.90f, 0.45f, 0.65f),
+        _ => new Color(0.55f, 0.55f, 0.55f),
+    };
 
 
 
@@ -2188,6 +2183,7 @@ namespace CMS2026_OXL
             OXLLog.Msg($"[OXL:BUY] Faults:   {listing.Faults}");
             OXLLog.Msg($"[OXL:BUY] Mileage:  {listing.Mileage:N0} mi  |  Location: {listing.Location}  |  Delivery: ~{listing.DeliveryHours}h");
             OXLLog.Msg($"[OXL:BUY] Color:    {listing.Color}  |  Plate: {listing.Registration}");
+            OXLLog.Msg($"[OXL:BUY] config:    {listing.CarConfig}  ");
             OXLLog.Msg($"[OXL:BUY] ════════════════════════════════════");
             OXLLog.Msg($"");
             OXLLog.Msg($"[OXL] Purchasing: {listing.Make} {listing.Model} for ${listing.Price}");
