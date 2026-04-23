@@ -726,31 +726,104 @@ namespace CMS2026_OXL
         /// </summary>
         private List<CarListing> ApplyFilterCriteria(OXLFilterPanel.FilterCriteria c)
         {
-            if (c == null || c.IsEmpty) return null;
+            // Nawet jeśli filtry puste ale sort != TimeLeft — zwracamy przesortowaną
+            // kopię. Null = "wszystko, bez sort" → RefreshListings sortuje defaultowo.
+            bool emptyFilter = c == null || c.IsEmpty;
+            bool defaultSort = c == null || c.Sort == OXLFilterPanel.ListingSort.TimeLeft;
+            if (emptyFilter && defaultSort) return null;
 
-            return _listings.ActiveListings.Where(l =>
+            var query = _listings.ActiveListings.AsEnumerable();
+
+            if (!emptyFilter)
             {
-                bool makeOk = string.IsNullOrEmpty(c.Make)
-                    || l.Make.Equals(c.Make, StringComparison.OrdinalIgnoreCase);
+                query = query.Where(l =>
+                {
+                    if (!string.IsNullOrEmpty(c.Make) &&
+                        !l.Make.Equals(c.Make, StringComparison.OrdinalIgnoreCase))
+                        return false;
 
-                bool yearOk = (c.MinYear == 0 || l.Year >= c.MinYear)
-                           && (c.MaxYear == 0 || l.Year <= c.MaxYear);
+                    if (c.MinYear > 0 && l.Year < c.MinYear) return false;
+                    if (c.MaxYear > 0 && l.Year > c.MaxYear) return false;
+                    if (c.MinPrice > 0 && l.Price < c.MinPrice) return false;
+                    if (c.MaxPrice > 0 && l.Price > c.MaxPrice) return false;
+                    if (c.MaxMileage > 0 && l.Mileage > c.MaxMileage) return false;
 
-                bool priceOk = (c.MinPrice == 0 || l.Price >= c.MinPrice)
-                            && (c.MaxPrice == 0 || l.Price <= c.MaxPrice);
+                    if (c.CondTier != 0)
+                    {
+                        bool condOk =
+                            (c.CondTier == 1 && l.ApparentCondition < 0.30f) ||
+                            (c.CondTier == 2 && l.ApparentCondition >= 0.30f && l.ApparentCondition < 0.70f) ||
+                            (c.CondTier == 3 && l.ApparentCondition >= 0.70f);
+                        if (!condOk) return false;
+                    }
+                    if (c.MinRating > 0 && l.SellerRating < c.MinRating) return false;
 
-                bool condOk = c.CondTier == 0
-                    || (c.CondTier == 1 && l.ApparentCondition < 0.30f)
-                    || (c.CondTier == 2 && l.ApparentCondition >= 0.30f && l.ApparentCondition < 0.70f)
-                    || (c.CondTier == 3 && l.ApparentCondition >= 0.70f);
+                    if (!string.IsNullOrEmpty(c.Color) &&
+                        !l.Color.Equals(c.Color, StringComparison.OrdinalIgnoreCase))
+                        return false;
 
-                bool ratingOk = c.MinRating == 0 || l.SellerRating >= c.MinRating;
+                    // Spec-based — parsujemy dopiero gdy jakiś spec-filter jest aktywny
+                    bool needsSpec =
+                        !string.IsNullOrEmpty(c.EngineCategory) ||
+                        !string.IsNullOrEmpty(c.Drivetrain) ||
+                        !string.IsNullOrEmpty(c.Rarity) ||
+                        !string.IsNullOrEmpty(c.TireSize) ||
+                        c.MinPower > 0 || c.MinTorque > 0 || c.MaxWeight > 0;
 
-                return makeOk && yearOk && priceOk && condOk && ratingOk;
-            }).ToList();
+                    if (needsSpec)
+                    {
+                        var spec = _specLoader?.Get(l.InternalId, l.CarConfig);
+                        var ad = spec?.AutoDetected;
+                        if (ad == null) return false;
+
+                        if (!string.IsNullOrEmpty(c.EngineCategory))
+                        {
+                            var ec = FilterOptionsBuilder.ExtractEngineCategory(ad.EngineType);
+                            if (!string.Equals(ec, c.EngineCategory, StringComparison.OrdinalIgnoreCase))
+                                return false;
+                        }
+                        if (!string.IsNullOrEmpty(c.Drivetrain))
+                        {
+                            var dv = FilterOptionsBuilder.NormalizeDrivetrain(ad.Drivetrain);
+                            if (!string.Equals(dv, c.Drivetrain, StringComparison.OrdinalIgnoreCase))
+                                return false;
+                        }
+                        if (!string.IsNullOrEmpty(c.Rarity) &&
+                            !ad.Rarity.Trim().Equals(c.Rarity, StringComparison.OrdinalIgnoreCase))
+                            return false;
+
+                        if (!string.IsNullOrEmpty(c.TireSize))
+                        {
+                            var ts = FilterOptionsBuilder.ExtractTireSize(ad.TireFront);
+                            if (!string.Equals(ts, c.TireSize, StringComparison.Ordinal)) return false;
+                        }
+
+                        if (c.MinPower > 0 && FilterOptionsBuilder.ExtractPower(ad.EnginePower) < c.MinPower) return false;
+                        if (c.MinTorque > 0 && FilterOptionsBuilder.ExtractTorque(ad.EngineTorque) < c.MinTorque) return false;
+                        if (c.MaxWeight > 0)
+                        {
+                            int w = FilterOptionsBuilder.ExtractWeight(ad.Weight);
+                            if (w > 0 && w > c.MaxWeight) return false;
+                        }
+                    }
+
+                    return true;
+                });
+            }
+
+            return SortListings(query, c?.Sort ?? OXLFilterPanel.ListingSort.TimeLeft).ToList();
         }
 
-
+        private static IEnumerable<CarListing> SortListings(IEnumerable<CarListing> q, OXLFilterPanel.ListingSort sort) => sort switch
+    {
+        OXLFilterPanel.ListingSort.PriceAsc => q.OrderBy(l => l.Price),
+        OXLFilterPanel.ListingSort.PriceDesc => q.OrderByDescending(l => l.Price),
+        OXLFilterPanel.ListingSort.YearDesc => q.OrderByDescending(l => l.Year).ThenBy(l => l.ExpiresAt),
+        OXLFilterPanel.ListingSort.YearAsc => q.OrderBy(l => l.Year).ThenBy(l => l.ExpiresAt),
+        OXLFilterPanel.ListingSort.MileageAsc => q.OrderBy(l => l.Mileage).ThenBy(l => l.ExpiresAt),
+        OXLFilterPanel.ListingSort.RatingDesc => q.OrderByDescending(l => l.SellerRating).ThenBy(l => l.ExpiresAt),
+        _ => q.OrderBy(l => l.ExpiresAt),   // TimeLeft default
+    };
 
         /// <summary>Clears filter and shows all listings.</summary>
         private void ShowAllListings()
@@ -974,7 +1047,15 @@ namespace CMS2026_OXL
 
             // ── Filter panel OSTATNI → renderuje się nad rowsVE w z-order ────────
             _filterPanel = new OXLFilterPanel();
-            _filterPanel.Build(_panel, overlay, FilterTop);
+
+            // globalYBase = Y overlay w UIPanel (OverlayTop) + FilterTop wewnątrz overlay
+            _filterPanel.Build(_panel, overlay, FilterTop, OverlayTop + FilterTop);
+
+            // Dostarcz builder opcji — wywołany przy każdym otwarciu filtra
+            _filterPanel.OptionsProvider = () => FilterOptionsBuilder.Build(_listings?.ActiveListings, _specLoader);
+
+
+
             _filterPanel.OnFiltersApplied += () =>
             {
                 _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
@@ -1169,9 +1250,9 @@ namespace CMS2026_OXL
             _timerLabels.Clear();
 
             // Posortowana kopia — zawsze lokalna, nie nadpisuje _filteredListings
-            var all = (_filteredListings ?? _listings.ActiveListings)
-                .OrderBy(l => l.ExpiresAt)
-                .ToList();
+            var all = _filteredListings != null
+                ? _filteredListings   // już posortowane przez ApplyFilterCriteria
+                : _listings.ActiveListings.OrderBy(l => l.ExpiresAt).ToList();
 
             int totalPages = Mathf.Max(1, Mathf.CeilToInt(all.Count / (float)RowsPerPage));
             _currentPage = Mathf.Clamp(_currentPage, 0, totalPages - 1);
