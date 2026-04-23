@@ -896,7 +896,14 @@ namespace CMS2026_OXL
             WearCat cat = PartCatalog.Classify(partId);
 
             if (cat == WearCat.Hardware || cat == WearCat.Structural)
+            {
+                if (isBodyPart)
+                    return Mathf.Clamp(
+                        baseCondition * UnityEngine.Random.Range(0.80f, 1.00f),
+                        Mathf.Max(0.01f, baseCondition * 0.30f),
+                        1.0f);
                 return 1.0f;
+            }
 
             // Dynamiczny floor — skaluje się z baseCondition zamiast być stały.
             // Przy actual=2%: floor≈0.01. Przy actual=50%: floor≈0.15. Przy actual=90%: floor≈0.27.
