@@ -192,6 +192,59 @@ namespace CMS2026_OXL
             }
         }
 
+        /// <summary>
+        /// Zwraca tablicę nazw kolorów dostępnych dla danego imageFolderName i configIdx.
+        /// Jeśli config nie istnieje, próbuje config 0, potem cokolwiek.
+        /// Zwraca pusty array jeśli folder nieznany.
+        /// </summary>
+        public string[] GetAvailableColors(string imageFolderName, int configIdx)
+        {
+            if (!_colorIndex.TryGetValue(imageFolderName, out var colorMap))
+                return Array.Empty<string>();
+
+            // Zbierz kolory które mają folder dla tego configu
+            var result = new List<string>();
+            foreach (var kvp in colorMap)
+            {
+                if (kvp.Value.ContainsKey(configIdx))
+                    result.Add(kvp.Key);
+                else if (kvp.Value.ContainsKey(0))
+                    result.Add(kvp.Key);  // fallback do config 0
+            }
+
+            if (result.Count > 0)
+                return result.ToArray();
+
+            // Ostateczny fallback — wszystkie kolory dla tego auta
+            return colorMap.Keys.ToArray();
+        }
+
+        /// <summary>
+        /// Zwraca indeks koloru (pozycję w color_map.txt) dla danego imageFolderName, 
+        /// colorName i configIdx. Używane przez GameBridge do SetRandomCarColor.
+        /// Zwraca 0 jako bezpieczny fallback.
+        /// </summary>
+        public int GetColorIndex(string imageFolderName, string colorName, int configIdx)
+        {
+            if (!_colorIndex.TryGetValue(imageFolderName, out var colorMap))
+                return 0;
+
+            // Zbierz wszystkie kolory dla tego configu w kolejności (sortowane po folderze)
+            var colorsForConfig = colorMap
+                .Where(kvp => kvp.Value.ContainsKey(configIdx) || kvp.Value.ContainsKey(0))
+                .OrderBy(kvp =>
+                {
+                    // Sortuj po nazwie folderu (00_, 01_, 02_ ...)
+                    var cfg = kvp.Value.ContainsKey(configIdx) ? configIdx : 0;
+                    return kvp.Value[cfg];
+                })
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            int idx = colorsForConfig.IndexOf(colorName);
+            return idx >= 0 ? idx : 0;
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         //  PUBLIC API
         // ══════════════════════════════════════════════════════════════════════

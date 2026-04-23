@@ -216,13 +216,20 @@ namespace CMS2026_OXL
                 carConfig = availableConfigs[rng.Next(availableConfigs.Length)];
             }
 
-            // ── Kolor ───────────────────
-            string baseId = def.InternalId;
-            string[] pool = ActiveColors.ContainsKey(baseId) ? ActiveColors[baseId] : new[] { "white" };
-            string color = pool[rng.Next(pool.Length)];
+            // ── Kolor — czytany dynamicznie z CarPhotoLoader ─────────────────────
+            string color = "white";
             int colorIndex = 0;
-            if (AllColors.TryGetValue(def.InternalId, out var allColorNames))
-                colorIndex = Array.IndexOf(allColorNames, color);
+
+            if (_photoLoader != null)
+            {
+                var availableColors = _photoLoader.GetAvailableColors(def.ImageFolder, carConfig);
+                if (availableColors.Length > 0)
+                    color = availableColors[rng.Next(availableColors.Length)];
+                else
+                    OXLPlugin.Log.Msg($"[OXL:GEN] No colors found for '{def.ImageFolder}' cfg={carConfig}, using white");
+
+                colorIndex = _photoLoader.GetColorIndex(def.ImageFolder, color, carConfig);
+            }
 
             var archetype = RollArchetype(rng);
             int level = RollLevel(archetype, rng);
@@ -324,13 +331,29 @@ namespace CMS2026_OXL
             return listing;
         }
 
-        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry()
+        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry(CarSpecLoader specLoader)
         {
             var result = new Dictionary<string, (string, string[])>();
             foreach (var def in CarDefs)
             {
-                if (AllColors.TryGetValue(def.InternalId, out var colors))
-                    result[def.ImageFolder] = (def.InternalId, colors);
+                // Czytaj kolory ze spec cfg=0 (wszystkie konfigi mają te same kolory per auto)
+                var spec = specLoader?.Get(def.InternalId, 0);
+
+                if (spec != null && !string.IsNullOrEmpty(spec.CarId)
+                    && spec.ColorNames != null && spec.ColorNames.Length > 0)
+                {
+                    var validNames = spec.ColorNames.Where(n => !string.IsNullOrEmpty(n)).ToArray();
+                    if (validNames.Length > 0)
+                    {
+                        result[def.ImageFolder] = (def.InternalId, validNames);
+                        OXLPlugin.Log.Msg(
+                            $"[OXL:REGISTRY] '{def.InternalId}': {validNames.Length} colors from spec");
+                        continue;
+                    }
+                }
+
+                OXLPlugin.Log.Msg(
+                    $"[OXL:REGISTRY] No colors from spec for '{def.InternalId}' — car will use folder fallback");
             }
             return result;
         }
@@ -1347,28 +1370,7 @@ namespace CMS2026_OXL
             "Elmshire", "Brackenford", "Southmere", "Galloway Reach"
         };
 
-        /// <summary>
-        /// Subset of AllColors that are actually used for random color rolling.
-        /// Keep only colors that have good photo coverage across all condition folders.
-        /// </summary>
-        private static readonly Dictionary<string, string[]> ActiveColors = new()
-{
-    { "car_dnb_censor",
-        new[] { "black", "darkred", "silver", "white", "darkgreen",
-                "cyan", "lightblue", "darkblue", "purple", "red" } },
-    { "car_katagiri_tamago",
-        new[] { "black", "white", "beige", "gold", "gray", "silver",
-                "blue", "darkblue", "red", "maroon" } },
-    { "car_luxor_streamliner",
-        new[] { "nearblack", "cream", "beige", "gray", "teal",
-                "darkblue", "lightblue2", "silver", "darkmaroon", "maroon" } },
-    { "car_mayen_m5",
-        new[] { "black", "white", "darkgreen", "charcoal",
-                "gray2", "darkblue", "navy", "darkred", "red" } },
-    { "car_salem_aries",
-        new[] { "red", "darkred", "gold", "green", "white",
-                "lightblue", "silver", "nearblack" } },
-};
+      
 
 
         /// <summary>
@@ -1376,93 +1378,7 @@ namespace CMS2026_OXL
         /// Index 0 = folder 00_XXXXXX, index 1 = 01_XXXXXX, etc.
         /// These names are used for photo lookup AND for the color swatch in UI (via HexColor).
         /// </summary>
-        private static readonly Dictionary<string, string[]> AllColors = new()
-{
-    // DNB Censor — configs 0, 1, 2 share the same color set
-    { "car_dnb_censor", new[]
-        {
-            "black",      // 00_000000
-            "darkred",    // 01_630B0B
-            "silver",     // 02_7E7D7D
-            "white",      // 03_FFFFFF
-            "darkgreen",  // 04_0E4413
-            "cyan",       // 05_1CD4CE
-            "lightblue",  // 06_08BBDA
-            "darkblue",   // 07_0C4588
-            "purple",     // 08_4536C0
-            "maroon",     // 09_A80568
-            "red",        // 10_D0021B
-        }
-    },
-    // Katagiri Tamago BP
-    { "car_katagiri_tamago", new[]
-        {
-            "black",
-            "white",
-            "beige",
-            "gold",
-            "darkteal",
-            "gray",
-            "gray2",
-            "silver",
-            "blue",
-            "darkblue",
-            "purple",
-            "red",
-            "maroon",
-        }
-    },
-    // Luxor Streamliner Mk3
-    { "car_luxor_streamliner", new[]
-        {
-            "nearblack",
-            "cream",
-            "beige",
-            "offwhite",
-            "gray",
-            "teal",
-            "darkblue",
-            "lightblue2",
-            "navy",
-            "nearblack2",
-            "charcoal",
-            "silver",
-            "darkmaroon",
-            "maroon",
-        }
-    },
-    // Mayen M5
-    { "car_mayen_m5", new[]
-        {
-            "black",      // 00_000000
-            "white",      // 01_FFFFFC
-            "darkgreen",  // 02_38602E
-            "charcoal",   // 03_292F2F
-            "darkgray",   // 04_3D484C
-            "gray2",      // 05_969DA0
-            "darkblue",   // 06_003253
-            "navy",       // 07_132B4F
-            "darkred",    // 08_961339
-            "maroon",     // 09_641123
-            "red",        // 10_CB2227
-        }
-    },
-    // Salem Aries MK3
-    { "car_salem_aries", new[]
-        {
-            "red",
-            "darkred",
-            "maroon",
-            "gold",
-            "green",
-            "white",
-            "lightblue",
-            "lightblue2",
-            "silver",
-            "nearblack",
-        }
-    },
-};
+        
 
 
 

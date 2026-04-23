@@ -41,9 +41,10 @@ namespace CMS2026_OXL
     {
         public string CarId { get; set; } = "";
         public string CarName { get; set; } = "";
+        public string[] ColorNames { get; set; } = Array.Empty<string>(); 
         public CarSpecData AutoDetected { get; set; } = new();
-        public CarPriceModel PriceModel { get; set; } = new();   
-        public Dictionary<string, ArchetypePrice> ArchetypePrices  
+        public CarPriceModel PriceModel { get; set; } = new();
+        public Dictionary<string, ArchetypePrice> ArchetypePrices
             = new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -185,6 +186,47 @@ namespace CMS2026_OXL
 
             spec.CarId = ReadString(json, "carId") ?? "";
             spec.CarName = ReadString(json, "carName") ?? "";
+
+            // ── colors array ─────────────────────────────────────────────────────────
+            int colorsIdx = json.IndexOf("\"colors\"", StringComparison.Ordinal);
+            if (colorsIdx >= 0)
+            {
+                int arrOpen = json.IndexOf('[', colorsIdx);
+                int arrClose = json.IndexOf(']', arrOpen);
+                if (arrOpen >= 0 && arrClose > arrOpen)
+                {
+                    string arrBlock = json.Substring(arrOpen, arrClose - arrOpen + 1);
+                    var names = new List<string>();
+
+                    // Znajdź każdy obiekt { ... } w tablicy
+                    int pos = 0;
+                    while (pos < arrBlock.Length)
+                    {
+                        int objOpen = arrBlock.IndexOf('{', pos);
+                        if (objOpen < 0) break;
+                        int objClose = arrBlock.IndexOf('}', objOpen);
+                        if (objClose < 0) break;
+
+                        string obj = arrBlock.Substring(objOpen, objClose - objOpen + 1);
+
+                        // Czytaj "index" żeby znać pozycję
+                        string indexStr = ReadString(obj, "index");  // to nie zadziała — index jest liczbą
+                                                                     // Użyj ReadInt zamiast:
+                        int colorIdx = ReadInt(obj, "index");
+                        string name = ReadString(obj, "name") ?? "";
+
+                        // Upewnij się że lista jest wystarczająco długa
+                        while (names.Count <= colorIdx)
+                            names.Add("");
+                        names[colorIdx] = name;
+
+                        pos = objClose + 1;
+                    }
+
+                    spec.ColorNames = names.ToArray();
+                }
+            }
+
 
             // Find autoDetected block
             int blockStart = json.IndexOf("\"autoDetected\"", StringComparison.Ordinal);

@@ -284,9 +284,9 @@ namespace CMS2026_OXL
                 Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
 
             string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
-            _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry());
             _specLoader = new CarSpecLoader(modsRoot);
             _panel_sellerProfile = new SellerProfile(modsRoot);
+            _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry(_specLoader));
             _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
 
 
