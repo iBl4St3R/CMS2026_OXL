@@ -42,11 +42,13 @@ namespace CMS2026_OXL
 
         public sealed class FilterCriteria
         {
+            public readonly string ModelQuery;     // NEW: free-text search across Make + Model
+
             public readonly string Make;
             public readonly string EngineCategory;
             public readonly string Drivetrain;
             public readonly string Rarity;
-            public readonly string Color;
+            public readonly string Color;          // zachowane — filtr dostępny programowo
             public readonly string TireSize;
 
             public readonly int MinYear, MaxYear;
@@ -56,19 +58,21 @@ namespace CMS2026_OXL
             public readonly int MinTorque;
             public readonly int MaxWeight;
 
-            public readonly int CondTier;   // 0=All 1=Poor 2=Fair 3=Good
+            public readonly int CondTier;
             public readonly int MinRating;
             public readonly ListingSort Sort;
 
             public FilterCriteria() { Sort = ListingSort.TimeLeft; }
 
             public FilterCriteria(
+                string modelQuery,
                 string make, string engCat, string drv, string rarity,
                 string color, string tire,
                 int yF, int yT, int pL, int pH, int mMax,
                 int pwMin, int tqMin, int wtMax,
                 int cond, int rat, ListingSort sort)
             {
+                ModelQuery = modelQuery;
                 Make = make; EngineCategory = engCat; Drivetrain = drv;
                 Rarity = rarity; Color = color; TireSize = tire;
                 MinYear = yF; MaxYear = yT;
@@ -80,6 +84,7 @@ namespace CMS2026_OXL
             }
 
             public bool IsEmpty =>
+                string.IsNullOrEmpty(ModelQuery) &&
                 string.IsNullOrEmpty(Make) &&
                 string.IsNullOrEmpty(EngineCategory) &&
                 string.IsNullOrEmpty(Drivetrain) &&
@@ -97,6 +102,7 @@ namespace CMS2026_OXL
                 get
                 {
                     int n = 0;
+                    if (!string.IsNullOrEmpty(ModelQuery)) n++;
                     if (!string.IsNullOrEmpty(Make)) n++;
                     if (!string.IsNullOrEmpty(EngineCategory)) n++;
                     if (!string.IsNullOrEmpty(Drivetrain)) n++;
@@ -115,6 +121,7 @@ namespace CMS2026_OXL
                 }
             }
         }
+
 
         // ── Public API ────────────────────────────────────────────────────────
         public FilterCriteria Current { get; private set; } = new FilterCriteria();
@@ -157,7 +164,7 @@ namespace CMS2026_OXL
         static readonly Color BtnHov = new Color(0.110f, 0.170f, 0.260f, 1f);
         static readonly Color BtnActv = new Color(0.055f, 0.140f, 0.080f, 1f);
         static readonly Color GrayTxt = new Color(0.420f, 0.480f, 0.500f, 1f);
-        static readonly Color LabelClr = new Color(0.380f, 0.550f, 0.420f, 0.80f);
+        static readonly Color LabelClr = new Color(0.550f, 0.800f, 0.550f, 1.00f);
         static readonly Color BadgeClr = new Color(0.550f, 0.800f, 0.550f, 1f);
         static readonly Color CondPoor = new Color(0.90f, 0.28f, 0.18f, 1f);
         static readonly Color CondFair = new Color(0.85f, 0.72f, 0.20f, 1f);
@@ -211,6 +218,8 @@ namespace CMS2026_OXL
         private object _tiPriceMin, _tiPriceMax;
         private object _tiMileageMax;
         private object _tiPowerMin, _tiTorqueMin, _tiWeightMax;
+        // Text search — zawiera query na Make lub Model
+        private object _tiModelSearch;
 
         // Dropdown control refs (value labels — rebuilt per-open)
         private DropdownCtrl _ddMake, _ddEngCat, _ddDrv, _ddRarity, _ddColor, _ddTire, _ddSort;
@@ -307,22 +316,44 @@ namespace CMS2026_OXL
             const float L = 16f;
             const float G = 8f;
 
-            // ─────── ROW 1 — IDENTITY (6 dropdowns) ────────────────────────────
-            float[] ddWidths = { 200f, 160f, 130f, 140f, 150f, 170f };
-            string[] ddLabels = { "MAKE", "ENGINE", "DRIVETRAIN", "RARITY", "COLOR", "TYRE SIZE" };
+            // ═════════════════════════════════════════════════════════════════════
+            // ROW 1 — SEARCH + MAKE + ENGINE + DRIVETRAIN + RARITY + TYRE SIZE
+            //   (COLOR removed from UI — field preserved in state + FilterCriteria
+            //    so back-end filtering still works programmatically)
+            // ═════════════════════════════════════════════════════════════════════
             float cx = L;
 
-            for (int i = 0; i < 6; i++) { SecLbl(parent, ddLabels[i], cx, R1Lbl); cx += ddWidths[i] + G; }
-            cx = L;
-            _ddMake = BuildDropdown(parent, cx, R1Ct, ddWidths[0], CtrlH, "Any make", () => _drMake, v => _drMake = v); cx += ddWidths[0] + G;
-            _ddEngCat = BuildDropdown(parent, cx, R1Ct, ddWidths[1], CtrlH, "Any engine", () => _drEngCat, v => _drEngCat = v); cx += ddWidths[1] + G;
-            _ddDrv = BuildDropdown(parent, cx, R1Ct, ddWidths[2], CtrlH, "Any drive", () => _drDrv, v => _drDrv = v); cx += ddWidths[2] + G;
-            _ddRarity = BuildDropdown(parent, cx, R1Ct, ddWidths[3], CtrlH, "Any rarity", () => _drRarity, v => _drRarity = v); cx += ddWidths[3] + G;
-            _ddColor = BuildDropdown(parent, cx, R1Ct, ddWidths[4], CtrlH, "Any color", () => _drColor, v => _drColor = v); cx += ddWidths[4] + G;
-            _ddTire = BuildDropdown(parent, cx, R1Ct, ddWidths[5], CtrlH, "Any size", () => _drTire, v => _drTire = v);
+            SecLbl(parent, "SEARCH MODEL", cx, R1Lbl);
+            _tiModelSearch = BuildTextInput(parent, cx, R1Ct, 220f, CtrlH, "");
+            cx += 220f + G;
 
-            // ─────── ROW 2 — YEAR / PRICE / MILEAGE ────────────────────────────
-            // [Year from 110] [Year to 110] gap [Price min 140] [Price max 140] gap [Mileage max 160]
+            SecLbl(parent, "MAKE", cx, R1Lbl);
+            _ddMake = BuildDropdown(parent, cx, R1Ct, 200f, CtrlH, "Any make",
+                () => _drMake, v => _drMake = v);
+            cx += 200f + G;
+
+            SecLbl(parent, "ENGINE", cx, R1Lbl);
+            _ddEngCat = BuildDropdown(parent, cx, R1Ct, 160f, CtrlH, "Any engine",
+                () => _drEngCat, v => _drEngCat = v);
+            cx += 160f + G;
+
+            SecLbl(parent, "DRIVETRAIN", cx, R1Lbl);
+            _ddDrv = BuildDropdown(parent, cx, R1Ct, 130f, CtrlH, "Any drive",
+                () => _drDrv, v => _drDrv = v);
+            cx += 130f + G;
+
+            SecLbl(parent, "RARITY", cx, R1Lbl);
+            _ddRarity = BuildDropdown(parent, cx, R1Ct, 140f, CtrlH, "Any rarity",
+                () => _drRarity, v => _drRarity = v);
+            cx += 140f + G;
+
+            SecLbl(parent, "TYRE SIZE", cx, R1Lbl);
+            _ddTire = BuildDropdown(parent, cx, R1Ct, 170f, CtrlH, "Any size",
+                () => _drTire, v => _drTire = v);
+
+            // ═════════════════════════════════════════════════════════════════════
+            // ROW 2 — YEAR / PRICE / MILEAGE
+            // ═════════════════════════════════════════════════════════════════════
             cx = L;
             SecLbl(parent, "YEAR FROM", cx, R2Lbl);
             _tiYearFrom = BuildTextInput(parent, cx, R2Ct, 110f, CtrlH, "");
@@ -343,7 +374,11 @@ namespace CMS2026_OXL
             SecLbl(parent, "MILEAGE MAX (mi)", cx, R2Lbl);
             _tiMileageMax = BuildTextInput(parent, cx, R2Ct, 160f, CtrlH, "");
 
-            // ─────── ROW 3 — POWER / TORQUE / WEIGHT / COND / RATING ───────────
+            // ═════════════════════════════════════════════════════════════════════
+            // ROW 3 — POWER / TORQUE / WEIGHT / COND / RATING  +  SORT (right side)
+            //   Sort is placed at the right edge of row 3 so it lives visually
+            //   "above" Reset/Apply which are on row 4 right. No height increase.
+            // ═════════════════════════════════════════════════════════════════════
             cx = L;
             SecLbl(parent, "POWER MIN (HP)", cx, R3Lbl);
             _tiPowerMin = BuildTextInput(parent, cx, R3Ct, 120f, CtrlH, "");
@@ -384,10 +419,12 @@ namespace CMS2026_OXL
                     _drRat == i ? BtnActv : BtnNorm, BtnHov, A(Grn, 0.40f));
             }
 
-            // ─────── ROW 4 — SORT (left) + RESET + APPLY (right) ───────────────
-            SecLbl(parent, "SORT BY", L, R4Ct - 16f);
+            // SORT BY on the right side of row 3 (visually above Reset/Apply)
+            const float SortW = 240f;
+            float sortX = PW - 16f - SortW;
+            SecLbl(parent, "SORT BY", sortX, R3Lbl);
             _ddSort = BuildDropdown(
-                parent, L, R4Ct, 260f, CtrlH, SortLabels[0],
+                parent, sortX, R3Ct, SortW, CtrlH, SortLabels[0],
                 () => SortLabels[_drSortIdx],
                 v =>
                 {
@@ -396,14 +433,19 @@ namespace CMS2026_OXL
                 },
                 isSort: true);
 
+            // ═════════════════════════════════════════════════════════════════════
+            // ROW 4 — RESET + APPLY (right-aligned only; left side intentionally empty)
+            // ═════════════════════════════════════════════════════════════════════
             var resetPtr = _owner.AddButtonToContainer(
-                parent, "✕  Reset", PW - 16f - 170f - G - 120f, R4Ct, 120f, CtrlH,
+                parent, "✕  Reset",
+                PW - 16f - 170f - G - 120f, R4Ct, 120f, CtrlH,
                 BtnNorm, DoReset);
             _owner.WireHover(resetPtr, BtnNorm, BtnHov,
                 new Color(0.80f, 0.20f, 0.10f, 0.50f));
 
             var applyPtr = _owner.AddButtonToContainer(
-                parent, "✔  Apply Filters", PW - 16f - 170f, R4Ct, 170f, CtrlH,
+                parent, "✔  Apply Filters",
+                PW - 16f - 170f, R4Ct, 170f, CtrlH,
                 Grn, DoApply);
             _owner.WireHover(applyPtr, Grn,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
@@ -698,6 +740,18 @@ namespace CMS2026_OXL
         {
             HidePopup();
 
+            // Text search — Make OR Model contains query (case-insensitive)
+            string modelQuery = "";
+            if (_tiModelSearch != null)
+            {
+                try
+                {
+                    modelQuery = ((string)UIRuntime.TextFieldType
+                        .GetProperty("value")?.GetValue(_tiModelSearch) ?? "").Trim();
+                }
+                catch { modelQuery = ""; }
+            }
+
             int yF = ReadIntField(_tiYearFrom);
             int yT = ReadIntField(_tiYearTo);
             int pMin = ReadIntField(_tiPriceMin);
@@ -711,6 +765,7 @@ namespace CMS2026_OXL
             if (pMin > 0 && pMax > 0 && pMin > pMax) (pMin, pMax) = (pMax, pMin);
 
             Current = new FilterCriteria(
+                modelQuery,
                 _drMake, _drEngCat, _drDrv, _drRarity, _drColor, _drTire,
                 yF, yT, pMin, pMax, mMax,
                 pw, tq, wt,
@@ -737,10 +792,11 @@ namespace CMS2026_OXL
             _ddEngCat?.SetValue("");
             _ddDrv?.SetValue("");
             _ddRarity?.SetValue("");
-            _ddColor?.SetValue("");
+            _ddColor?.SetValue("");   // no-op jeśli nie buildowany, ale bezpieczne
             _ddTire?.SetValue("");
             _ddSort?.SetValue(SortLabels[0]);
 
+            WriteField(_tiModelSearch, "");
             WriteField(_tiYearFrom, "");
             WriteField(_tiYearTo, "");
             WriteField(_tiPriceMin, "");

@@ -738,6 +738,16 @@ namespace CMS2026_OXL
             {
                 query = query.Where(l =>
                 {
+
+                    // Free-text search — matches Make OR Model (case-insensitive, partial)
+                    if (!string.IsNullOrEmpty(c.ModelQuery))
+                    {
+                        string q = c.ModelQuery.ToLowerInvariant();
+                        bool matches = (l.Make ?? "").ToLowerInvariant().Contains(q)
+                                    || (l.Model ?? "").ToLowerInvariant().Contains(q);
+                        if (!matches) return false;
+                    }
+
                     if (!string.IsNullOrEmpty(c.Make) &&
                         !l.Make.Equals(c.Make, StringComparison.OrdinalIgnoreCase))
                         return false;
