@@ -2007,7 +2007,7 @@ namespace CMS2026_OXL
         // Row 2 — condition
         ("MILEAGE",       mi,                               1, null),
         ("CONDITION",     condText,                         1, condColor),
-        ("COLOR",         CapFirst(listing.Color),          1, null),
+        ("COLOR", FormatColorName(listing.Color), 1, null),
         ("RARITY",        Or(d.Rarity, "—"),                1, RarityColor(d.Rarity)),
 
         // Row 3 — powertrain
@@ -2469,6 +2469,13 @@ namespace CMS2026_OXL
             RefreshSingleDiffCard(
                 _diffHardCardPtr, _diffHardLbl,
                 Difficulty.Hard, new Color(0.90f, 0.45f, 0.20f, 1f));
+        }
+
+        private static string FormatColorName(string colorName)
+        {
+            if (string.IsNullOrEmpty(colorName)) return colorName;
+            string stripped = System.Text.RegularExpressions.Regex.Replace(colorName, @"\d+$", "");
+            return CapFirst(stripped);
         }
 
         private void RefreshSingleDiffCard(IntPtr cardPtr, UILabelHandle lbl,
