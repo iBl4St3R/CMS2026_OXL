@@ -117,7 +117,7 @@ namespace CMS2026_OXL
                 var allowedColors = cl.AllowedColors;
                 if (allowedColors == null || allowedColors.Count == 0) return;
 
-                Color targetColor = OXLPanel.HexColor(listing.Color);
+                Color targetColor = OXLPanel.HexColor(listing);
                 int bestIdx = 0;
                 float bestDist = float.MaxValue;
                 for (int ci = 0; ci < allowedColors.Count; ci++)
@@ -170,7 +170,7 @@ namespace CMS2026_OXL
                 var allowedColors = cl.AllowedColors;
                 if (allowedColors != null && allowedColors.Count > 0)
                 {
-                    Color targetColor = OXLPanel.HexColor(listing.Color);
+                    Color targetColor = OXLPanel.HexColor(listing);   // was: OXLPanel.HexColor(listing.Color)
                     int bestIdx = 0;
                     float bestDist = float.MaxValue;
                     for (int ci = 0; ci < allowedColors.Count; ci++)

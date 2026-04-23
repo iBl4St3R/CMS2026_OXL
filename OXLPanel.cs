@@ -1893,6 +1893,14 @@ namespace CMS2026_OXL
             }
         }
 
+        // new overload — prefers registry, falls back to the hardcoded switch
+        public static Color HexColor(CarListing listing)
+        {
+            if (listing != null
+                && CarColorRegistry.TryGet(listing.ImageFolder, listing.Color, out Color c))
+                return c;
+            return HexColor(listing?.Color);
+        }
 
         private Texture2D TryLoadLogo()
         {
@@ -2166,7 +2174,7 @@ namespace CMS2026_OXL
                 // Color swatch — shown only for COLOR tile
                 if (label == "COLOR")
                 {
-                    Color swatchCol = HexColor(listing.Color);
+                    Color swatchCol = HexColor(listing);   // was: HexColor(listing.Color)
                     var swatch = UIRuntime.NewVE();
                     var ss = UIRuntime.GetStyle(swatch);
                     S.Position(ss, "Absolute");

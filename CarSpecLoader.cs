@@ -41,7 +41,8 @@ namespace CMS2026_OXL
     {
         public string CarId { get; set; } = "";
         public string CarName { get; set; } = "";
-        public string[] ColorNames { get; set; } = Array.Empty<string>(); 
+        public string[] ColorNames { get; set; } = Array.Empty<string>();
+        public string[] ColorHexes { get; set; } = Array.Empty<string>();   // NEW
         public CarSpecData AutoDetected { get; set; } = new();
         public CarPriceModel PriceModel { get; set; } = new();
         public Dictionary<string, ArchetypePrice> ArchetypePrices
@@ -197,8 +198,8 @@ namespace CMS2026_OXL
                 {
                     string arrBlock = json.Substring(arrOpen, arrClose - arrOpen + 1);
                     var names = new List<string>();
+                    var hexes = new List<string>();               // NEW
 
-                    // Znajdź każdy obiekt { ... } w tablicy
                     int pos = 0;
                     while (pos < arrBlock.Length)
                     {
@@ -209,21 +210,19 @@ namespace CMS2026_OXL
 
                         string obj = arrBlock.Substring(objOpen, objClose - objOpen + 1);
 
-                        // Czytaj "index" żeby znać pozycję
-                        string indexStr = ReadString(obj, "index");  // to nie zadziała — index jest liczbą
-                                                                     // Użyj ReadInt zamiast:
                         int colorIdx = ReadInt(obj, "index");
                         string name = ReadString(obj, "name") ?? "";
+                        string hex = ReadString(obj, "hex") ?? "";   // NEW
 
-                        // Upewnij się że lista jest wystarczająco długa
-                        while (names.Count <= colorIdx)
-                            names.Add("");
+                        while (names.Count <= colorIdx) { names.Add(""); hexes.Add(""); }
                         names[colorIdx] = name;
+                        hexes[colorIdx] = hex;                             // NEW
 
                         pos = objClose + 1;
                     }
 
                     spec.ColorNames = names.ToArray();
+                    spec.ColorHexes = hexes.ToArray();                     // NEW
                 }
             }
 
@@ -327,5 +326,49 @@ namespace CMS2026_OXL
         /// <summary>Strips Unity rich-text tags like &lt;color=#...&gt; and &lt;size=-6&gt;.</summary>
         private static string StripTags(string s) =>
             Regex.Replace(s, @"<[^>]+>", "").Trim();
+    }
+
+
+
+    public static class CarColorRegistry
+    {
+        private static readonly Dictionary<string, Color> _colors =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public static void Clear() => _colors.Clear();
+
+        public static void Register(string imageFolder, string colorName, string hex)
+        {
+            if (string.IsNullOrWhiteSpace(imageFolder)) return;
+            if (string.IsNullOrWhiteSpace(colorName)) return;
+            if (!TryParseHex(hex, out Color c)) return;
+            _colors[Key(imageFolder, colorName)] = c;
+        }
+
+        public static bool TryGet(string imageFolder, string colorName, out Color color)
+        {
+            color = default;
+            if (string.IsNullOrEmpty(imageFolder) || string.IsNullOrEmpty(colorName)) return false;
+            return _colors.TryGetValue(Key(imageFolder, colorName), out color);
+        }
+
+        public static int Count => _colors.Count;
+
+        private static string Key(string folder, string name) =>
+            folder + "|" + name.ToLowerInvariant();
+
+        private static bool TryParseHex(string hex, out Color color)
+        {
+            color = Color.gray;
+            if (string.IsNullOrEmpty(hex)) return false;
+            hex = hex.Trim().TrimStart('#');
+            if (hex.Length != 6) return false;
+            var ns = System.Globalization.NumberStyles.HexNumber;
+            if (!int.TryParse(hex.Substring(0, 2), ns, null, out int r)) return false;
+            if (!int.TryParse(hex.Substring(2, 2), ns, null, out int g)) return false;
+            if (!int.TryParse(hex.Substring(4, 2), ns, null, out int b)) return false;
+            color = new Color(r / 255f, g / 255f, b / 255f, 1f);
+            return true;
+        }
     }
 }

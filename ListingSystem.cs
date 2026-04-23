@@ -334,9 +334,10 @@ namespace CMS2026_OXL
         public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry(CarSpecLoader specLoader)
         {
             var result = new Dictionary<string, (string, string[])>();
+            CarColorRegistry.Clear();                                         // NEW
+
             foreach (var def in CarDefs)
             {
-                // Czytaj kolory ze spec cfg=0 (wszystkie konfigi mają te same kolory per auto)
                 var spec = specLoader?.Get(def.InternalId, 0);
 
                 if (spec != null && !string.IsNullOrEmpty(spec.CarId)
@@ -348,6 +349,26 @@ namespace CMS2026_OXL
                         result[def.ImageFolder] = (def.InternalId, validNames);
                         OXLPlugin.Log.Msg(
                             $"[OXL:REGISTRY] '{def.InternalId}': {validNames.Length} colors from spec");
+
+                        // NEW — register hexes
+                        if (spec.ColorHexes != null)
+                        {
+                            int n = Math.Min(spec.ColorNames.Length, spec.ColorHexes.Length);
+                            int reg = 0;
+                            for (int i = 0; i < n; i++)
+                            {
+                                if (!string.IsNullOrEmpty(spec.ColorNames[i])
+                                 && !string.IsNullOrEmpty(spec.ColorHexes[i]))
+                                {
+                                    CarColorRegistry.Register(def.ImageFolder,
+                                        spec.ColorNames[i], spec.ColorHexes[i]);
+                                    reg++;
+                                }
+                            }
+                            OXLPlugin.Log.Msg(
+                                $"[OXL:REGISTRY] '{def.ImageFolder}': {reg} hex values registered" +
+                                $" (total in registry: {CarColorRegistry.Count})");
+                        }
                         continue;
                     }
                 }
