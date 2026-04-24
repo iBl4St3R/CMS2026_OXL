@@ -130,10 +130,16 @@ namespace CMS2026_OXL
             _gameTime = (float)(gameSecs - _gameTimeOrigin);
             if (_gameTime < 0f) _gameTime = 0f;
 
-            int before = ActiveListings.Count;
-            ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
-            if (ActiveListings.Count != before)
-                Save();
+            ApplyPendingRestore();
+
+            if (!_justRestored)  // ← pomiń RemoveAll w ticku restore
+            {
+                int before = ActiveListings.Count;
+                ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
+                if (ActiveListings.Count != before)
+                    Save();
+            }
+            _justRestored = false;
 
             if (!_initialSeeded)
             {
@@ -152,6 +158,27 @@ namespace CMS2026_OXL
             }
         }
 
+        private bool _justRestored = false;
+        private void ApplyPendingRestore()
+        {
+            if (_pendingRestore == null) return;
+            if (double.IsNaN(_gameTimeOrigin)) return;
+
+            var list = new List<CarListing>();
+            foreach (var (l, rem) in _pendingRestore)
+            {
+                if (rem <= 0f) continue;
+                l.ExpiresAt = _gameTime + rem;
+                list.Add(l);
+            }
+            ActiveListings = list;
+            _lastGenCheckTime = _gameTime;
+            _pendingRestore = null;
+            _justRestored = true;  // ← flaga
+            OXLLog.Msg($"[OXL:LGSYS] Restored {ActiveListings.Count} listings at _gameTime={_gameTime:F1}s");
+        }
+
+
         /// <summary>Wymusza sprawdzenie generacji przy następnym Tick().</summary>
         public void ForceCheckNow()
         {
@@ -160,17 +187,19 @@ namespace CMS2026_OXL
         }
 
         public void Save() => ListingPersistence.Save(ActiveListings, _gameTime);
+        private List<(CarListing listing, float remaining)> _pendingRestore = null;
+
 
         public void LoadSaved()
         {
-            var loaded = ListingPersistence.Load(_gameTime);
-            if (loaded.Count == 0) return;
-
-            ActiveListings = loaded;
-            _initialSeeded = true;        // nie seeduj ponownie przy pierwszym Tick()
-            _lastGenCheckTime = _gameTime;   // reset interwału generacji
-            OXLLog.Msg($"[OXL:LGSYS] Restored {loaded.Count} listings from previous session.");
+            // Załaduj RAW — ExpiresAt będzie ustawiane po anchoring
+            _pendingRestore = ListingPersistence.LoadRaw();
+            if (_pendingRestore == null || _pendingRestore.Count == 0) return;
+            _initialSeeded = true;
+            OXLLog.Msg($"[OXL:LGSYS] Queued {_pendingRestore.Count} listings for restore after anchor.");
         }
+
+
 
         /// <summary>
         /// Rzut szansą, potem generacja batcha.

@@ -85,120 +85,135 @@ namespace CMS2026_OXL
         //  LOAD
         // ═════════════════════════════════════════════════════════════════════
 
+        public static List<(CarListing listing, float remaining)> LoadRaw()
+        {
+            var result = new List<(CarListing, float)>();
+            if (!File.Exists(SavePath)) return result;
+
+            try
+            {
+                ParseFile(out var pairs);
+                result = pairs;
+                OXLPlugin.Log.Msg($"[OXL:PERSIST] LoadRaw: {result.Count} listings queued.");
+            }
+            catch (Exception ex)
+            {
+                OXLPlugin.Log.Msg($"[OXL:PERSIST] LoadRaw error: {ex.Message}");
+            }
+            return result;
+        }
+
+
+
+
+
         public static List<CarListing> Load(float currentGameTime)
         {
             var result = new List<CarListing>();
-
             if (!File.Exists(SavePath))
             {
                 OXLPlugin.Log.Msg("[OXL:PERSIST] No listings.dat — starting fresh.");
                 return result;
             }
-
             try
             {
-                var lines = File.ReadAllLines(SavePath, Encoding.UTF8);
-                CarListing current = null;
-                int photoCount = 0;
-                int photosRead = 0;
-                float remaining = 0f;
-
-                foreach (var rawLine in lines)
+                ParseFile(out var pairs);
+                foreach (var (l, rem) in pairs)
                 {
-                    string line = rawLine.TrimEnd(); // tylko trailing whitespace
-                    if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
-
-                    if (line == "[listing]")
-                    {
-                        CommitListing(result, current, remaining, currentGameTime);
-                        current = new CarListing();
-                        photoCount = 0;
-                        photosRead = 0;
-                        remaining = 0f;
-                        continue;
-                    }
-
-                    if (current == null) continue;
-
-                    int eq = line.IndexOf('=');
-                    if (eq < 0) continue;
-
-                    string key = line.Substring(0, eq).Trim();
-                    // val — NIE trim dla ścieżek (mogą zawierać spacje),
-                    // ale photo_N obsługujemy osobno
-                    string val = line.Substring(eq + 1);
-
-                    switch (key)
-                    {
-                        case "make": current.Make = val.Trim(); break;
-                        case "model": current.Model = val.Trim(); break;
-                        case "year": TrySetInt(val, v => current.Year = v); break;
-                        case "color": current.Color = val.Trim(); break;
-                        case "color_index": TrySetInt(val, v => current.ColorIndex = v); break;
-                        case "registration": current.Registration = val.Trim(); break;
-                        case "image_folder": current.ImageFolder = val.Trim(); break;
-                        case "internal_id": current.InternalId = val.Trim(); break;
-                        case "car_config": TrySetInt(val, v => current.CarConfig = v); break;
-                        case "price": TrySetInt(val, v => current.Price = v); break;
-                        case "fair_value": TrySetInt(val, v => current.FairValue = v); break;
-                        case "apparent": TrySetFloat(val, v => current.ApparentCondition = v); break;
-                        case "actual": TrySetFloat(val, v => current.ActualCondition = v); break;
-                        case "body": TrySetFloat(val, v => current.BodyCondition = v); break;
-                        case "archetype":
-                            if (Enum.TryParse(val.Trim(), out SellerArchetype arch))
-                                current.Archetype = arch;
-                            break;
-                        case "archetype_level": TrySetInt(val, v => current.ArchetypeLevel = v); break;
-                        case "faults":
-                            TrySetInt(val, v => current.Faults = (FaultFlags)v);
-                            break;
-                        case "mileage": TrySetInt(val, v => current.Mileage = v); break;
-                        case "location": current.Location = val.Trim(); break;
-                        case "delivery_hours": TrySetInt(val, v => current.DeliveryHours = v); break;
-                        case "seller_rating": TrySetInt(val, v => current.SellerRating = v); break;
-                        case "remaining_sec": TrySetFloat(val, v => remaining = v); break;
-
-                        case "seller_nick": current.SellerNick = val.Trim(); break;
-                        case "avatar_path": current.AvatarPath = val; break;
-
-                        case "seller_note_b64":
-                            try
-                            {
-                                current.SellerNote = Encoding.UTF8.GetString(
-                                    Convert.FromBase64String(val.Trim()));
-                            }
-                            catch { current.SellerNote = ""; }
-                            break;
-                        case "photo_count":
-                            TrySetInt(val, v =>
-                            {
-                                photoCount = v;
-                                current.PhotoFiles = new List<string>(v);
-                            });
-                            break;
-                        default:
-                            // photo_N — val bez trim, ścieżka może mieć spacje
-                            if (key.StartsWith("photo_") && photosRead < photoCount)
-                            {
-                                current.PhotoFiles.Add(val);
-                                photosRead++;
-                            }
-                            break;
-                    }
+                    l.ExpiresAt = currentGameTime + rem;
+                    result.Add(l);
                 }
-
-                // Zatwierdź ostatni listing
-                CommitListing(result, current, remaining, currentGameTime);
-
                 OXLPlugin.Log.Msg($"[OXL:PERSIST] Loaded {result.Count} listings from previous session.");
             }
             catch (Exception ex)
             {
                 OXLPlugin.Log.Msg($"[OXL:PERSIST] Load error: {ex.Message}");
             }
-
             return result;
         }
+
+        private static void ParseFile(out List<(CarListing listing, float remaining)> result)
+        {
+            result = new List<(CarListing, float)>();
+            var lines = File.ReadAllLines(SavePath, Encoding.UTF8);
+            CarListing current = null;
+            int photoCount = 0, photosRead = 0;
+            float remaining = 0f;
+
+            foreach (var rawLine in lines)
+            {
+                string line = rawLine.TrimEnd();
+                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+
+                if (line == "[listing]")
+                {
+                    CommitRaw(result, current, remaining);
+                    current = new CarListing();
+                    photoCount = 0; photosRead = 0; remaining = 0f;
+                    continue;
+                }
+                if (current == null) continue;
+
+                int eq = line.IndexOf('=');
+                if (eq < 0) continue;
+                string key = line.Substring(0, eq).Trim();
+                string val = line.Substring(eq + 1);
+
+                switch (key)
+                {
+                    case "make": current.Make = val.Trim(); break;
+                    case "model": current.Model = val.Trim(); break;
+                    case "year": TrySetInt(val, v => current.Year = v); break;
+                    case "color": current.Color = val.Trim(); break;
+                    case "color_index": TrySetInt(val, v => current.ColorIndex = v); break;
+                    case "registration": current.Registration = val.Trim(); break;
+                    case "image_folder": current.ImageFolder = val.Trim(); break;
+                    case "internal_id": current.InternalId = val.Trim(); break;
+                    case "car_config": TrySetInt(val, v => current.CarConfig = v); break;
+                    case "price": TrySetInt(val, v => current.Price = v); break;
+                    case "fair_value": TrySetInt(val, v => current.FairValue = v); break;
+                    case "apparent": TrySetFloat(val, v => current.ApparentCondition = v); break;
+                    case "actual": TrySetFloat(val, v => current.ActualCondition = v); break;
+                    case "body": TrySetFloat(val, v => current.BodyCondition = v); break;
+                    case "archetype":
+                        if (Enum.TryParse(val.Trim(), out SellerArchetype arch))
+                            current.Archetype = arch;
+                        break;
+                    case "archetype_level": TrySetInt(val, v => current.ArchetypeLevel = v); break;
+                    case "faults": TrySetInt(val, v => current.Faults = (FaultFlags)v); break;
+                    case "mileage": TrySetInt(val, v => current.Mileage = v); break;
+                    case "location": current.Location = val.Trim(); break;
+                    case "delivery_hours": TrySetInt(val, v => current.DeliveryHours = v); break;
+                    case "seller_rating": TrySetInt(val, v => current.SellerRating = v); break;
+                    case "remaining_sec": TrySetFloat(val, v => remaining = v); break;
+                    case "seller_nick": current.SellerNick = val.Trim(); break;
+                    case "avatar_path": current.AvatarPath = val; break;
+                    case "seller_note_b64":
+                        try { current.SellerNote = Encoding.UTF8.GetString(Convert.FromBase64String(val.Trim())); }
+                        catch { current.SellerNote = ""; }
+                        break;
+                    case "photo_count":
+                        TrySetInt(val, v => { photoCount = v; current.PhotoFiles = new List<string>(v); });
+                        break;
+                    default:
+                        if (key.StartsWith("photo_") && photosRead < photoCount)
+                        { current.PhotoFiles.Add(val); photosRead++; }
+                        break;
+                }
+            }
+            CommitRaw(result, current, remaining);
+        }
+
+
+        private static void CommitRaw(List<(CarListing, float)> list, CarListing l, float remaining)
+        {
+            // Odrzuć uszkodzone rekordy — listing musi mieć przynajmniej make i remaining > 0
+            if (l == null || remaining <= 0f) return;
+            if (string.IsNullOrEmpty(l.Make)) return;   // ← ochrona przed pustymi rekordami
+            if (l.PhotoFiles == null) l.PhotoFiles = new List<string>();
+            list.Add((l, remaining));
+        }
+
 
         public static void Delete()
         {
