@@ -49,6 +49,7 @@ namespace CMS2026_OXL
                     var inst = Activator.CreateInstance(_tmType, new object[] { objs[0].Pointer });
 
                     int day = (int)_getDayMethod.Invoke(inst, null);
+                    
                     int hour = (int)_getHourMethod.Invoke(inst, null);
                     int minute = (int)_getMinuteMethod.Invoke(inst, null);
 

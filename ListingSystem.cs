@@ -63,7 +63,7 @@ namespace CMS2026_OXL
         // ── Aktywne ogłoszenia ────────────────────────────────────────────────────
         public List<CarListing> ActiveListings { get; private set; } = new();
         private float _gameTime = 0f;
-        private double _gameTimeOrigin = -1.0;
+        private double _gameTimeOrigin = double.NaN;
         public float GameTime => _gameTime;
 
 
@@ -77,11 +77,13 @@ namespace CMS2026_OXL
         private float _tmWaitTimer = 0f;
         private const float TmWaitSec = 3f;
 
+
+
         public void Tick(float deltaTime)
         {
             double gameSecs = GameTimeProvider.TotalGameSeconds;
 
-            if (_gameTimeOrigin < 0.0)
+            if (double.IsNaN(_gameTimeOrigin))
             {
                 if (GameTimeProvider.IsReadingFromTM)
                 {
@@ -115,11 +117,19 @@ namespace CMS2026_OXL
                 _lastGenCheckTime = 0f;
                 OXLLog.Msg($"[OXL:LGSYS] Re-anchored to TM={gameSecs:F1}s (fallback elapsed={elapsed:F1}s)");
             }
+            else if (_originFromRealTM && gameSecs + 60.0 < _gameTimeOrigin)
+            {
+                // Safety net: origin ended up in the future (bad TM read).
+                // Re-anchor to the current (sane) value.
+                OXLLog.Msg($"[OXL:LGSYS] Origin was in the future ({_gameTimeOrigin:F1}s), re-anchoring to TM={gameSecs:F1}s");
+                _gameTimeOrigin = gameSecs;
+                _gameTime = 0f;
+                _lastGenCheckTime = 0f;
+            }
 
             _gameTime = (float)(gameSecs - _gameTimeOrigin);
             if (_gameTime < 0f) _gameTime = 0f;
 
-            // reszta IDENTYCZNA jak dotychczas od "Usuń wygasłe" wzwyż
             int before = ActiveListings.Count;
             ActiveListings.RemoveAll(l => l.ExpiresAt <= _gameTime);
             if (ActiveListings.Count != before)
