@@ -41,6 +41,7 @@ namespace CMS2026_OXL
                     sb.AppendLine($"registration={l.Registration}");
                     sb.AppendLine($"image_folder={l.ImageFolder}");
                     sb.AppendLine($"internal_id={l.InternalId}");
+                    sb.AppendLine($"car_config={l.CarConfig}");
                     sb.AppendLine($"price={l.Price}");
                     sb.AppendLine($"fair_value={l.FairValue}");
                     // float z InvariantCulture — bezpieczne na każdej lokalizacji
@@ -137,6 +138,7 @@ namespace CMS2026_OXL
                         case "registration": current.Registration = val.Trim(); break;
                         case "image_folder": current.ImageFolder = val.Trim(); break;
                         case "internal_id": current.InternalId = val.Trim(); break;
+                        case "car_config": TrySetInt(val, v => current.CarConfig = v); break;
                         case "price": TrySetInt(val, v => current.Price = v); break;
                         case "fair_value": TrySetInt(val, v => current.FairValue = v); break;
                         case "apparent": TrySetFloat(val, v => current.ApparentCondition = v); break;
