@@ -16,7 +16,7 @@ namespace CMS2026_OXL
         //  SAVE
         // ═════════════════════════════════════════════════════════════════════
 
-        public static void Save(List<CarListing> listings, float gameTime)
+        public static void Save(List<CarListing> listings, float gameTime, double gameTimeOrigin)
         {
             try
             {
@@ -55,7 +55,8 @@ namespace CMS2026_OXL
                     sb.AppendLine($"location={l.Location}");
                     sb.AppendLine($"delivery_hours={l.DeliveryHours}");
                     sb.AppendLine($"seller_rating={l.SellerRating}");
-                    sb.AppendLine($"remaining_sec={remaining.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
+                    double absoluteExpiry = gameTimeOrigin + l.ExpiresAt;
+                    sb.AppendLine($"expires_abs={absoluteExpiry.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
 
                     sb.AppendLine($"seller_nick={l.SellerNick ?? ""}");
                     sb.AppendLine($"avatar_path={l.AvatarPath ?? ""}");
@@ -85,9 +86,9 @@ namespace CMS2026_OXL
         //  LOAD
         // ═════════════════════════════════════════════════════════════════════
 
-        public static List<(CarListing listing, float remaining)> LoadRaw()
+        public static List<(CarListing listing, double remaining)> LoadRaw()
         {
-            var result = new List<(CarListing, float)>();
+            var result = new List<(CarListing, double)>();
             if (!File.Exists(SavePath)) return result;
 
             try
@@ -107,38 +108,38 @@ namespace CMS2026_OXL
 
 
 
-        public static List<CarListing> Load(float currentGameTime)
-        {
-            var result = new List<CarListing>();
-            if (!File.Exists(SavePath))
-            {
-                OXLPlugin.Log.Msg("[OXL:PERSIST] No listings.dat — starting fresh.");
-                return result;
-            }
-            try
-            {
-                ParseFile(out var pairs);
-                foreach (var (l, rem) in pairs)
-                {
-                    l.ExpiresAt = currentGameTime + rem;
-                    result.Add(l);
-                }
-                OXLPlugin.Log.Msg($"[OXL:PERSIST] Loaded {result.Count} listings from previous session.");
-            }
-            catch (Exception ex)
-            {
-                OXLPlugin.Log.Msg($"[OXL:PERSIST] Load error: {ex.Message}");
-            }
-            return result;
-        }
+        //public static List<CarListing> Load(float currentGameTime)
+        //{
+        //    var result = new List<CarListing>();
+        //    if (!File.Exists(SavePath))
+        //    {
+        //        OXLPlugin.Log.Msg("[OXL:PERSIST] No listings.dat — starting fresh.");
+        //        return result;
+        //    }
+        //    try
+        //    {
+        //        ParseFile(out var pairs);
+        //        foreach (var (l, rem) in pairs)
+        //        {
+        //            l.ExpiresAt = currentGameTime + rem;
+        //            result.Add(l);
+        //        }
+        //        OXLPlugin.Log.Msg($"[OXL:PERSIST] Loaded {result.Count} listings from previous session.");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        OXLPlugin.Log.Msg($"[OXL:PERSIST] Load error: {ex.Message}");
+        //    }
+        //    return result;
+        //}
 
-        private static void ParseFile(out List<(CarListing listing, float remaining)> result)
+        private static void ParseFile(out List<(CarListing listing, double remaining)> result)
         {
-            result = new List<(CarListing, float)>();
+            result = new List<(CarListing, double)>();
             var lines = File.ReadAllLines(SavePath, Encoding.UTF8);
             CarListing current = null;
             int photoCount = 0, photosRead = 0;
-            float remaining = 0f;
+            double remaining = 0.0;
 
             foreach (var rawLine in lines)
             {
@@ -185,7 +186,7 @@ namespace CMS2026_OXL
                     case "location": current.Location = val.Trim(); break;
                     case "delivery_hours": TrySetInt(val, v => current.DeliveryHours = v); break;
                     case "seller_rating": TrySetInt(val, v => current.SellerRating = v); break;
-                    case "remaining_sec": TrySetFloat(val, v => remaining = v); break;
+                    case "expires_abs": TrySetDouble(val, v => remaining = v); break;
                     case "seller_nick": current.SellerNick = val.Trim(); break;
                     case "avatar_path": current.AvatarPath = val; break;
                     case "seller_note_b64":
@@ -205,7 +206,15 @@ namespace CMS2026_OXL
         }
 
 
-        private static void CommitRaw(List<(CarListing, float)> list, CarListing l, float remaining)
+        private static void TrySetDouble(string val, Action<double> set)
+        {
+            if (double.TryParse(val.Trim(),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out double v)) set(v);
+        }
+
+        private static void CommitRaw(List<(CarListing, double)> list, CarListing l, double remaining)
         {
             // Odrzuć uszkodzone rekordy — listing musi mieć przynajmniej make i remaining > 0
             if (l == null || remaining <= 0f) return;

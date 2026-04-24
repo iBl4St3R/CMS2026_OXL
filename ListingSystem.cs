@@ -83,6 +83,8 @@ namespace CMS2026_OXL
         {
             double gameSecs = GameTimeProvider.TotalGameSeconds;
 
+            //OXLLog.Msg($"[OXL:LGSYS:DBG] Tick gameSecs={gameSecs:F1} originNaN={double.IsNaN(_gameTimeOrigin)} isReadingFromTM={GameTimeProvider.IsReadingFromTM}");
+
             if (double.IsNaN(_gameTimeOrigin))
             {
                 if (GameTimeProvider.IsReadingFromTM)
@@ -168,7 +170,9 @@ namespace CMS2026_OXL
             foreach (var (l, rem) in _pendingRestore)
             {
                 if (rem <= 0f) continue;
-                l.ExpiresAt = _gameTime + rem;
+                float actualRemaining = (float)(rem - _gameTimeOrigin);
+                if (actualRemaining <= 0f) continue;
+                l.ExpiresAt = _gameTime + actualRemaining;
                 list.Add(l);
             }
             ActiveListings = list;
@@ -186,8 +190,8 @@ namespace CMS2026_OXL
             OXLLog.Msg("[OXL:LGSYS] ForceCheckNow — next Tick will trigger TryGenerateBatch()");
         }
 
-        public void Save() => ListingPersistence.Save(ActiveListings, _gameTime);
-        private List<(CarListing listing, float remaining)> _pendingRestore = null;
+        public void Save() => ListingPersistence.Save(ActiveListings, _gameTime, _gameTimeOrigin);
+        private List<(CarListing listing, double remaining)> _pendingRestore = null;
 
 
         public void LoadSaved()
