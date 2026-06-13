@@ -12,7 +12,6 @@
 Browse listings, spot a deal, buy a wreck — then fix it up and sell it for profit.
 
 
-<center>Centered text</center>
 
 
 
