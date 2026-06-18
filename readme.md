@@ -1,5 +1,5 @@
 <div align="center" style="color: red; font-weight: bold; font-size: 1.2em; margin-bottom: 20px;">
-  ⚠️ WORK IN PROGRESS ⚠️
+  ⚠️⚠️⚠️ WORK IN PROGRESS ⚠️⚠️⚠️
 </div>
 
 <p align="center">
