@@ -27,6 +27,10 @@ namespace CMS2026_OXL
 
 
 
+        private static UnityEngine.Object _cachedTmInstanceRaw;
+        private static float _lastScanTime = -999f;
+        private const float RescanInterval = 2.0f; // sekundy
+
         public static double TotalGameSeconds
         {
             get
@@ -37,16 +41,22 @@ namespace CMS2026_OXL
 
                 try
                 {
-                    var objs = UnityEngine.Object.FindObjectsOfType(_tmIl2Type, true);
-
-
-                    if (objs == null || objs.Length == 0)
+                    // Re-scan tylko jeśli nie mamy instancji, albo co RescanInterval sekund
+                    if (_cachedTmInstanceRaw == null ||
+                        Time.realtimeSinceStartup - _lastScanTime > RescanInterval)
                     {
-                        _isReadingFromTM = false; 
+                        var objs = UnityEngine.Object.FindObjectsOfType(_tmIl2Type, true);
+                        _cachedTmInstanceRaw = (objs != null && objs.Length > 0) ? objs[0] : null;
+                        _lastScanTime = Time.realtimeSinceStartup;
+                    }
+
+                    if (_cachedTmInstanceRaw == null)
+                    {
+                        _isReadingFromTM = false;
                         return Fallback();
                     }
 
-                    var inst = Activator.CreateInstance(_tmType, new object[] { objs[0].Pointer });
+                    var inst = Activator.CreateInstance(_tmType, new object[] { _cachedTmInstanceRaw.Pointer });
 
                     int day = (int)_getDayMethod.Invoke(inst, null);
                     
