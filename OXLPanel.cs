@@ -54,6 +54,9 @@ namespace CMS2026_OXL
         private UIDropdownHandle _yearDropdown;
         private List<CarListing> _filteredListings; // null = no filter, show all
 
+        private enum FilterSource { None, TopBar, FilterPanel }
+        private FilterSource _lastFilterSource = FilterSource.None;
+
         private const string PlaceholderText = "Search for vehicles, parts or tools";
         private static readonly string[] MakeOptions =
         {
@@ -151,7 +154,7 @@ namespace CMS2026_OXL
 
             "[Coming soon]\n\nPlanned options:\n  • Currency display\n  • Auction refresh rate\n  • Notification preferences",
 
-            "OXL — Online eX-Owner Lies\nVersion: 0.5.0\nAuthor: iBlaster\n\n" +
+            "OXL — Online eX-Owner Lies\nVersion: 0.5.1\nAuthor: iBlaster\n\n" +
             "Built on _CMS2026_UITK_Framework.\n\n" +
             "github.com/iBl4St3R/CMS2026-OXL\n\n" +
              "— Icons —\n" +
@@ -651,7 +654,7 @@ namespace CMS2026_OXL
             _panel.AddSeparator(new Color(0.15f, 0.42f, 0.24f, 0.45f));
 
             var footerLbl = _panel.AddLabel(
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.5.0  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.5.1  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 new Color(0.22f, 0.48f, 0.30f, 0.70f),
                 height: 32f);
             footerLbl.SetFontSize(10);
@@ -672,6 +675,7 @@ namespace CMS2026_OXL
         /// </summary>
         private void ExecuteSearch()
         {
+            _lastFilterSource = FilterSource.TopBar;
             ApplyFilters();
             ShowListingPage();
         }
@@ -838,6 +842,7 @@ namespace CMS2026_OXL
         /// <summary>Clears filter and shows all listings.</summary>
         private void ShowAllListings()
         {
+            _lastFilterSource = FilterSource.None;
             _filteredListings = null;
             _currentPage = 0;
             ShowListingPage();
@@ -1068,6 +1073,7 @@ namespace CMS2026_OXL
 
             _filterPanel.OnFiltersApplied += () =>
             {
+                _lastFilterSource = FilterSource.FilterPanel;
                 _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
                 _currentPage = 0;
                 RefreshListings();
@@ -1301,6 +1307,14 @@ namespace CMS2026_OXL
         // ── Timer refresh ─────────────────────────────────────────────────────
         private void UpdateTimers()
         {
+            try
+            {
+                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
+                _listingMoneyLbl?.SetText($"Balance:  ${bal:N0}");
+                _detailBalanceLbl?.SetText($"Balance:  ${bal:N0}");
+            }
+            catch { }
+
             if (_timerLabels.Count == 0) return;
             foreach (var listing in _listings.ActiveListings)
             {
@@ -2054,7 +2068,7 @@ namespace CMS2026_OXL
             // Main footer text
             var lbl = _panel.AddLabelToContainer(
                 foot,
-                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.5.0  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
+                "OXL \u2014 Online eX-Owner Lies  \u00B7  v0.5.1  \u00B7  \u00A9 iBlaster  \u00B7  github.com/iBl4St3R/CMS2026-OXL",
                 0f, 0f, PanelW, FootH,
                 new Color(0.22f, 0.48f, 0.30f, 0.70f));
             lbl.SetFontSize(10);
@@ -3588,7 +3602,15 @@ namespace CMS2026_OXL
 
             if (_listingPageWasOpen)
             {
-                if (_filteredListings != null) ApplyFilters();
+                switch (_lastFilterSource)
+                {
+                    case FilterSource.FilterPanel:
+                        _filteredListings = ApplyFilterCriteria(_filterPanel?.Current);
+                        break;
+                    case FilterSource.TopBar:
+                        ApplyFilters();
+                        break;
+                }
                 _lastKnownListingCount = _listings?.ActiveListings.Count ?? 0;
                 RefreshListings();
             }
@@ -3674,8 +3696,16 @@ namespace CMS2026_OXL
                 _lastKnownListingCount = current;
                 try
                 {
-                    if (_filteredListings != null) ApplyFilters();
-                    if (_isVisible) RefreshListings(); // odśwież tylko gdy panel widoczny
+                    switch (_lastFilterSource)
+                    {
+                        case FilterSource.FilterPanel:
+                            _filteredListings = ApplyFilterCriteria(_filterPanel?.Current);
+                            break;
+                        case FilterSource.TopBar:
+                            ApplyFilters();
+                            break;
+                    }
+                    if (_isVisible) RefreshListings();
                 }
                 catch (Exception ex)
                 {
