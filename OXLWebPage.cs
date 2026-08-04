@@ -1,14 +1,15 @@
-﻿using CMS2026UITKFramework;
-using UnityEngine;
+﻿using BlastCoreOS;
+using CMS2026UITKFramework;
+using System.Collections.Generic;
 
 namespace CMS2026_OXL
 {
     /// <summary>
-    /// Registers OXL as a set of BlastCoreOS browser pages ("oxl.com", "oxl.com/listings",
-    /// and dynamically "oxl.com/listing/{id}" per active auction) instead of a single
-    /// standalone UIPanel window. Each page rebuilds itself fresh on every Navigate/refresh —
-    /// this is what makes a listing URL copy-pasteable between computers: the browser resolves
-    /// the URL, calls Build(), and OXLPanel looks the listing up by id at that moment.
+    /// Registers OXL as BlastCoreOS browser pages. Backend data (ListingSystem, loaders, icon
+    /// cache) lives once on a shared "backend" OXLPanel and is copied by reference into a
+    /// separate, isolated OXLPanel instance per computer (keyed by ctx.Panel identity) — this
+    /// is what prevents two computers with the browser open simultaneously from corrupting
+    /// each other's pagination state, gallery state, and click handlers.
     /// </summary>
     public static class OXLWebPage
     {
@@ -16,37 +17,41 @@ namespace CMS2026_OXL
         public const string ListingsUrl = "oxl.com/listings";
 
         private static bool _registered;
-        private static OXLPanel _panel;
+        private static OXLPanel _backend;
+        private static readonly Dictionary<UIPanel, OXLPanel> _instances = new();
 
-        public static OXLPanel Instance => _panel;
+        /// <summary>Shared backend — data queries only (GetActiveListings, GetGameTime, console commands). Never build UI against this instance.</summary>
+        public static OXLPanel Backend => _backend;
 
-        /// <summary>Registers the static oxl.com pages exactly once per process — safe to call every time a browser window is built.</summary>
         public static void EnsureRegistered()
         {
             if (_registered) return;
             _registered = true;
 
-            _panel = new OXLPanel();
-            _panel.BuildBackend();
+            _backend = new OXLPanel();
+            _backend.BuildBackend();
 
-            BlastCoreOS.BlastCoreWebAPI.RegisterPage(new BlastCoreOS.BlastCoreWebPage
-            {
-                Url = HomeUrl,
-                DisplayName = "OXL Auctions",
-                Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); _panel.BuildHomeInto(ctx.ContentContainer, ctx); },
-                ShowInDirectory = true,
-            });
-
-            BlastCoreOS.BlastCoreWebAPI.RegisterPage(new BlastCoreOS.BlastCoreWebPage
-            {
-                Url = ListingsUrl,
-                DisplayName = "OXL \u2014 Active Listings",
-                Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Active Listings"); _panel.BuildListingsInto(ctx.ContentContainer, ctx); },
-                ShowInDirectory = false,
-            });
+            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = HomeUrl, DisplayName = "OXL Auctions", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); GetInstance(ctx).BuildHomeInto(ctx.ContentContainer, ctx); }, ShowInDirectory = true });
+            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = ListingsUrl, DisplayName = "OXL \u2014 Active Listings", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Active Listings"); GetInstance(ctx).BuildListingsInto(ctx.ContentContainer, ctx); }, ShowInDirectory = false });
         }
 
-        /// <summary>Ticked every frame regardless of which page is active in any browser — listing timers and dynamic URL registration must keep running in the background.</summary>
-        public static void Tick(float dt) => _panel?.TickSystem(dt);
+        /// <summary>Returns (creating if necessary) the OXLPanel dedicated to this specific computer's browser. Each computer's UIPanel is a distinct object, so this dictionary naturally isolates state per computer.</summary>
+        public static OXLPanel GetInstance(BlastCoreWebPageContext ctx)
+        {
+            if (!_instances.TryGetValue(ctx.Panel, out var inst) || inst == null)
+            {
+                inst = new OXLPanel();
+                inst.AttachBackend(_backend);
+                _instances[ctx.Panel] = inst;
+            }
+            return inst;
+        }
+
+        /// <summary>Called once per frame from OXLPlugin.OnUpdate. Ticks the shared market exactly once, then refreshes live countdown timers for every currently-known per-computer instance.</summary>
+        public static void Tick(float dt)
+        {
+            _backend?.TickBackend(dt);
+            foreach (var inst in _instances.Values) inst?.TickUI(dt);
+        }
     }
 }

@@ -91,6 +91,22 @@
   <HintPath>$(InteropDir)\Il2CppFusion.Addons.SimpleKCC.dll</HintPath>
   <Private>false</Private>
 </Reference>
+<Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(InteropDir)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(InteropDir)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(InteropDir)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+	<Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(InteropDir)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
 
     <!-- OXL Framework -->
     <Reference Include="_CMS2026_UITK_Framework">

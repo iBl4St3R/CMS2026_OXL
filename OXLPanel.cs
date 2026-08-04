@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using UnityEngine;
 
+
 namespace CMS2026_OXL
 {
     public class OXLPanel
@@ -273,9 +274,15 @@ namespace CMS2026_OXL
         private CarSpecLoader _specLoader;
         private readonly HashSet<string> _registeredListingUrls = new();
 
+        public static string ListingUrl(string internalId) => $"oxl.com/listing/{internalId}";
+
+        /// <summary>Listings gone from ActiveListings but kept registered for a grace window so a stale link (already rendered in a not-yet-refreshed row) resolves to our own "no longer available" page instead of BlastCoreOS's raw site-not-found page.</summary>
+        private readonly Dictionary<string, float> _listingGraceTimers = new();
+        private const float ListingGraceSeconds = 90f;
+        private static readonly Color OxlPageBg = new Color(0.035f, 0.059f, 0.106f, 1.00f);
+
         private BlastCoreWebPageContext _currentEmbeddedCtx;
 
-        public static string ListingUrl(string internalId) => $"oxl.com/listing/{internalId}";
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
         // ══════════════════════════════════════════════════════════════════════
@@ -374,21 +381,23 @@ namespace CMS2026_OXL
             PanelW = ctx.Width;
             PanelH = ctx.Height;
             _currentEmbeddedCtx = ctx;
+            AddPageBackground(container);
 
             var listing = _listings?.ActiveListings.FirstOrDefault(l => l.InternalId == internalId);
             if (listing == null)
             {
+                EvictDetailResources();
                 var goneLbl = _panel.AddLabelToContainer(container, "This listing is no longer available \u2014 the auction has ended or the car was sold.", 40f, PanelH / 2f - 30f, PanelW - 80f, 60f, TextGray);
                 goneLbl.SetFontSize(14);
                 S.WhiteSpaceNormal(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())));
                 S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())), TextAnchor.UpperCenter);
 
-                var backPtr = _panel.AddButtonToContainer(container, "\u2190  Back to Listings", (PanelW - 200f) / 2f, PanelH / 2f + 40f, 200f, 36f, BtnDark, () => ctx.Navigate(OXLWebPage.ListingsUrl));
+                var backPtr = _panel.AddButtonToContainer(container, "\u2190  Back to Listings", (PanelW - 200f) / 2f, PanelH / 2f + 40f, 200f, 36f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
                 _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
                 return;
             }
 
-            BuildDetailContentInto(container, listing);
+            BuildDetailContentInto(container, listing, ctx);
         }
 
 
@@ -416,6 +425,27 @@ namespace CMS2026_OXL
             _listings.LoadSaved();
         }
 
+        /// <summary>Copies shared backend references into this per-computer instance — cheap pointer copies. All per-computer instances observe the SAME ListingSystem (one global market), while pagination/gallery/filter state stays isolated per computer.</summary>
+        public void AttachBackend(OXLPanel backend)
+        {
+            _listings = backend._listings;
+            _photoLoader = backend._photoLoader;
+            _specLoader = backend._specLoader;
+            _panel_sellerProfile = backend._panel_sellerProfile;
+            _icoPrev = backend._icoPrev;
+            _icoNext = backend._icoNext;
+            _icoRef = backend._icoRef;
+            _icoSecured = backend._icoSecured;
+            _icoMenu = backend._icoMenu;
+            _mapPlaceholder = backend._mapPlaceholder;
+            _passengerCars = backend._passengerCars;
+            _carParts = backend._carParts;
+            _workshopItems = backend._workshopItems;
+            _decorations = backend._decorations;
+        }
+
+
+
         public void BuildHomeInto(object container, BlastCoreWebPageContext ctx)
         {
             _isEmbedded = true;
@@ -424,6 +454,7 @@ namespace CMS2026_OXL
             PanelH = ctx.Height;
             _currentEmbeddedCtx = ctx;
             EvictDetailResources();
+            AddPageBackground(container);
 
             var titleLbl = _panel.AddLabelToContainer(container, "OXL", 0f, 40f, PanelW, 70f, OXLGreen);
             titleLbl.SetFontSize(48);
@@ -434,7 +465,7 @@ namespace CMS2026_OXL
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(subLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
             const float BtnW = 220f, BtnH = 44f;
-            var enterPtr = _panel.AddButtonToContainer(container, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, () => ctx.Navigate(OXLWebPage.ListingsUrl));
+            var enterPtr = _panel.AddButtonToContainer(container, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
             _panel.WireHover(enterPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
         }
 
@@ -446,6 +477,7 @@ namespace CMS2026_OXL
             PanelH = ctx.Height;
             _currentEmbeddedCtx = ctx;
             EvictDetailResources();
+            AddPageBackground(container);
 
             const float FilterTop = 4f;
             const float FilterBarH = 42f;
@@ -468,15 +500,8 @@ namespace CMS2026_OXL
             _filterPanel = new OXLFilterPanel();
             _filterPanel.Build(_panel, container, FilterTop, FilterTop);
             _filterPanel.OptionsProvider = () => FilterOptionsBuilder.Build(_listings?.ActiveListings, _specLoader);
-            _filterPanel.OnFiltersApplied += () =>
-            {
-                _lastFilterSource = FilterSource.FilterPanel;
-                _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
-                _currentPage = 0;
-                RefreshListings();
-            };
+            _filterPanel.OnFiltersApplied += () => { _lastFilterSource = FilterSource.FilterPanel; _filteredListings = ApplyFilterCriteria(_filterPanel.Current); _currentPage = 0; RefreshListings(); };
 
-            _currentPage = 0;
             RefreshListings();
         }
 
@@ -1211,7 +1236,7 @@ namespace CMS2026_OXL
         }
 
         // ── Single auction row ────────────────────────────────────────────────
-        private void BuildListingRow(object container, CarListing listing, float yOffset)
+        private void BuildListingRow(object container, CarListing listing, float yOffset, AudioSource audioSource)
         {
             const float Pad = 16f;
             const float ImgW = 125f;
@@ -1232,11 +1257,11 @@ namespace CMS2026_OXL
                 new Color(0.042f, 0.066f, 0.114f, 1f),
                 new Color(0.070f, 0.110f, 0.180f, 1f),
                 new Color(0.090f, 0.140f, 0.220f, 1f));
-            _panel.WireClick(rowPtr, () =>
+            _panel.WireClick(rowPtr, BlastCoreSoundLibrary.WithClick(audioSource, () =>
             {
                 if (_buyClickConsumed) { _buyClickConsumed = false; return; }
                 _currentEmbeddedCtx?.Navigate(ListingUrl(listing.InternalId));
-            });
+            }));
 
             // ── Separator — FIXED: yOffset uwzględniony ───────────────────────────
             var rowSep = UIRuntime.NewVE();
@@ -1325,11 +1350,7 @@ namespace CMS2026_OXL
                 TextAnchor.MiddleLeft);
 
             // BUY button
-            var buyPtr = _panel.AddButtonToContainer(
-                rowPtr, "BUY \u25BA",
-                rightX + 170f, lineY, 92f, 34f,
-                OXLGreen,
-                () => { _buyClickConsumed = true; ExecutePurchase(listing); });
+            var buyPtr = _panel.AddButtonToContainer(rowPtr, "BUY \u25BA", rightX + 170f, lineY, 92f, 34f, OXLGreen, BlastCoreSoundLibrary.WithClick(audioSource, () => { _buyClickConsumed = true; ExecutePurchase(listing); }));
             _panel.WireHover(buyPtr,
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
@@ -1360,21 +1381,14 @@ namespace CMS2026_OXL
 
             float cx = PanelW / 2f;
 
-            var prevPtr = _panel.AddButtonToContainer(
-                bar, "\u25C4  Previous", cx - BtnW - 70f, 7f, BtnW, 32f, BtnDark,
-                () => { if (_currentPage > 0) { _currentPage--; RefreshListings(); } });
+            var prevPtr = _panel.AddButtonToContainer(bar, "\u25C4  Previous", cx - BtnW - 70f, 7f, BtnW, 32f, BtnDark, BlastCoreSoundLibrary.WithClick(_currentEmbeddedCtx?.AudioSource, () => { if (_currentPage > 0) { _currentPage--; RefreshListings(); } }));
             _panel.WireHover(prevPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             _pageCountLabel = _panel.AddLabelToContainer(
                 bar, "1 / 1", cx - 30f, 0f, 60f, BarH, TextGray);
             _pageCountLabel.SetFontSize(13);
 
-            var nextPtr = _panel.AddButtonToContainer(
-                bar, "Next  \u25BA", cx + 70f, 7f, BtnW, 32f, BtnDark,
-                () =>
-                {
-                    if (_currentPage < TotalPages() - 1) { _currentPage++; RefreshListings(); }
-                });
+            var nextPtr = _panel.AddButtonToContainer(bar, "Next  \u25BA", cx + 70f, 7f, BtnW, 32f, BtnDark, BlastCoreSoundLibrary.WithClick(_currentEmbeddedCtx?.AudioSource, () => { if (_currentPage < TotalPages() - 1) { _currentPage++; RefreshListings(); } }));
             _panel.WireHover(nextPtr, BtnDark, BtnDarkHi, SearchBdr);
         }
 
@@ -1424,8 +1438,8 @@ namespace CMS2026_OXL
 
             int start = _currentPage * RowsPerPage;
             int end = Mathf.Min(start + RowsPerPage, all.Count);
-            for (int i = start; i < end; i++)
-                BuildListingRow(container, all[i], (i - start) * (RowH + RowGap));
+            var audioSource = _currentEmbeddedCtx?.AudioSource;
+            for (int i = start; i < end; i++) BuildListingRow(container, all[i], (i - start) * (RowH + RowGap), audioSource);
         }
 
         private int TotalPages()
@@ -1514,7 +1528,7 @@ namespace CMS2026_OXL
         //  DETAIL OVERLAY
         // ══════════════════════════════════════════════════════════════════════
 
-        private void BuildDetailContentInto(object container, CarListing listing)
+        private void BuildDetailContentInto(object container, CarListing listing, BlastCoreWebPageContext ctx)
         {
             _detailListing = listing;
 
@@ -1527,8 +1541,7 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(container, topBar);
 
-            var backPtr = _panel.AddButtonToContainer(topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark,
-                () => _currentEmbeddedCtx?.Navigate(OXLWebPage.ListingsUrl));
+            var backPtr = _panel.AddButtonToContainer(topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             _detailBalanceLbl = _panel.AddLabelToContainer(topBar, "Balance: ---", PanelW - 240f, 0f, 228f, 44f, new Color(0.55f, 0.90f, 0.55f, 1f));
@@ -1611,8 +1624,7 @@ namespace CMS2026_OXL
             _detailTimer.SetFontSize(12);
             ry += 26f;
 
-            _detailBuyPtr = _panel.AddButtonToContainer(container, "BUY NOW  \u25BA", rightX, ry, rightW, 48f, OXLGreen,
-                () => { if (_detailListing != null) ExecutePurchase(_detailListing); });
+            _detailBuyPtr = _panel.AddButtonToContainer(container, "BUY NOW  \u25BA", rightX, ry, rightW, 48f, OXLGreen, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => { if (_detailListing != null) ExecutePurchase(_detailListing); }));
             _panel.WireHover(_detailBuyPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
             ry += 66f;
 
@@ -3731,6 +3743,65 @@ namespace CMS2026_OXL
                     ShowInDirectory = false,
                 });
                 _registeredListingUrls.Add(url);
+            }
+        }
+
+        /// <summary>Fills the whole page with OXL's own dark background — BlastCoreOS's browser content area defaults to a near-white background meant for document-style sites, which clashed with OXL's dark theme.</summary>
+        private void AddPageBackground(object container)
+        {
+            var bg = UIRuntime.NewVE();
+            var bs = UIRuntime.GetStyle(bg);
+            S.Position(bs, "Absolute");
+            S.Left(bs, 0f); S.Top(bs, 0f);
+            S.Width(bs, PanelW); S.Height(bs, PanelH);
+            S.BgColor(bs, OxlPageBg);
+            UIRuntime.AddChild(container, bg);
+        }
+
+        /// <summary>Ticks the shared market — listing generation/expiry and dynamic URL registration. Call exactly once per frame, on the backend instance only.</summary>
+        public void TickBackend(float dt)
+        {
+            if (_listings == null) return;
+            _listings.Tick(dt);
+            SyncListingPages(dt);
+        }
+
+        /// <summary>Per-computer UI upkeep — refreshes visible countdowns and prunes rows for listings that expired while this page was open.</summary>
+        public void TickUI(float dt)
+        {
+            if (!_isEmbedded) return;
+            UpdateTimers();
+
+            if (_listingRowsContainerPtr == IntPtr.Zero || _listings == null) return;
+            bool anyExpired = _timerLabels.Keys.Any(id => !_listings.ActiveListings.Any(l => l.InternalId == id));
+            if (anyExpired) RefreshListings();
+        }
+
+        /// <summary>Keeps BlastCoreWebAPI's page registry in sync with ActiveListings. New listings get a copy-pasteable page immediately. Listings leaving the market stay registered for ListingGraceSeconds so a stale link already on screen resolves to our friendly page instead of a raw 404.</summary>
+        private void SyncListingPages(float dt)
+        {
+            var currentIds = new HashSet<string>(_listings.ActiveListings.Select(l => l.InternalId));
+
+            foreach (var id in currentIds)
+            {
+                string url = ListingUrl(id);
+                _listingGraceTimers.Remove(id);
+                if (_registeredListingUrls.Contains(url)) continue;
+
+                string capturedId = id;
+                BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = url, DisplayName = "OXL Listing", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Listing"); OXLWebPage.GetInstance(ctx).BuildDetailInto(ctx.ContentContainer, ctx, capturedId); }, ShowInDirectory = false });
+                _registeredListingUrls.Add(url);
+            }
+
+            foreach (var url in _registeredListingUrls.ToList())
+            {
+                string id = url.Substring(ListingUrl("").Length);
+                if (currentIds.Contains(id)) continue;
+
+                if (!_listingGraceTimers.TryGetValue(id, out float left)) left = ListingGraceSeconds;
+                left -= dt;
+                if (left <= 0f) { BlastCoreWebAPI.UnregisterPage(url); _registeredListingUrls.Remove(url); _listingGraceTimers.Remove(id); }
+                else _listingGraceTimers[id] = left;
             }
         }
 
