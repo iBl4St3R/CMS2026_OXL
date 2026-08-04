@@ -1,4 +1,5 @@
-﻿using CMS2026UITKFramework;
+﻿using BlastCoreOS;
+using CMS2026UITKFramework;
 using Il2Cpp;
 using Il2CppCMS.Core;
 using Il2CppCMS.Core.Car.Containers;
@@ -270,97 +271,125 @@ namespace CMS2026_OXL
 
 
         private CarSpecLoader _specLoader;
+        private readonly HashSet<string> _registeredListingUrls = new();
+
+        private BlastCoreWebPageContext _currentEmbeddedCtx;
+
+        public static string ListingUrl(string internalId) => $"oxl.com/listing/{internalId}";
         // ══════════════════════════════════════════════════════════════════════
         //  BUILD
         // ══════════════════════════════════════════════════════════════════════
 
-        public void Build()
+        //public void Build()
+        //{
+        //    LoadIcons();
+
+        //    // ── Załaduj draft z zapisanego configu ────────────────────────────────
+        //    var saved = OXLSettings.SavedGenConfig;
+        //    _draftMaxListings = saved.MaxListings;
+        //    _draftGenChancePct = saved.GenChancePct;
+        //    _draftGenMin = saved.GenMin;
+        //    _draftGenMax = saved.GenMax;
+        //    _draftDurMinH = Mathf.RoundToInt(saved.DurMinSec / ListingGenConfig.SecondsPerGameHour);
+        //    _draftDurMaxH = Mathf.RoundToInt(saved.DurMaxSec / ListingGenConfig.SecondsPerGameHour);
+        //    Array.Copy(saved.ArchWeights, _draftArchW, 4);
+        //    for (int a = 0; a < 4; a++)
+        //        Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
+
+        //    string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
+        //    _specLoader = new CarSpecLoader(modsRoot);
+        //    _panel_sellerProfile = new SellerProfile(modsRoot);
+        //    _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry(_specLoader));
+        //    _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
+
+
+
+        //    // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
+        //    _listings.ApplyConfig(OXLSettings.SavedGenConfig);
+        //    _listings.LoadSaved();
+
+        //    OXLPlugin.Log.Msg($"[OXL] ListingSystem initialized with saved config" +
+        //                      $" — max={OXLSettings.SavedGenConfig.MaxListings}" +
+        //                      $" chance={OXLSettings.SavedGenConfig.GenChancePct}%");
+
+
+
+
+        //    float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
+        //    float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
+
+        //    // ZMIANA: UIPanel.Create zamiast FrameworkAPI.CreatePanel
+        //    // CreatePanel teraz auto-wywołuje Build() wewnętrznie — tu chcemy
+        //    // dodać przyciski tytułu PRZED Build(), więc wywołujemy je ręcznie.
+        //    _panel = UIPanel.Create("OXL", x, y, PanelW, PanelH);
+        //    _panel.AddTitleButton("\u2014", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
+        //    _panel.AddTitleButton("\u25A1", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
+        //    _panel.AddTitleButton("\u2715", Close, new Color(0.55f, 0.10f, 0.10f, 1f));
+        //    _panel.Build(sortOrder: 9000);   // ← jeden Build, z przyciskami już w liście
+        //    _panel.SetDraggable(false);
+        //    _panel.SetScrollbarVisible(false);
+
+        //    var pve = UIRuntime.WrapVE(_panel.GetPanelRawPtr());
+        //    var pst = UIRuntime.GetStyle(pve);
+        //    S.BgColor(pst, PageBg);
+        //    S.BorderRadius(pst, 8f);
+        //    S.BorderWidth(pst, 1f);
+        //    S.BorderColor(pst, Border);
+
+        //    // ── Content first (home page scrollable area) ───────────────────
+        //    BuildContent();
+
+        //    // ── Page overlays — added BEFORE address bar so they render under it ──
+        //    BuildPageOverlay();     // Help / Settings / About
+        //    BuildListingPage();     // car auction list
+        //    BuildDetailOverlay();   // single listing detail
+
+
+        //    BuildListingGenSettingsOverlay();   
+        //    BuildArchLevelOverlay();           
+
+
+        //    // ── Address bar LAST — renders on top of all overlays ───────────
+        //    // BuildMenuDropdown is called from inside BuildAddressBar, also last,
+        //    // so the dropdown itself renders on top of the address bar. ✓
+
+        //    BuildAlertOverlay();
+        //    BuildSettingsOverlay();
+        //    BuildAddressBar();
+
+
+
+        //    _panel.SetUpdateCallback(dt =>
+        //    {
+        //        UpdateTimers();
+        //    });
+
+        //    _panel.SetVisible(false);
+        //}
+
+        public void BuildDetailInto(object container, BlastCoreWebPageContext ctx, string internalId)
         {
-            LoadIcons();
+            _isEmbedded = true;
+            _panel = ctx.Panel;
+            PanelW = ctx.Width;
+            PanelH = ctx.Height;
+            _currentEmbeddedCtx = ctx;
 
-            // ── Załaduj draft z zapisanego configu ────────────────────────────────
-            var saved = OXLSettings.SavedGenConfig;
-            _draftMaxListings = saved.MaxListings;
-            _draftGenChancePct = saved.GenChancePct;
-            _draftGenMin = saved.GenMin;
-            _draftGenMax = saved.GenMax;
-            _draftDurMinH = Mathf.RoundToInt(saved.DurMinSec / ListingGenConfig.SecondsPerGameHour);
-            _draftDurMaxH = Mathf.RoundToInt(saved.DurMaxSec / ListingGenConfig.SecondsPerGameHour);
-            Array.Copy(saved.ArchWeights, _draftArchW, 4);
-            for (int a = 0; a < 4; a++)
-                Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
-
-            string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
-            _specLoader = new CarSpecLoader(modsRoot);
-            _panel_sellerProfile = new SellerProfile(modsRoot);
-            _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry(_specLoader));
-            _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
-
-
-
-            // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
-            _listings.ApplyConfig(OXLSettings.SavedGenConfig);
-            _listings.LoadSaved();
-
-            OXLPlugin.Log.Msg($"[OXL] ListingSystem initialized with saved config" +
-                              $" — max={OXLSettings.SavedGenConfig.MaxListings}" +
-                              $" chance={OXLSettings.SavedGenConfig.GenChancePct}%");
-
-
-
-
-            float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
-            float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
-
-            // ZMIANA: UIPanel.Create zamiast FrameworkAPI.CreatePanel
-            // CreatePanel teraz auto-wywołuje Build() wewnętrznie — tu chcemy
-            // dodać przyciski tytułu PRZED Build(), więc wywołujemy je ręcznie.
-            _panel = UIPanel.Create("OXL", x, y, PanelW, PanelH);
-            _panel.AddTitleButton("\u2014", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
-            _panel.AddTitleButton("\u25A1", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
-            _panel.AddTitleButton("\u2715", Close, new Color(0.55f, 0.10f, 0.10f, 1f));
-            _panel.Build(sortOrder: 9000);   // ← jeden Build, z przyciskami już w liście
-            _panel.SetDraggable(false);
-            _panel.SetScrollbarVisible(false);
-
-            var pve = UIRuntime.WrapVE(_panel.GetPanelRawPtr());
-            var pst = UIRuntime.GetStyle(pve);
-            S.BgColor(pst, PageBg);
-            S.BorderRadius(pst, 8f);
-            S.BorderWidth(pst, 1f);
-            S.BorderColor(pst, Border);
-
-            // ── Content first (home page scrollable area) ───────────────────
-            BuildContent();
-
-            // ── Page overlays — added BEFORE address bar so they render under it ──
-            BuildPageOverlay();     // Help / Settings / About
-            BuildListingPage();     // car auction list
-            BuildDetailOverlay();   // single listing detail
-
-
-            BuildListingGenSettingsOverlay();   
-            BuildArchLevelOverlay();           
-
-
-            // ── Address bar LAST — renders on top of all overlays ───────────
-            // BuildMenuDropdown is called from inside BuildAddressBar, also last,
-            // so the dropdown itself renders on top of the address bar. ✓
-
-            BuildAlertOverlay();
-            BuildSettingsOverlay();
-            BuildAddressBar();
-
-
-
-            _panel.SetUpdateCallback(dt =>
+            var listing = _listings?.ActiveListings.FirstOrDefault(l => l.InternalId == internalId);
+            if (listing == null)
             {
-                UpdateTimers();
-            });
+                var goneLbl = _panel.AddLabelToContainer(container, "This listing is no longer available \u2014 the auction has ended or the car was sold.", 40f, PanelH / 2f - 30f, PanelW - 80f, 60f, TextGray);
+                goneLbl.SetFontSize(14);
+                S.WhiteSpaceNormal(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())));
+                S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())), TextAnchor.UpperCenter);
 
-            _panel.SetVisible(false);
+                var backPtr = _panel.AddButtonToContainer(container, "\u2190  Back to Listings", (PanelW - 200f) / 2f, PanelH / 2f + 40f, 200f, 36f, BtnDark, () => ctx.Navigate(OXLWebPage.ListingsUrl));
+                _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
+                return;
+            }
+
+            BuildDetailContentInto(container, listing);
         }
-
 
 
         /// <summary>Initializes ListingSystem/loaders/settings without building any UI. Call once at mod startup, before any page render — OXLWebPage.EnsureRegistered() does this.</summary>
@@ -387,45 +416,69 @@ namespace CMS2026_OXL
             _listings.LoadSaved();
         }
 
-        /// <summary>Builds the OXL UI inside a BlastCoreOS browser page's content container. Called every time the browser navigates to (or refreshes) oxl.com — ctx.ContentContainer is already cleared by the browser, so this rebuilds the whole visual tree fresh each time. Backend data from BuildBackend() persists across calls. Settings/ListingGen/ArchLevel overlays are intentionally NOT built here — everything that references them already null-guards, so they're simply inert until wired up in a later pass.</summary>
-        public void BuildEmbedded(BlastCoreOS.BlastCoreWebPageContext ctx)
+        public void BuildHomeInto(object container, BlastCoreWebPageContext ctx)
         {
             _isEmbedded = true;
             _panel = ctx.Panel;
             PanelW = ctx.Width;
             PanelH = ctx.Height;
+            _currentEmbeddedCtx = ctx;
+            EvictDetailResources();
 
-            _embeddedOverlayRoot = UIRuntime.NewVE();
-            var eos = UIRuntime.GetStyle(_embeddedOverlayRoot);
-            S.Position(eos, "Absolute");
-            S.Left(eos, 0f); S.Top(eos, 0f);
-            S.Width(eos, PanelW); S.Height(eos, PanelH);
-            S.Overflow(eos, "Hidden");
-            UIRuntime.AddChild(ctx.ContentContainer, _embeddedOverlayRoot);
-
-            BuildEmbeddedHome(ctx);
-            BuildListingPage();
-            BuildDetailOverlay();
-            BuildAlertOverlay();
-        }
-
-        /// <summary>Minimal home page for the embedded skeleton — proves the render/nav pipeline works. Uses absolute positioning against _embeddedOverlayRoot directly (no UIPanel flow layout — that belongs to the panel host, which we don't own in embedded mode).</summary>
-        private void BuildEmbeddedHome(BlastCoreOS.BlastCoreWebPageContext ctx)
-        {
-            var titleLbl = _panel.AddLabelToContainer(_embeddedOverlayRoot, "OXL", 0f, 40f, PanelW, 70f, OXLGreen);
+            var titleLbl = _panel.AddLabelToContainer(container, "OXL", 0f, 40f, PanelW, 70f, OXLGreen);
             titleLbl.SetFontSize(48);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
-            var subLbl = _panel.AddLabelToContainer(_embeddedOverlayRoot, "Online eX-Owner Lies \u2014 vehicle auctions", 0f, 110f, PanelW, 24f, TextGray);
+            var subLbl = _panel.AddLabelToContainer(container, "Online eX-Owner Lies \u2014 vehicle auctions", 0f, 110f, PanelW, 24f, TextGray);
             subLbl.SetFontSize(13);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(subLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
             const float BtnW = 220f, BtnH = 44f;
-            var enterPtr = _panel.AddButtonToContainer(_embeddedOverlayRoot, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, ShowAllListings);
+            var enterPtr = _panel.AddButtonToContainer(container, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, () => ctx.Navigate(OXLWebPage.ListingsUrl));
             _panel.WireHover(enterPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
         }
 
+        public void BuildListingsInto(object container, BlastCoreWebPageContext ctx)
+        {
+            _isEmbedded = true;
+            _panel = ctx.Panel;
+            PanelW = ctx.Width;
+            PanelH = ctx.Height;
+            _currentEmbeddedCtx = ctx;
+            EvictDetailResources();
 
+            const float FilterTop = 4f;
+            const float FilterBarH = 42f;
+            const float PaginationH = 46f;
+
+            float rowsTop = FilterTop + FilterBarH;
+            float availH = PanelH - rowsTop - PaginationH;
+
+            var rowsVE = UIRuntime.NewVE();
+            var rcs = UIRuntime.GetStyle(rowsVE);
+            S.Position(rcs, "Absolute");
+            S.Left(rcs, 0f); S.Top(rcs, rowsTop);
+            S.Width(rcs, PanelW); S.Height(rcs, availH);
+            S.Overflow(rcs, "Hidden");
+            UIRuntime.AddChild(container, rowsVE);
+            _listingRowsContainerPtr = UIRuntime.GetPtr(rowsVE);
+
+            BuildPaginationBar(container, PanelH - PaginationH);
+
+            _filterPanel = new OXLFilterPanel();
+            _filterPanel.Build(_panel, container, FilterTop, FilterTop);
+            _filterPanel.OptionsProvider = () => FilterOptionsBuilder.Build(_listings?.ActiveListings, _specLoader);
+            _filterPanel.OnFiltersApplied += () =>
+            {
+                _lastFilterSource = FilterSource.FilterPanel;
+                _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
+                _currentPage = 0;
+                RefreshListings();
+            };
+
+            _currentPage = 0;
+            RefreshListings();
+        }
 
 
         /// <summary>Adds a VE that should float above normal flow (detail overlay, settings, dropdown popups). Standalone mode: goes to the UIPanel root. Embedded mode: goes to our own overlay root, which is itself a child of the browser's content container — so it never leaks onto other pages/windows and gets torn down automatically on navigate/refresh.</summary>
@@ -1182,7 +1235,7 @@ namespace CMS2026_OXL
             _panel.WireClick(rowPtr, () =>
             {
                 if (_buyClickConsumed) { _buyClickConsumed = false; return; }
-                ShowDetail(listing);
+                _currentEmbeddedCtx?.Navigate(ListingUrl(listing.InternalId));
             });
 
             // ── Separator — FIXED: yOffset uwzględniony ───────────────────────────
@@ -1461,18 +1514,9 @@ namespace CMS2026_OXL
         //  DETAIL OVERLAY
         // ══════════════════════════════════════════════════════════════════════
 
-        private void BuildDetailOverlay()
+        private void BuildDetailContentInto(object container, CarListing listing)
         {
-            var overlay = UIRuntime.NewVE();
-            var os = UIRuntime.GetStyle(overlay);
-            S.Position(os, "Absolute");
-            S.Left(os, 0f); S.Top(os, OverlayTop);
-            S.Width(os, PanelW); S.Height(os, PanelH - OverlayTop);
-            S.BgColor(os, PageBg);
-            S.Overflow(os, "Hidden");
-            S.Display(os, false);
-            AddOverlay(overlay);
-            _detailOverlayPtr = UIRuntime.GetPtr(overlay);
+            _detailListing = listing;
 
             // ── Top bar ───────────────────────────────────────────────────────────
             var topBar = UIRuntime.NewVE();
@@ -1481,19 +1525,17 @@ namespace CMS2026_OXL
             S.Left(ts, 0f); S.Top(ts, 0f);
             S.Width(ts, PanelW); S.Height(ts, 44f);
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
-            UIRuntime.AddChild(overlay, topBar);
+            UIRuntime.AddChild(container, topBar);
 
-            var backPtr = _panel.AddButtonToContainer(
-                topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, HideDetail);
+            var backPtr = _panel.AddButtonToContainer(topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark,
+                () => _currentEmbeddedCtx?.Navigate(OXLWebPage.ListingsUrl));
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
-            // Balance — prawy górny róg (gdzie był timer)
-            _detailBalanceLbl = _panel.AddLabelToContainer(
-                topBar, "Balance: ---", PanelW - 240f, 0f, 228f, 44f,
-                new Color(0.55f, 0.90f, 0.55f, 1f));
+            _detailBalanceLbl = _panel.AddLabelToContainer(topBar, "Balance: ---", PanelW - 240f, 0f, 228f, 44f, new Color(0.55f, 0.90f, 0.55f, 1f));
             _detailBalanceLbl.SetFontSize(14);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailBalanceLbl.GetRawPtr())),
-                TextAnchor.MiddleRight);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailBalanceLbl.GetRawPtr())), TextAnchor.MiddleRight);
+            try { int bal0 = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money; _detailBalanceLbl.SetText($"Balance:  ${bal0:N0}"); }
+            catch { }
 
             var topSep = UIRuntime.NewVE();
             var tss = UIRuntime.GetStyle(topSep);
@@ -1501,19 +1543,16 @@ namespace CMS2026_OXL
             S.Left(tss, 0f); S.Top(tss, 44f);
             S.Width(tss, PanelW); S.Height(tss, 1f);
             S.BgColor(tss, Border);
-            UIRuntime.AddChild(overlay, topSep);
+            UIRuntime.AddChild(container, topSep);
 
-            // ════════════════════════════════════════════════════════════════
-            //  LAYOUT  Left=image 820px   Right=info od x=868
-            // ════════════════════════════════════════════════════════════════
             const float ContentTop = 56f;
             const float ImgX = 24f;
             const float ImgW = 820f;
             const float ImgH = 462f;
-            const float RightX = ImgX + ImgW + 24f;      // 868
-            float RightW = PanelW - RightX - 12f;  // ~576
+            float rightX = ImgX + ImgW + 24f;
+            float rightW = Mathf.Max(280f, PanelW - rightX - 12f);
 
-            // ── GALLERY — główne zdjęcie + strzałki + miniatury ──────────────────────
+            // ── GALLERY ───────────────────────────────────────────────────────────
             var mainImgBox = UIRuntime.NewVE();
             var mibs = UIRuntime.GetStyle(mainImgBox);
             S.Position(mibs, "Absolute");
@@ -1521,184 +1560,129 @@ namespace CMS2026_OXL
             S.Width(mibs, ImgW); S.Height(mibs, ImgH);
             S.BgColor(mibs, new Color(0.05f, 0.08f, 0.13f, 1f));
             S.BorderRadius(mibs, 6f);
-            UIRuntime.AddChild(overlay, mainImgBox);
+            UIRuntime.AddChild(container, mainImgBox);
             _galleryMainImgPtr = UIRuntime.GetPtr(mainImgBox);
 
-            // Strzałka wstecz
-            _galleryPrevBtnPtr = _panel.AddButtonToContainer(
-                mainImgBox, "‹",
-                4f, (ImgH - 48f) / 2f, 36f, 48f,
-                new Color(0f, 0f, 0f, 0.45f),
-                () => GalleryStep(-1));
+            _galleryPrevBtnPtr = _panel.AddButtonToContainer(mainImgBox, "\u2039", 4f, (ImgH - 48f) / 2f, 36f, 48f, new Color(0f, 0f, 0f, 0.45f), () => GalleryStep(-1));
             StyleGalleryArrow(_galleryPrevBtnPtr);
 
-            // Strzałka naprzód
-            _galleryNextBtnPtr = _panel.AddButtonToContainer(
-                mainImgBox, "›",
-                ImgW - 40f, (ImgH - 48f) / 2f, 36f, 48f,
-                new Color(0f, 0f, 0f, 0.45f),
-                () => GalleryStep(1));
+            _galleryNextBtnPtr = _panel.AddButtonToContainer(mainImgBox, "\u203A", ImgW - 40f, (ImgH - 48f) / 2f, 36f, 48f, new Color(0f, 0f, 0f, 0.45f), () => GalleryStep(1));
             StyleGalleryArrow(_galleryNextBtnPtr);
 
-            // Licznik zdjęć
-            _galleryCounterLbl = _panel.AddLabelToContainer(
-                mainImgBox, "1 / 1",
-                ImgW - 60f, ImgH - 22f, 56f, 18f,
-                new Color(1f, 1f, 1f, 0.55f));
+            _galleryCounterLbl = _panel.AddLabelToContainer(mainImgBox, "1 / 1", ImgW - 60f, ImgH - 22f, 56f, 18f, new Color(1f, 1f, 1f, 0.55f));
             _galleryCounterLbl.SetFontSize(10);
 
-            // Miniatury pod głównym zdjęciem
             var thumbsRow = UIRuntime.NewVE();
             var trs = UIRuntime.GetStyle(thumbsRow);
             S.Position(trs, "Absolute");
             S.Left(trs, ImgX); S.Top(trs, ContentTop + ImgH + 6f);
             S.Width(trs, ImgW); S.Height(trs, ThumbH);
-            UIRuntime.AddChild(overlay, thumbsRow);
+            UIRuntime.AddChild(container, thumbsRow);
             _galleryThumbsRowPtr = UIRuntime.GetPtr(thumbsRow);
 
-            // ── Specs panel under thumbnails ──────────────────────────────────────
-            const float SpecsTop = ContentTop + ImgH + 6f + ThumbH + 10f; // po miniaturach
-            float specsH = PanelH - OverlayTop - SpecsTop - 32f;          // do footera
+            // ── Specs panel under thumbnails ─────────────────────────────────────
+            float specsTop = ContentTop + ImgH + 6f + ThumbH + 10f;
+            float specsH = Mathf.Max(80f, PanelH - specsTop - 12f);
 
             var specsContainer = UIRuntime.NewVE();
             var sps = UIRuntime.GetStyle(specsContainer);
             S.Position(sps, "Absolute");
-            S.Left(sps, ImgX);
-            S.Top(sps, SpecsTop);
-            S.Width(sps, ImgW);          // ta sama szerokość co galeria: 820px
-            S.Height(sps, specsH);
+            S.Left(sps, ImgX); S.Top(sps, specsTop);
+            S.Width(sps, ImgW); S.Height(sps, specsH);
             S.Overflow(sps, "Hidden");
-            UIRuntime.AddChild(overlay, specsContainer);
+            UIRuntime.AddChild(container, specsContainer);
             _detailSpecsContainerPtr = UIRuntime.GetPtr(specsContainer);
+            BuildDetailSpecsTags(specsContainer, listing);
 
-            // ── RIGHT COLUMN ──────────────────────────────────────────────────
+            // ── RIGHT COLUMN ─────────────────────────────────────────────────────
             float ry = ContentTop;
-
-            // Nazwa + Cena w jednej linii
             const float TitleRowH = 44f;
 
-            _detailTitle = _panel.AddLabelToContainer(
-                overlay, "", RightX, ry, RightW * 0.58f, TitleRowH, Color.white);
+            _detailTitle = _panel.AddLabelToContainer(container, $"{listing.Make} {listing.Model}", rightX, ry, rightW * 0.58f, TitleRowH, Color.white);
             _detailTitle.SetFontSize(24);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailTitle.GetRawPtr())),
-                TextAnchor.MiddleLeft);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailTitle.GetRawPtr())), TextAnchor.MiddleLeft);
 
-            _detailPrice = _panel.AddLabelToContainer(
-                overlay, "", RightX + RightW * 0.58f, ry, RightW * 0.42f, TitleRowH, OXLGreen);
+            _detailPrice = _panel.AddLabelToContainer(container, $"${listing.Price:N0}", rightX + rightW * 0.58f, ry, rightW * 0.42f, TitleRowH, OXLGreen);
             _detailPrice.SetFontSize(26);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailPrice.GetRawPtr())),
-                TextAnchor.MiddleRight);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailPrice.GetRawPtr())), TextAnchor.MiddleRight);
             ry += TitleRowH + 2f;
 
-            // Expires in — pod nazwą/ceną
-            _detailTimer = _panel.AddLabelToContainer(
-                overlay, "", RightX, ry, RightW, 20f,
-                new Color(0.45f, 0.65f, 0.85f, 1f));
+            _detailTimer = _panel.AddLabelToContainer(container, FormatTimer(listing), rightX, ry, rightW, 20f, new Color(0.45f, 0.65f, 0.85f, 1f));
             _detailTimer.SetFontSize(12);
             ry += 26f;
 
-            // ── BUY NOW ───────────────────────────────────────────────────────
-            _detailBuyPtr = _panel.AddButtonToContainer(
-                overlay, "BUY NOW  \u25BA",
-                RightX, ry, RightW, 48f,
-                OXLGreen,
-                () => { if (_detailListing == null) return; ExecutePurchase(_detailListing); HideDetail(); });
-            _panel.WireHover(_detailBuyPtr,
-                OXLGreen,
-                new Color(0.28f, 0.70f, 0.42f, 1f),
-                new Color(0.16f, 0.48f, 0.28f, 1f));
+            _detailBuyPtr = _panel.AddButtonToContainer(container, "BUY NOW  \u25BA", rightX, ry, rightW, 48f, OXLGreen,
+                () => { if (_detailListing != null) ExecutePurchase(_detailListing); });
+            _panel.WireHover(_detailBuyPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
             ry += 66f;
 
-            // ── Seller card ───────────────────────────────────────────────────
-            const float CardH = 144f;   // było 72f
-            const float AvatarS = 128f; // było 64f
+            // ── Seller card ──────────────────────────────────────────────────────
+            const float CardH = 144f;
+            const float AvatarS = 128f;
 
             var sellerCard = UIRuntime.NewVE();
             var scs = UIRuntime.GetStyle(sellerCard);
             S.Position(scs, "Absolute");
-            S.Left(scs, RightX); S.Top(scs, ry);
-            S.Width(scs, RightW); S.Height(scs, CardH);
+            S.Left(scs, rightX); S.Top(scs, ry);
+            S.Width(scs, rightW); S.Height(scs, CardH);
             S.BgColor(scs, new Color(0.042f, 0.072f, 0.115f, 1f));
             S.BorderRadius(scs, 8f);
             S.BorderWidth(scs, 1f);
             S.BorderColor(scs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
-            UIRuntime.AddChild(overlay, sellerCard);
+            UIRuntime.AddChild(container, sellerCard);
 
             var avatarBox = UIRuntime.NewVE();
             var avs = UIRuntime.GetStyle(avatarBox);
             S.Position(avs, "Absolute");
-            S.Left(avs, 8f); S.Top(avs, (CardH - AvatarS) / 2f);  // 8px od góry
+            S.Left(avs, 8f); S.Top(avs, (CardH - AvatarS) / 2f);
             S.Width(avs, AvatarS); S.Height(avs, AvatarS);
             S.BgColor(avs, new Color(0.08f, 0.14f, 0.22f, 1f));
             S.BorderRadius(avs, 8f);
             S.BorderWidth(avs, 1f);
             S.BorderColor(avs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
             UIRuntime.AddChild(sellerCard, avatarBox);
-
             _sellerAvatarPtr = UIRuntime.GetPtr(avatarBox);
 
-            //var avatarLbl = _panel.AddLabelToContainer(
-            //    avatarBox, "?", 0f, 0f, AvatarS, AvatarS,
-            //    new Color(0.30f, 0.45f, 0.35f, 0.8f));
-            //avatarLbl.SetFontSize(36);
-            //S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(avatarLbl.GetRawPtr())),
-            //    TextAnchor.MiddleCenter);
+            Texture2D avatarTex = !string.IsNullOrEmpty(listing.AvatarPath) ? _panel_sellerProfile?.GetCachedOrLoad(listing.AvatarPath) : null;
+            if (avatarTex != null) UIRuntime.SetBackgroundImage(avatarBox, avatarTex);
 
-            float tx = AvatarS + 20f;  // 148f
+            float tx = AvatarS + 20f;
 
-            _detailSellerType = _panel.AddLabelToContainer(
-                sellerCard, "PRIVATE SELLER",
-                tx, 18f, 200f, 14f,
-                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+            _detailSellerType = _panel.AddLabelToContainer(sellerCard, "PRIVATE SELLER", tx, 18f, 200f, 14f, new Color(0.38f, 0.55f, 0.42f, 0.80f));
             _detailSellerType.SetFontSize(9);
 
-            _detailSellerName = _panel.AddLabelToContainer(
-            sellerCard, "Anonymous",
-            tx, 36f, 200f, 26f, Color.white);
+            _detailSellerName = _panel.AddLabelToContainer(sellerCard, string.IsNullOrEmpty(listing.SellerNick) ? "Anonymous" : listing.SellerNick, tx, 36f, 200f, 26f, Color.white);
             _detailSellerName.SetFontSize(17);
 
-            var sellerStarsLbl = _panel.AddLabelToContainer(
-                sellerCard, FormatStars(3),
-                tx, 70f, 110f, 20f, StarColor(3));
-            sellerStarsLbl.SetFontSize(14);
-            _detailSellerStars = sellerStarsLbl;
+            _detailSellerStars = _panel.AddLabelToContainer(sellerCard, FormatStars(listing.SellerRating), tx, 70f, 110f, 20f, StarColor(listing.SellerRating));
+            _detailSellerStars.SetFontSize(14);
 
-            _detailListedLbl = _panel.AddLabelToContainer(
-                sellerCard, "Member since 2024",
-                tx + 118f, 72f, 200f, 18f, TextGray);
+            _detailListedLbl = _panel.AddLabelToContainer(sellerCard, "Member since 2024", tx + 118f, 72f, 200f, 18f, TextGray);
             _detailListedLbl.SetFontSize(10);
 
-            var msgPtr = _panel.AddButtonToContainer(
-                sellerCard, "\u2709  Message",
-                RightW - 120f, (CardH - 36f) / 2f, 112f, 36f,
-                new Color(0.06f, 0.12f, 0.22f, 1f),
-                () => { /* TODO */ });
-            _panel.WireHover(msgPtr,
-                new Color(0.06f, 0.12f, 0.22f, 1f),
-                new Color(0.10f, 0.20f, 0.34f, 1f),
-                SearchBdr);
+            var msgPtr = _panel.AddButtonToContainer(sellerCard, "\u2709  Message", rightW - 120f, (CardH - 36f) / 2f, 112f, 36f, new Color(0.06f, 0.12f, 0.22f, 1f), () => { });
+            _panel.WireHover(msgPtr, new Color(0.06f, 0.12f, 0.22f, 1f), new Color(0.10f, 0.20f, 0.34f, 1f), SearchBdr);
             ry += CardH + 18f;
 
-            // ── Location card ─────────────────────────────────────────────────
-            const float LocCardH = 144f;   // było 72f
-            const float MapS = 128f;       // było AvatarS (64f)
+            // ── Location card ────────────────────────────────────────────────────
+            const float LocCardH = 144f;
+            const float MapS = 128f;
 
             var locCard = UIRuntime.NewVE();
             var lcs = UIRuntime.GetStyle(locCard);
             S.Position(lcs, "Absolute");
-            S.Left(lcs, RightX); S.Top(lcs, ry);
-            S.Width(lcs, RightW); S.Height(lcs, LocCardH);
+            S.Left(lcs, rightX); S.Top(lcs, ry);
+            S.Width(lcs, rightW); S.Height(lcs, LocCardH);
             S.BgColor(lcs, new Color(0.042f, 0.072f, 0.115f, 1f));
             S.BorderRadius(lcs, 8f);
             S.BorderWidth(lcs, 1f);
             S.BorderColor(lcs, new Color(0.15f, 0.28f, 0.20f, 0.45f));
-            UIRuntime.AddChild(overlay, locCard);
+            UIRuntime.AddChild(container, locCard);
 
-            // Kwadrat mapy — 128×128, wyśrodkowany pionowo
             var mapBox = UIRuntime.NewVE();
             var mbs = UIRuntime.GetStyle(mapBox);
             S.Position(mbs, "Absolute");
-            S.Left(mbs, 8f); S.Top(mbs, (LocCardH - MapS) / 2f);  // 8px
+            S.Left(mbs, 8f); S.Top(mbs, (LocCardH - MapS) / 2f);
             S.Width(mbs, MapS); S.Height(mbs, MapS);
             S.BgColor(mbs, new Color(0.06f, 0.10f, 0.18f, 1f));
             S.BorderRadius(mbs, 6f);
@@ -1706,76 +1690,54 @@ namespace CMS2026_OXL
             S.BorderColor(mbs, new Color(0.18f, 0.32f, 0.22f, 0.5f));
             UIRuntime.AddChild(locCard, mapBox);
 
-            // Pin placeholder — do czasu wstawienia prawdziwej mapy
-            if (_mapPlaceholder != null)
-            {
-                UIRuntime.SetBackgroundImage(mapBox, _mapPlaceholder);
-            }
+            if (_mapPlaceholder != null) UIRuntime.SetBackgroundImage(mapBox, _mapPlaceholder);
             else
             {
-                var pinLbl = _panel.AddLabelToContainer(
-                    mapBox, "\U0001F4CD", 0f, 0f, MapS, MapS,
-                    new Color(0.22f, 0.59f, 0.34f, 0.9f));
+                var pinLbl = _panel.AddLabelToContainer(mapBox, "\U0001F4CD", 0f, 0f, MapS, MapS, new Color(0.22f, 0.59f, 0.34f, 0.9f));
                 pinLbl.SetFontSize(32);
-                S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())),
-                    TextAnchor.MiddleCenter);
+                S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(pinLbl.GetRawPtr())), TextAnchor.MiddleCenter);
             }
 
-            float locTx = MapS + 20f;  // 148f
+            float locTx = MapS + 20f;
 
-            var locHeader = _panel.AddLabelToContainer(
-                locCard, "LOCATION",
-                locTx, 18f, 200f, 14f,
-                new Color(0.38f, 0.55f, 0.42f, 0.80f));
+            var locHeader = _panel.AddLabelToContainer(locCard, "LOCATION", locTx, 18f, 200f, 14f, new Color(0.38f, 0.55f, 0.42f, 0.80f));
             locHeader.SetFontSize(9);
 
-            _detailLocationLbl = _panel.AddLabelToContainer(
-                locCard, "", locTx, 36f, 280f, 28f, Color.white);
+            _detailLocationLbl = _panel.AddLabelToContainer(locCard, listing.Location, locTx, 36f, 280f, 28f, Color.white);
             _detailLocationLbl.SetFontSize(18);
 
-            // Delivery — pod nazwą lokalizacji
-            _detailYear = _panel.AddLabelToContainer(
-                locCard, "", locTx, 72f, RightW - locTx - 12f, 20f,
-                new Color(0.55f, 0.65f, 0.72f, 1f));
+            _detailYear = _panel.AddLabelToContainer(locCard, $"Listed  \u00B7  ~{listing.DeliveryHours}h delivery", locTx, 72f, rightW - locTx - 12f, 20f, new Color(0.55f, 0.65f, 0.72f, 1f));
             _detailYear.SetFontSize(12);
 
             ry += LocCardH + 18f;
 
-            // ── Seller note — rozciągnięty do footera ─────────────────────────────
-            const float FooterH = 32f;
-            const float BottomPad = 8f;
-            float panelBottom = PanelH - OverlayTop - FooterH - BottomPad;
-            float noteH = panelBottom - ry;
-            if (noteH < 60f) noteH = 60f;
+            // ── Seller note ──────────────────────────────────────────────────────
+            float noteH = Mathf.Max(60f, PanelH - 12f - ry);
 
             var noteBox = UIRuntime.NewVE();
             var nbs = UIRuntime.GetStyle(noteBox);
             S.Position(nbs, "Absolute");
-            S.Left(nbs, RightX); S.Top(nbs, ry);
-            S.Width(nbs, RightW); S.Height(nbs, noteH);
+            S.Left(nbs, rightX); S.Top(nbs, ry);
+            S.Width(nbs, rightW); S.Height(nbs, noteH);
             S.BgColor(nbs, new Color(0.040f, 0.072f, 0.118f, 1f));
             S.BorderRadius(nbs, 8f);
             S.BorderWidth(nbs, 1f);
             S.BorderColor(nbs, new Color(0.22f, 0.52f, 0.32f, 0.45f));
-            UIRuntime.AddChild(overlay, noteBox);
+            UIRuntime.AddChild(container, noteBox);
 
-            var quoteIcon = _panel.AddLabelToContainer(
-                noteBox, "\u201C", 10f, 2f, 26f, 28f,
-                new Color(0.22f, 0.59f, 0.34f, 0.45f));
+            var quoteIcon = _panel.AddLabelToContainer(noteBox, "\u201C", 10f, 2f, 26f, 28f, new Color(0.22f, 0.59f, 0.34f, 0.45f));
             quoteIcon.SetFontSize(30);
 
-            _detailSellerNote = _panel.AddLabelToContainer(
-            noteBox, "",
-            30f, 0f, RightW - 42f, noteH,   // top=0, height=pełny noteBox
-             new Color(0.80f, 0.84f, 0.86f, 1f));
+            _detailSellerNote = _panel.AddLabelToContainer(noteBox, $"\"{listing.SellerNote}\"", 30f, 0f, rightW - 42f, noteH, new Color(0.80f, 0.84f, 0.86f, 1f));
             _detailSellerNote.SetFontSize(15);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailSellerNote.GetRawPtr())),
-                TextAnchor.MiddleLeft);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailSellerNote.GetRawPtr())), TextAnchor.MiddleLeft);
 
-
-
-            const float FootH = 32f;
-            BuildFooter(overlay, PanelH - OverlayTop - FootH);
+            // ── Photos — loaded last, after every VE that references them exists ──
+            _galleryPhotos = listing.PhotoFiles != null && listing.PhotoFiles.Count > 0
+                ? (_photoLoader?.GetPhotosFromFiles(listing.PhotoFiles) ?? new List<Texture2D>())
+                : (_photoLoader?.GetPhotos(listing, preferMed: true) ?? new List<Texture2D>());
+            _galleryIndex = 0;
+            RefreshGallery();
         }
 
 
@@ -1867,67 +1829,14 @@ namespace CMS2026_OXL
             }
         }
 
-        private void ShowDetail(CarListing listing)
+
+        /// <summary>Releases gallery photo references and LRU-evicts photo/avatar caches — call whenever navigating to a non-detail page, since BuildDetailContentInto no longer has a matching Hide() to trigger this automatically.</summary>
+        private void EvictDetailResources()
         {
-            _detailListing = listing;
-
-            // ── Ładuj zdjęcia lazy ────────────────────────────────────────────────
-            _galleryPhotos = listing.PhotoFiles.Count > 0
-     ? (_photoLoader?.GetPhotosFromFiles(listing.PhotoFiles) ?? new List<Texture2D>())
-     : (_photoLoader?.GetPhotos(listing, preferMed: true) ?? new List<Texture2D>());
-            _galleryIndex = 0;
-            RefreshGallery();
-
-            // ── Reszta pól (bez zmian) ────────────────────────────────────────────
-            _detailTitle?.SetText($"{listing.Make} {listing.Model}");
-            _detailPrice?.SetText($"${listing.Price:N0}");
-            _detailTimer?.SetText(FormatTimer(listing));
-            _detailSellerNote?.SetText($"\"{listing.SellerNote}\"");
-            _detailLocationLbl?.SetText(listing.Location);
-            _detailYear?.SetText($"Listed  \u00B7  ~{listing.DeliveryHours}h delivery");
-            _detailSellerStars?.SetText(FormatStars(listing.SellerRating));
-            _detailSellerStars?.SetColor(StarColor(listing.SellerRating));
-
-            // Nickname i typ sprzedawcy
-            _detailSellerName?.SetText(
-                string.IsNullOrEmpty(listing.SellerNick) ? "Anonymous" : listing.SellerNick);
-
-            _detailSellerType?.SetText(listing.Archetype switch
-            {
-                SellerArchetype.Dealer => "PRIVATE SELLER",
-                SellerArchetype.Scammer => "PRIVATE SELLER",   // ukrywa tożsamość
-                SellerArchetype.Wrecker => "PRIVATE SELLER",
-                _ => "PRIVATE SELLER",
-            });
-
-            // Awatar
-            if (_sellerAvatarPtr != IntPtr.Zero)
-            {
-                Texture2D avatarTex = (!string.IsNullOrEmpty(listing.AvatarPath))
-                    ? _panel_sellerProfile?.GetCachedOrLoad(listing.AvatarPath)
-                    : null;
-                UIRuntime.SetBackgroundImage(UIRuntime.WrapVE(_sellerAvatarPtr), avatarTex);
-            }
-
-
-            try
-            {
-                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
-                _detailBalanceLbl?.SetText($"Balance:  ${bal:N0}");
-            }
-            catch { _detailBalanceLbl?.SetText("Balance: ---"); }
-
-            if (_detailSpecsContainerPtr != IntPtr.Zero)
-            {
-                var specsVE = UIRuntime.WrapVE(_detailSpecsContainerPtr);
-                UIRuntime.VisualElementType.GetMethod("Clear")?.Invoke(specsVE, null);
-                BuildDetailSpecsTags(specsVE, listing);
-            }
-
-            S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailOverlayPtr)), true);
+            _galleryPhotos.Clear();
+            _photoLoader?.Evict();
+            _panel_sellerProfile?.Evict();
         }
-
-
 
         private void HideDetail()
         {
@@ -2395,6 +2304,8 @@ namespace CMS2026_OXL
 
             if (_filteredListings != null) ApplyFilters();
             RefreshListings();
+            _currentEmbeddedCtx?.Navigate(OXLWebPage.ListingsUrl);
+
         }
 
         // ── Alert overlay ─────────────────────────────────────────────────────────
@@ -3766,6 +3677,7 @@ namespace CMS2026_OXL
         {
             if (_listings == null) return;
             _listings.Tick(dt);
+            SyncListingPages();
 
             if (_isEmbedded) UpdateTimers();
 
@@ -3790,6 +3702,35 @@ namespace CMS2026_OXL
                 {
                     OXLLog.Warn($"[OXL:TICK] RefreshListings failed: {ex.Message}");
                 }
+            }
+        }
+
+        /// <summary>Keeps BlastCoreWebAPI's page registry in sync with ActiveListings — every active auction gets its own copy-pasteable oxl.com/listing/{id} URL, registered when generated and unregistered when it expires or is purchased. Cheap enough to run every tick (listing counts top out around 50).</summary>
+        private void SyncListingPages()
+        {
+            if (_listings == null) return;
+            var currentIds = new HashSet<string>(_listings.ActiveListings.Select(l => l.InternalId));
+
+            _registeredListingUrls.RemoveWhere(url =>
+            {
+                bool stillActive = currentIds.Any(id => url == ListingUrl(id));
+                if (!stillActive) BlastCoreOS.BlastCoreWebAPI.UnregisterPage(url);
+                return !stillActive;
+            });
+
+            foreach (var id in currentIds)
+            {
+                string url = ListingUrl(id);
+                if (_registeredListingUrls.Contains(url)) continue;
+                string capturedId = id;
+                BlastCoreOS.BlastCoreWebAPI.RegisterPage(new BlastCoreOS.BlastCoreWebPage
+                {
+                    Url = url,
+                    DisplayName = "OXL Listing",
+                    Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Listing"); BuildDetailInto(ctx.ContentContainer, ctx, capturedId); },
+                    ShowInDirectory = false,
+                });
+                _registeredListingUrls.Add(url);
             }
         }
 

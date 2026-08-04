@@ -4,21 +4,23 @@ using UnityEngine;
 namespace CMS2026_OXL
 {
     /// <summary>
-    /// Registers OXL as a BlastCoreOS browser page ("oxl.com") instead of its own standalone
-    /// UIPanel window. OXLPanel no longer owns a UIPanel, title bar, or address bar — those are
-    /// provided by whichever BlastCoreBrowserWindow currently has this page open. Backend data
-    /// (ListingSystem, loaders) is initialized once via BuildBackend() and survives navigation
-    /// away from and back to the page; only the visual tree is rebuilt on each Build() call.
+    /// Registers OXL as a set of BlastCoreOS browser pages ("oxl.com", "oxl.com/listings",
+    /// and dynamically "oxl.com/listing/{id}" per active auction) instead of a single
+    /// standalone UIPanel window. Each page rebuilds itself fresh on every Navigate/refresh —
+    /// this is what makes a listing URL copy-pasteable between computers: the browser resolves
+    /// the URL, calls Build(), and OXLPanel looks the listing up by id at that moment.
     /// </summary>
     public static class OXLWebPage
     {
-        public const string Url = "oxl.com";
+        public const string HomeUrl = "oxl.com";
+        public const string ListingsUrl = "oxl.com/listings";
+
         private static bool _registered;
         private static OXLPanel _panel;
 
         public static OXLPanel Instance => _panel;
 
-        /// <summary>Registers the oxl.com page exactly once per process — safe to call every time a browser window is built.</summary>
+        /// <summary>Registers the static oxl.com pages exactly once per process — safe to call every time a browser window is built.</summary>
         public static void EnsureRegistered()
         {
             if (_registered) return;
@@ -29,14 +31,22 @@ namespace CMS2026_OXL
 
             BlastCoreOS.BlastCoreWebAPI.RegisterPage(new BlastCoreOS.BlastCoreWebPage
             {
-                Url = Url,
+                Url = HomeUrl,
                 DisplayName = "OXL Auctions",
-                Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); _panel.BuildEmbedded(ctx); },
+                Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); _panel.BuildHomeInto(ctx.ContentContainer, ctx); },
                 ShowInDirectory = true,
+            });
+
+            BlastCoreOS.BlastCoreWebAPI.RegisterPage(new BlastCoreOS.BlastCoreWebPage
+            {
+                Url = ListingsUrl,
+                DisplayName = "OXL \u2014 Active Listings",
+                Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Active Listings"); _panel.BuildListingsInto(ctx.ContentContainer, ctx); },
+                ShowInDirectory = false,
             });
         }
 
-        /// <summary>Ticked every frame regardless of whether oxl.com is the currently active page in any browser — listing timers must keep running in the background.</summary>
+        /// <summary>Ticked every frame regardless of which page is active in any browser — listing timers and dynamic URL registration must keep running in the background.</summary>
         public static void Tick(float dt) => _panel?.TickSystem(dt);
     }
 }
