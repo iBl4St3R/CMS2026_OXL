@@ -76,7 +76,7 @@ namespace CMS2026_OXL
         private UILabelHandle _pageCountLabel;
         private int _currentPage = 0;
         private const int RowsPerPage = 8;
-        private const float RowH = 90f;
+        private const float RowH = 78f;
         private const float RowGap = 1f;
 
         private bool _listingPageWasOpen = false;//flaga display
@@ -1240,10 +1240,9 @@ namespace CMS2026_OXL
         {
             const float Pad = 16f;
             const float ImgW = 125f;
-            const float ImgH = 62f;
-            const float RightW = 262f; // stars + price + buy w jednej linii
+            const float ImgH = 56f;
+            const float RightW = 262f;
 
-            // ── Row background ────────────────────────────────────────────────────
             var rowBg = UIRuntime.NewVE();
             var rbs = UIRuntime.GetStyle(rowBg);
             S.Position(rbs, "Absolute");
@@ -1263,7 +1262,6 @@ namespace CMS2026_OXL
                 _currentEmbeddedCtx?.Navigate(ListingUrl(listing.InternalId));
             }));
 
-            // ── Separator — FIXED: yOffset uwzględniony ───────────────────────────
             var rowSep = UIRuntime.NewVE();
             var rss = UIRuntime.GetStyle(rowSep);
             S.Position(rss, "Absolute");
@@ -1272,7 +1270,6 @@ namespace CMS2026_OXL
             S.BgColor(rss, new Color(0.15f, 0.22f, 0.32f, 0.35f));
             UIRuntime.AddChild(container, rowSep);
 
-            // ── Thumbnail ─────────────────────────────────────────────────────────
             var imgBox = UIRuntime.NewVE();
             var ibs = UIRuntime.GetStyle(imgBox);
             S.Position(ibs, "Absolute");
@@ -1291,34 +1288,29 @@ namespace CMS2026_OXL
             }
             else
             {
-                // fallback emoji
                 var iconLbl = _panel.AddLabelToContainer(
                     imgBox, "\U0001F697", 0f, 0f, ImgW, ImgH,
                     new Color(0.28f, 0.40f, 0.52f, 1f));
-                iconLbl.SetFontSize(24);
+                iconLbl.SetFontSize(22);
             }
 
-            // ── Content area ──────────────────────────────────────────────────────
             float contentX = Pad + ImgW + 14f;
             float contentW = PanelW - contentX - RightW - Pad * 2f;
 
-            // Tytuł — największy
             var titleLbl = _panel.AddLabelToContainer(
                 rowPtr, $"{listing.Make} {listing.Model}  \u2022  {listing.Year}",
-                contentX, 8f, contentW, 26f, Color.white);
-            titleLbl.SetFontSize(18);
+                contentX, 4f, contentW, 22f, Color.white);
+            titleLbl.SetFontSize(16);
 
-            // Nota sprzedawcy — bardziej widoczna
             string note = listing.SellerNote.Length > 95
                 ? listing.SellerNote.Substring(0, 92) + "..."
                 : listing.SellerNote;
             var noteLbl = _panel.AddLabelToContainer(
                 rowPtr, $"\"{note}\"",
-                contentX, 34f, contentW, 18f,
+                contentX, 27f, contentW, 16f,
                 new Color(0.72f, 0.76f, 0.80f, 1f));
-            noteLbl.SetFontSize(12);
+            noteLbl.SetFontSize(11);
 
-            // Dolna linia: timer · lokacja · przebieg · rok · dostawa
             float rem = listing.ExpiresAt - _listings.GameTime;
             Color metaColor = rem < 120f
                 ? new Color(0.95f, 0.55f, 0.20f, 1f)
@@ -1326,31 +1318,28 @@ namespace CMS2026_OXL
 
             var metaLbl = _panel.AddLabelToContainer(
                 rowPtr, FormatMetaLine(listing),
-                contentX, 60f, contentW, 18f, metaColor);
-            metaLbl.SetFontSize(11);
+                contentX, 49f, contentW, 16f, metaColor);
+            metaLbl.SetFontSize(10);
             _timerLabels[listing.InternalId] = metaLbl;
 
-            // ── Prawa strona: [★★★★★] [$22,250] [BUY ▶] — jedna linia ───────────
             float rightX = PanelW - RightW - Pad;
-            float lineY = (RowH - 34f) / 2f;  // środek pionowy wiersza
+            const float ElemH = 28f;
+            float lineY = (RowH - ElemH) / 2f;
 
-            // Gwiazdki
             var starsLbl = _panel.AddLabelToContainer(
                 rowPtr, FormatStars(listing.SellerRating),
-                rightX, lineY + 2f, 68f, 30f,
+                rightX, lineY, 68f, ElemH,
                 StarColor(listing.SellerRating));
-            starsLbl.SetFontSize(13);
+            starsLbl.SetFontSize(12);
 
-            // Cena
             var priceLbl = _panel.AddLabelToContainer(
                 rowPtr, $"${listing.Price:N0}",
-                rightX + 70f, lineY, 98f, 34f, OXLGreen);
-            priceLbl.SetFontSize(19);
+                rightX + 70f, lineY - 2f, 98f, ElemH + 4f, OXLGreen);
+            priceLbl.SetFontSize(17);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(priceLbl.GetRawPtr())),
                 TextAnchor.MiddleLeft);
 
-            // BUY button
-            var buyPtr = _panel.AddButtonToContainer(rowPtr, "BUY \u25BA", rightX + 170f, lineY, 92f, 34f, OXLGreen, BlastCoreSoundLibrary.WithClick(audioSource, () => { _buyClickConsumed = true; ExecutePurchase(listing); }));
+            var buyPtr = _panel.AddButtonToContainer(rowPtr, "BUY \u25BA", rightX + 170f, lineY, 92f, ElemH, OXLGreen, BlastCoreSoundLibrary.WithClick(audioSource, () => { _buyClickConsumed = true; ExecutePurchase(listing); }));
             _panel.WireHover(buyPtr,
                 OXLGreen,
                 new Color(0.28f, 0.70f, 0.42f, 1f),
@@ -2137,8 +2126,8 @@ namespace CMS2026_OXL
 
             // Layout: total width = ImgW (820px), gap = 8px, 4 columns = ~195px each
             const float Gap = 8f;
-            const float TileH = 52f;
-            const float RowGap = 6f;
+            const float TileH = 48f;
+            const float RowGap = 4f;
             const float UnitW = (820f - Gap * 3f) / 4f;  // ≈198px per unit
             const float PadLeft = 12f;
             const float PadTop = 6f;

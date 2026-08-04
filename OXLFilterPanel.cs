@@ -611,6 +611,7 @@ namespace CMS2026_OXL
         {
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(popupPtr)), true);
             _activePopupPtr = popupPtr;
+            UIRuntime.VisualElementType.GetMethod("BringToFront")?.Invoke(UIRuntime.WrapVE(popupPtr), null);
         }
 
         private void HidePopup()
