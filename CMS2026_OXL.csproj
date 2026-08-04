@@ -70,6 +70,8 @@
   <HintPath>$(InteropDir)\UnityEngine.EventSystemsModule.dll</HintPath>
   <Private>false</Private>
 </Reference>
+
+
 	
 
     <!-- ── GAME ASSEMBLIES ── -->
@@ -95,6 +97,10 @@
       <HintPath>$(GameDir)\Mods\_CMS2026_UITK_Framework.dll</HintPath>
       <Private>false</Private>
     </Reference>
+	<Reference Include="BlastCoreOS">
+    <HintPath>$(GameDir)\Mods\BlastCoreOS.dll</HintPath>
+    <Private>false</Private>
+  </Reference>
   </ItemGroup>
   
    <Target Name="CopyToMods" AfterTargets="Build">

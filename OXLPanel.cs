@@ -30,10 +30,14 @@ namespace CMS2026_OXL
         private static readonly Color TagBg = new Color(0.055f, 0.090f, 0.145f, 1.00f);
         private static readonly Color TagBdr = new Color(0.150f, 0.280f, 0.200f, 0.55f);
 
-        private const float PanelW = 1456f;
-        private const float PanelH = 980f;
-        private const float ContentW = PanelW - 24f;
+        private float PanelW = 1456f;
+        private float PanelH = 980f;
+        private float ContentW => PanelW - 24f;
         private const float CenterW = 680f;
+
+        /// <summary>Non-null only in embedded mode (running as a BlastCoreOS browser page) — root VE added as a child of ctx.ContentContainer. All "overlay" popups (detail view, settings, filters, dropdown lists) attach here instead of to a UIPanel root, so BlastCoreBrowserWindow's Clear()-on-navigate automatically tears the whole tree down with it.</summary>
+        private object _embeddedOverlayRoot;
+        private bool _isEmbedded;
 
         // ── Address bar overlay layout ─────────────────────────────────────────
         // UIPanel title bar = 24px. Address bar overlay sits right below it.
@@ -41,7 +45,7 @@ namespace CMS2026_OXL
         // All page overlays start at OverlayTop = 24 + 52 = 76px in panel space.
         private const float TitleBarH = 24f;
         private const float AddrBarH = 52f;
-        private const float OverlayTop = TitleBarH + AddrBarH; // 76f
+        private float OverlayTop => _isEmbedded ? 0f : (TitleBarH + AddrBarH);
 
         private UIPanel _panel;
         private ListingSystem _listings; // nie inicjalizuj tu
@@ -358,6 +362,79 @@ namespace CMS2026_OXL
         }
 
 
+
+        /// <summary>Initializes ListingSystem/loaders/settings without building any UI. Call once at mod startup, before any page render — OXLWebPage.EnsureRegistered() does this.</summary>
+        public void BuildBackend()
+        {
+            LoadIcons();
+
+            var saved = OXLSettings.SavedGenConfig;
+            _draftMaxListings = saved.MaxListings;
+            _draftGenChancePct = saved.GenChancePct;
+            _draftGenMin = saved.GenMin;
+            _draftGenMax = saved.GenMax;
+            _draftDurMinH = Mathf.RoundToInt(saved.DurMinSec / ListingGenConfig.SecondsPerGameHour);
+            _draftDurMaxH = Mathf.RoundToInt(saved.DurMaxSec / ListingGenConfig.SecondsPerGameHour);
+            Array.Copy(saved.ArchWeights, _draftArchW, 4);
+            for (int a = 0; a < 4; a++) Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
+
+            string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
+            _specLoader = new CarSpecLoader(modsRoot);
+            _panel_sellerProfile = new SellerProfile(modsRoot);
+            _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry(_specLoader));
+            _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
+            _listings.ApplyConfig(OXLSettings.SavedGenConfig);
+            _listings.LoadSaved();
+        }
+
+        /// <summary>Builds the OXL UI inside a BlastCoreOS browser page's content container. Called every time the browser navigates to (or refreshes) oxl.com — ctx.ContentContainer is already cleared by the browser, so this rebuilds the whole visual tree fresh each time. Backend data from BuildBackend() persists across calls. Settings/ListingGen/ArchLevel overlays are intentionally NOT built here — everything that references them already null-guards, so they're simply inert until wired up in a later pass.</summary>
+        public void BuildEmbedded(BlastCoreOS.BlastCoreWebPageContext ctx)
+        {
+            _isEmbedded = true;
+            _panel = ctx.Panel;
+            PanelW = ctx.Width;
+            PanelH = ctx.Height;
+
+            _embeddedOverlayRoot = UIRuntime.NewVE();
+            var eos = UIRuntime.GetStyle(_embeddedOverlayRoot);
+            S.Position(eos, "Absolute");
+            S.Left(eos, 0f); S.Top(eos, 0f);
+            S.Width(eos, PanelW); S.Height(eos, PanelH);
+            S.Overflow(eos, "Hidden");
+            UIRuntime.AddChild(ctx.ContentContainer, _embeddedOverlayRoot);
+
+            BuildEmbeddedHome(ctx);
+            BuildListingPage();
+            BuildDetailOverlay();
+            BuildAlertOverlay();
+        }
+
+        /// <summary>Minimal home page for the embedded skeleton — proves the render/nav pipeline works. Uses absolute positioning against _embeddedOverlayRoot directly (no UIPanel flow layout — that belongs to the panel host, which we don't own in embedded mode).</summary>
+        private void BuildEmbeddedHome(BlastCoreOS.BlastCoreWebPageContext ctx)
+        {
+            var titleLbl = _panel.AddLabelToContainer(_embeddedOverlayRoot, "OXL", 0f, 40f, PanelW, 70f, OXLGreen);
+            titleLbl.SetFontSize(48);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())), TextAnchor.MiddleCenter);
+
+            var subLbl = _panel.AddLabelToContainer(_embeddedOverlayRoot, "Online eX-Owner Lies \u2014 vehicle auctions", 0f, 110f, PanelW, 24f, TextGray);
+            subLbl.SetFontSize(13);
+            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(subLbl.GetRawPtr())), TextAnchor.MiddleCenter);
+
+            const float BtnW = 220f, BtnH = 44f;
+            var enterPtr = _panel.AddButtonToContainer(_embeddedOverlayRoot, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, ShowAllListings);
+            _panel.WireHover(enterPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
+        }
+
+
+
+
+        /// <summary>Adds a VE that should float above normal flow (detail overlay, settings, dropdown popups). Standalone mode: goes to the UIPanel root. Embedded mode: goes to our own overlay root, which is itself a child of the browser's content container — so it never leaks onto other pages/windows and gets torn down automatically on navigate/refresh.</summary>
+        private void AddOverlay(object ve)
+        {
+            if (_isEmbedded) UIRuntime.AddChild(_embeddedOverlayRoot, ve);
+            else AddOverlay(ve);
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         //  ADDRESS BAR  (overlay — always visible on every page)
         // ══════════════════════════════════════════════════════════════════════
@@ -422,7 +499,7 @@ namespace CMS2026_OXL
             AddSepToContainer(bar, AddrBarH - 1f);
 
             // Register with panel — LAST so it renders above page overlays
-            _panel.AddOverlayToPanel(bar);
+            AddOverlay(bar);
 
             // Menu dropdown added after bar → renders above bar ✓
             BuildMenuDropdown();
@@ -878,7 +955,7 @@ namespace CMS2026_OXL
             S.BorderColor(ds, Border); S.BorderWidth(ds, 1f);
             S.Overflow(ds, "Hidden");
             S.Display(ds, false);
-            _panel.AddOverlayToPanel(drop);
+            AddOverlay(drop);
             _menuDropdownPtr = UIRuntime.GetPtr(drop);
 
             for (int i = 0; i < PageTitles.Length; i++)
@@ -910,7 +987,7 @@ namespace CMS2026_OXL
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
-            _panel.AddOverlayToPanel(overlay);
+            AddOverlay(overlay);
             _pageOverlayPtr = UIRuntime.GetPtr(overlay);
 
             // Top bar
@@ -991,7 +1068,7 @@ namespace CMS2026_OXL
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
-            _panel.AddOverlayToPanel(overlay);
+            AddOverlay(overlay);
             _listingPagePtr = UIRuntime.GetPtr(overlay);
 
             // Top bar
@@ -1394,7 +1471,7 @@ namespace CMS2026_OXL
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
-            _panel.AddOverlayToPanel(overlay);
+            AddOverlay(overlay);
             _detailOverlayPtr = UIRuntime.GetPtr(overlay);
 
             // ── Top bar ───────────────────────────────────────────────────────────
@@ -1434,7 +1511,7 @@ namespace CMS2026_OXL
             const float ImgW = 820f;
             const float ImgH = 462f;
             const float RightX = ImgX + ImgW + 24f;      // 868
-            const float RightW = PanelW - RightX - 12f;  // ~576
+            float RightW = PanelW - RightX - 12f;  // ~576
 
             // ── GALLERY — główne zdjęcie + strzałki + miniatury ──────────────────────
             var mainImgBox = UIRuntime.NewVE();
@@ -2341,7 +2418,7 @@ namespace CMS2026_OXL
             S.BorderWidth(os, 1f);
             S.BorderColor(os, new Color(0.80f, 0.25f, 0.15f, 0.80f));
             S.Display(os, false);
-            _panel.AddOverlayToPanel(overlay);
+            AddOverlay(overlay);
             _alertOverlayPtr = UIRuntime.GetPtr(overlay);
 
             _alertMessageLbl = _panel.AddLabelToContainer(
@@ -2397,7 +2474,7 @@ namespace CMS2026_OXL
             S.BgColor(os, PageBg);
             S.Overflow(os, "Hidden");
             S.Display(os, false);
-            _panel.AddOverlayToPanel(overlay);
+            AddOverlay(overlay);
             _settingsOverlayPtr = UIRuntime.GetPtr(overlay);
 
             // ── Top bar ───────────────────────────────────────────────────────────
@@ -2652,7 +2729,7 @@ namespace CMS2026_OXL
                 S.Overflow(os, "Hidden");
                 S.Display(os, false);
             }
-            _panel.AddOverlayToPanel(ov);
+            AddOverlay(ov);
             _listingGenOverlayPtr = UIRuntime.GetPtr(ov);
 
             float scrollTop = TopBarH + 1f;
@@ -3010,7 +3087,7 @@ namespace CMS2026_OXL
                 S.Overflow(os, "Hidden");
                 S.Display(os, false);
             }
-            _panel.AddOverlayToPanel(ov);
+            AddOverlay(ov);
             _archLevelOverlayPtr = UIRuntime.GetPtr(ov);
 
             // ── Zawartość — dodana PRZED topbarem (niżej w z-order) ─────────────────
@@ -3689,6 +3766,8 @@ namespace CMS2026_OXL
         {
             if (_listings == null) return;
             _listings.Tick(dt);
+
+            if (_isEmbedded) UpdateTimers();
 
             int current = _listings.ActiveListings.Count;
             if (current != _lastKnownListingCount)

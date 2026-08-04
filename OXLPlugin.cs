@@ -32,8 +32,8 @@ namespace CMS2026_OXL
 
             OXLSettings.Load();
 
-            _panel = new OXLPanel();
-            _panel.Build();
+            CMS2026_OXL.OXLWebPage.EnsureRegistered();
+            _panel = OXLWebPage.Instance;
 
             // Wstrzyknij przycisk do menu sklepu
             MelonCoroutines.Start(InjectShopButtonDelayed());
@@ -67,14 +67,7 @@ namespace CMS2026_OXL
 
         public override void OnUpdate()
         {
-            // Tick zawsze — niezależnie od widoczności panelu
-            _panel?.TickSystem(UnityEngine.Time.deltaTime);
-
-            if (_panel != null && _panel.IsVisible
-                && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.Escape))
-            {
-                _panel.Close();
-            }
+            CMS2026_OXL.OXLWebPage.Tick(UnityEngine.Time.deltaTime);
         }
 
         // ── Wstrzyknięcie przycisku do menu sklepu ────────────────────────────────
