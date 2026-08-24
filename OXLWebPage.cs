@@ -27,12 +27,11 @@ namespace CMS2026_OXL
         {
             if (_registered) return;
             _registered = true;
-
             _backend = new OXLPanel();
             _backend.BuildBackend();
 
-            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = HomeUrl, DisplayName = "OXL Auctions", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); GetInstance(ctx).BuildHomeInto(ctx.ContentContainer, ctx); }, ShowInDirectory = true });
-            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = ListingsUrl, DisplayName = "OXL \u2014 Active Listings", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Active Listings"); GetInstance(ctx).BuildListingsInto(ctx.ContentContainer, ctx); }, ShowInDirectory = false });
+            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = HomeUrl, DisplayName = "OXL Marketplace", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); GetInstance(ctx).BuildHomeInto(ctx.ContentContainer, ctx); }, ShowInDirectory = true });
+            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = ListingsUrl, DisplayName = "OXL Cars \u2014 Active Listings", Build = ctx => { ctx.SetTitle?.Invoke("OXL Cars \u2014 Active Listings"); GetInstance(ctx).BuildListingsInto(ctx.ContentContainer, ctx); }, ShowInDirectory = false });
         }
 
         /// <summary>Returns (creating if necessary) the OXLPanel dedicated to this specific computer's browser. Each computer's UIPanel is a distinct object, so this dictionary naturally isolates state per computer.</summary>

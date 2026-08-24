@@ -845,6 +845,14 @@ namespace CMS2026_OXL
             _badgeLbl?.SetText($"  {n} {form}{sortSuffix}");
         }
 
+        /// <summary>Called by OXLPanel right after Build() when the player arrived here via the home-page search bar — writes the query into the text field so it's visible/editable, and folds it into Current so ApplyFilterCriteria picks it up immediately.</summary>
+        public void SetInitialModelQuery(string query)
+        {
+            WriteField(_tiModelSearch, query ?? "");
+            Current = new FilterCriteria(query, _drMake, _drEngCat, _drDrv, _drRarity, _drColor, _drTire, 0, 0, 0, 0, 0, 0, 0, 0, _drCond, StarVals[_drRat], SortVals[_drSortIdx]);
+            UpdateBadge();
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         //  MICRO-HELPERS
         // ══════════════════════════════════════════════════════════════════════

@@ -62,6 +62,8 @@ namespace CMS2026_OXL
 
         private enum FilterSource { None, TopBar, FilterPanel }
         private FilterSource _lastFilterSource = FilterSource.None;
+        private OXLHomePage.Category _homeSelectedCategory = OXLHomePage.Category.Cars;
+        private string _pendingHomeSearchQuery = "";
 
         private const string PlaceholderText = "Search for vehicles, parts or tools";
         private static readonly string[] MakeOptions =
@@ -456,17 +458,17 @@ namespace CMS2026_OXL
             EvictDetailResources();
             AddPageBackground(container);
 
-            var titleLbl = _panel.AddLabelToContainer(container, "OXL", 0f, 40f, PanelW, 70f, OXLGreen);
-            titleLbl.SetFontSize(48);
+            var titleLbl = _panel.AddLabelToContainer(container, "OXL", 0f, 30f, PanelW, 60f, OXLGreen);
+            titleLbl.SetFontSize(42);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
-            var subLbl = _panel.AddLabelToContainer(container, "Online eX-Owner Lies \u2014 vehicle auctions", 0f, 110f, PanelW, 24f, TextGray);
-            subLbl.SetFontSize(13);
+            var subLbl = _panel.AddLabelToContainer(container, "Online eX-Owner Lies \u2014 marketplace", 0f, 92f, PanelW, 22f, TextGray);
+            subLbl.SetFontSize(12);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(subLbl.GetRawPtr())), TextAnchor.MiddleCenter);
 
-            const float BtnW = 220f, BtnH = 44f;
-            var enterPtr = _panel.AddButtonToContainer(container, "Browse Listings \u25BA", (PanelW - BtnW) / 2f, 160f, BtnW, BtnH, OXLGreen, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
-            _panel.WireHover(enterPtr, OXLGreen, new Color(0.28f, 0.70f, 0.42f, 1f), new Color(0.16f, 0.48f, 0.28f, 1f));
+            var tex = new OXLHomePage.Textures { Cars = _passengerCars, Parts = _carParts, Tools = _workshopItems, Decorations = _decorations };
+
+            OXLHomePage.Build(_panel, container, PanelW, tex, _homeSelectedCategory, cat => { _homeSelectedCategory = cat; ctx.Navigate(OXLWebPage.HomeUrl); }, query => { _pendingHomeSearchQuery = query ?? ""; ctx.Navigate(OXLWebPage.ListingsUrl); }, _pendingHomeSearchQuery);
         }
 
         public void BuildListingsInto(object container, BlastCoreWebPageContext ctx)
@@ -501,6 +503,15 @@ namespace CMS2026_OXL
             _filterPanel.Build(_panel, container, FilterTop, FilterTop);
             _filterPanel.OptionsProvider = () => FilterOptionsBuilder.Build(_listings?.ActiveListings, _specLoader);
             _filterPanel.OnFiltersApplied += () => { _lastFilterSource = FilterSource.FilterPanel; _filteredListings = ApplyFilterCriteria(_filterPanel.Current); _currentPage = 0; RefreshListings(); };
+
+            if (!string.IsNullOrEmpty(_pendingHomeSearchQuery))
+            {
+                string q = _pendingHomeSearchQuery;
+                _pendingHomeSearchQuery = "";
+                _filterPanel.SetInitialModelQuery(q);
+                _lastFilterSource = FilterSource.FilterPanel;
+                _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
+            }
 
             RefreshListings();
         }
