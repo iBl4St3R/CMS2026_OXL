@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 
 [assembly: MelonInfo(typeof(CMS2026_OXL.OXLPlugin),
-    "CMS2026_OXL", "0.5.1", "iBlaster")]
+    "CMS2026_OXL", "0.6.0", "iBlaster")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026 Demo")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026")]
 
@@ -165,7 +165,7 @@ namespace CMS2026_OXL
                     {
                         if (c.GetIl2CppType().FullName == "TMPro.TextMeshProUGUI")
                         {
-                            c.GetIl2CppType().GetProperty("text")?.SetValue(c, "OXL Market Place v0.5.1");
+                            c.GetIl2CppType().GetProperty("text")?.SetValue(c, "OXL Market Place v0.6.0");
                             c.GetIl2CppType().GetProperty("enabled")?.SetValue(c, true);
                             break;
                         }
