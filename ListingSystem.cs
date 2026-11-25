@@ -145,7 +145,8 @@ namespace CMS2026_OXL
 
             if (!_initialSeeded)
             {
-                int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
+                // Od razu docelowa liczba aukcji z ustawień (użytkownik 2026-11-26: przy 4 na start widział tylko 5 aukcji).
+                int seedCount = _config.MaxListings;
                 while (ActiveListings.Count < seedCount && AddGenerated()) { }
                 _initialSeeded = true;
                 _lastGenCheckTime = _gameTime;
@@ -211,9 +212,9 @@ namespace CMS2026_OXL
         private void TryGenerateBatch()
         {
             if (ActiveListings.Count >= _config.MaxListings) return;
-            if (UnityEngine.Random.Range(0, 100) >= _config.GenChancePct) return;
+            // System utrzymuje docelową liczbę aukcji (ustawienia OXL): brakujące dokłada od razu, bez rzutu szansą.
 
-            int batchSize = UnityEngine.Random.Range(_config.GenMin, _config.GenMax + 1);
+            int batchSize = _config.MaxListings - ActiveListings.Count;
             int canAdd = _config.MaxListings - ActiveListings.Count;
             batchSize = UnityEngine.Mathf.Min(batchSize, canAdd);
 

@@ -147,6 +147,8 @@ namespace CMS2026_OXL
 
                         // ── ListingGen — wagi archetypów (4 wartości, CSV) ───
                         // Format: lg_arch_weights = 20,35,30,15
+                        case "lg_target_parts": if (int.TryParse(value, out int tp)) cfg.TargetParts = Mathf.Clamp(tp, 0, 40); break;
+                        case "lg_target_decor": if (int.TryParse(value, out int td)) cfg.TargetDecor = Mathf.Clamp(td, 0, 40); break;
                         case "lg_arch_weights":
                             ParseIntArray(value, cfg.ArchWeights, 0, 100);
                             break;
@@ -214,6 +216,8 @@ namespace CMS2026_OXL
                     "#\n" +
                     "# ── Listing Generation ────────────────────────────────────────────\n" +
                     $"lg_max_listings   = {cfg.MaxListings}\n" +
+                    $"lg_target_parts   = {cfg.TargetParts}\n" +
+                    $"lg_target_decor   = {cfg.TargetDecor}\n" +
                     $"lg_gen_chance_pct = {cfg.GenChancePct}\n" +
                     $"lg_gen_min        = {cfg.GenMin}\n" +
                     $"lg_gen_max        = {cfg.GenMax}\n" +

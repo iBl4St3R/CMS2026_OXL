@@ -998,7 +998,104 @@ namespace CMS2026_OXL
                 new[] { ("Miles", OXLSettings.UseMiles, (Action)(() => OXLSettings.SetUseMiles(true))), ("Kilometers", !OXLSettings.UseMiles, (Action)(() => OXLSettings.SetUseMiles(false))) });
             y = Option(panel, ctx, root, cx, w, y, "Prices", "Easy: listings 15% cheaper. Hard: 20% more expensive. Applies to new listings.",
                 new[] { ("Easy", OXLSettings.CurrentDifficulty == Difficulty.Easy, (Action)(() => OXLSettings.Set(Difficulty.Easy))), ("Normal", OXLSettings.CurrentDifficulty == Difficulty.Normal, (Action)(() => OXLSettings.Set(Difficulty.Normal))), ("Hard", OXLSettings.CurrentDifficulty == Difficulty.Hard, (Action)(() => OXLSettings.Set(Difficulty.Hard))) });
+
+            // Liczba aukcji i mieszanka sprzedawców (użytkownik 2026-11-26, jak w starym OXL): ten sam ListingGenConfig, który czyta generator,
+            // więc zmiana działa od razu; zapis do CMS2026_OXL.cfg (lg_*).
+            var gc = OXLSettings.SavedGenConfig;
+            y = Steppers(panel, ctx, root, cx, w, y, "Listings on OXL", "The market keeps this many active listings in each category.", new[]
+            {
+                ("Cars", (Func<int>)(() => gc.MaxListings), (Action<int>)(v => gc.MaxListings = Math.Max(1, Math.Min(50, v))), 1),
+                ("Engines and parts", () => gc.TargetParts, v => gc.TargetParts = Math.Max(0, Math.Min(40, v)), 1),
+                ("Tools and decorations", () => gc.TargetDecor, v => gc.TargetDecor = Math.Max(0, Math.Min(40, v)), 1),
+            });
+            string[] archNames = { "Honest", "Wrecker", "Dealer", "Scammer" };
+            y = Shares(panel, ctx, root, cx, w, y, "mix", "Seller mix", "Percent of each kind of seller (cars and items). Always 100% in total; Lock keeps a value fixed.", archNames, gc.ArchWeights);
+            for (int a = 0; a < 4; a++)
+            {
+                string hint = a == 3 ? "Level 1 is obvious, level 3 lies about specs. Items only have levels 1 and 2." : "Percent of seller experience levels. Always 100% in total.";
+                y = Shares(panel, ctx, root, cx, w, y, "lvl" + a, archNames[a] + " levels", hint, new[] { "Level 1", "Level 2", "Level 3" }, gc.LvlWeights[a]);
+            }
             return y;
+        }
+
+        // Zablokowane pozycje udziałów ("grupa:indeks"); tylko na czas sesji gry.
+        private static readonly HashSet<string> _shareLocks = new HashSet<string>();
+
+        /// <summary>
+        /// Udziały procentowe sumujące się do 100 (użytkownik 2026-11-26): "+5" w jednej pozycji zabiera 5 z innych niezablokowanych, po 1 punkcie
+        /// od największej, żeby nic nie zeszło poniżej 0. Kłódka ("Lock") wyłącza pozycję z oddawania i z własnej zmiany.
+        /// </summary>
+        private static float Shares(UIPanel panel, BlastCoreWebPageContext ctx, object root, float x, float w, float y, string group, string title, string hint, string[] labels, int[] values)
+        {
+            Normalize(values);
+            float h = 80f + labels.Length * 48f + 10f;
+            var box = OXLUi.Box(root, x, y, w, h, White, 4f);
+            OXLUi.Text(panel, box, title, 24f, 16f, w - 48f, 28f, Dark, 18, true);
+            OXLUi.Text(panel, box, hint, 24f, 44f, w - 48f, 22f, Muted, 14);
+            float ry = 80f;
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int idx = i;
+                string key = group + ":" + i;
+                bool locked = _shareLocks.Contains(key);
+                OXLUi.Text(panel, box, labels[i], 24f, ry, 260f, 38f, locked ? Muted : Dark, 15);
+                if (!locked)
+                {
+                    OXLUi.Button(panel, ctx, box, "-", 300f, ry, 44f, 38f, White, RowHover, Dark, 18, () => { Shift(values, idx, -5, group); OXLSettings.SaveGenConfig(OXLSettings.SavedGenConfig); ctx.Refresh?.Invoke(); }, 4f);
+                    OXLUi.Button(panel, ctx, box, "+", 416f, ry, 44f, 38f, White, RowHover, Dark, 18, () => { Shift(values, idx, 5, group); OXLSettings.SaveGenConfig(OXLSettings.SavedGenConfig); ctx.Refresh?.Invoke(); }, 4f);
+                }
+                OXLUi.Text(panel, box, values[i] + "%", 350f, ry, 60f, 38f, Dark, 16, true, TextAnchor.MiddleCenter);
+                OXLUi.Button(panel, ctx, box, locked ? "Locked" : "Lock", 476f, ry, 90f, 38f, locked ? Dark : White, locked ? DarkHover : RowHover, locked ? White : Dark, 14, () => { if (!_shareLocks.Remove(key)) _shareLocks.Add(key); ctx.Refresh?.Invoke(); }, 4f);
+                ry += 48f;
+            }
+            return y + h + Gap;
+        }
+
+        // Zmiana o delta z oddaniem / zabraniem tej samej sumy z niezablokowanych pozycji; gdy nie ma skąd wziąć, zmienia się tyle, ile się da.
+        private static void Shift(int[] v, int idx, int delta, string group)
+        {
+            var others = Enumerable.Range(0, v.Length).Where(i => i != idx && !_shareLocks.Contains(group + ":" + i)).ToList();
+            int sign = Math.Sign(delta);
+            for (int n = 0; n < Math.Abs(delta); n++)
+            {
+                if (v[idx] + sign < 0 || v[idx] + sign > 100) break;
+                // +: zabieramy od największej (> 0); -: oddajemy najmniejszej
+                var pick = sign > 0 ? others.Where(i => v[i] > 0).OrderByDescending(i => v[i]).FirstOrDefault(-1) : others.OrderBy(i => v[i]).FirstOrDefault(-1);
+                if (pick < 0) break;
+                v[idx] += sign;
+                v[pick] -= sign;
+            }
+        }
+
+        // Stare wartości z cfg (wagi względne, suma różna od 100): przeliczenie na procenty, reszta do największej pozycji.
+        private static void Normalize(int[] v)
+        {
+            int sum = v.Sum();
+            if (sum == 100) return;
+            if (sum <= 0) { for (int i = 0; i < v.Length; i++) v[i] = i == 0 ? 100 : 0; return; }
+            for (int i = 0; i < v.Length; i++) v[i] = v[i] * 100 / sum;
+            int max = Array.IndexOf(v, v.Max());
+            v[max] += 100 - v.Sum();
+        }
+
+        // Pole z liczbami: nazwa, "-", wartość, "+". Każda zmiana zapisuje ustawienia i odświeża stronę.
+        private static float Steppers(UIPanel panel, BlastCoreWebPageContext ctx, object root, float x, float w, float y, string title, string hint, (string label, Func<int> get, Action<int> set, int step)[] rows)
+        {
+            float h = 80f + rows.Length * 48f + 10f;
+            var box = OXLUi.Box(root, x, y, w, h, White, 4f);
+            OXLUi.Text(panel, box, title, 24f, 16f, w - 48f, 28f, Dark, 18, true);
+            OXLUi.Text(panel, box, hint, 24f, 44f, w - 48f, 22f, Muted, 14);
+            float ry = 80f;
+            foreach (var r in rows)
+            {
+                var row = r;
+                OXLUi.Text(panel, box, row.label, 24f, ry, 260f, 38f, Dark, 15);
+                OXLUi.Button(panel, ctx, box, "-", 300f, ry, 44f, 38f, White, RowHover, Dark, 18, () => { row.set(row.get() - row.step); OXLSettings.SaveGenConfig(OXLSettings.SavedGenConfig); ctx.Refresh?.Invoke(); }, 4f);
+                OXLUi.Text(panel, box, row.get().ToString(System.Globalization.CultureInfo.InvariantCulture), 350f, ry, 60f, 38f, Dark, 16, true, TextAnchor.MiddleCenter);
+                OXLUi.Button(panel, ctx, box, "+", 416f, ry, 44f, 38f, White, RowHover, Dark, 18, () => { row.set(row.get() + row.step); OXLSettings.SaveGenConfig(OXLSettings.SavedGenConfig); ctx.Refresh?.Invoke(); }, 4f);
+                ry += 48f;
+            }
+            return y + h + Gap;
         }
 
         private static float Option(UIPanel panel, BlastCoreWebPageContext ctx, object root, float x, float w, float y, string title, string hint, (string label, bool on, Action set)[] opts)

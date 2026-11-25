@@ -46,3 +46,11 @@
 ## Przebudowa scammera (2026-11-26)
 
 1. ✔ Wdrożone 2026-11-26 (`Docs/Design/scammer.md`, goale G62–G66). Zostaje: zestawienie przy teście, czy L3 nie jest za trudny albo za łatwy.
+
+## TODO od użytkownika (2026-11-26, na koniec sesji)
+
+1. **Silniki rzadko.** Szansa na ogłoszenie silnika bardzo mała: silnik to okazja, a dobry silnik (wysoki stan, niska cena) to "okazja z okazji", top z topów. Dziś `EngineShareOfEnginesParts = 0.30` w `ItemListingSystem.cs`.
+2. **Części nie tylko silnikowe.** W "Engines & Parts" także inne drogie części, np. rura wydechowa, zawieszenie, karoseria (dziś próg "droga część" z `MarketCatalog.ExpensivePercentile`; sprawdzić, jakie grupy części faktycznie trafiają).
+3. **Ekonomia cen aut.** Przyjrzeć się cenom kupna na OXL względem ceny sprzedaży auta w grze (po naprawie), tak żeby gracz realnie zarabiał, a Easy / Normal / Hard dawały odczuwalnie różny, ale realny zysk. Potrzebny pomiar w grze (skrypt REPL: wartość auta po naprawie vs cena ogłoszenia wg archetypu).
+4. **Odpowiedź sprzedającym przez maila** (może później): gracz odpisuje na mail sprzedawcy (`OXLMail`, "Message seller"), np. negocjacja ceny. Sprawdzić, czy `BlastCoreMailAPI` pozwala odpowiadać; jeśli nie, prośba do BlastCoreOS (`Docs/ForOtherRepos/`).
+5. **Pole wyszukiwania** na stronie OXL (`OXLUi.TextField`, `OXLSite.SearchBar`) do poprawy: wygląd i obsługa wpisywania (do ustalenia z użytkownikiem, co dokładnie nie gra; zrzut w `Docs/screens/`).

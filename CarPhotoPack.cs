@@ -31,7 +31,7 @@ namespace CMS2026_OXL
         public static string ResourcesRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources"));
 
         /// <summary>Wejście do garażu: paczka mogła się zmienić (gracz dograł albo usunął zdjęcia), skan od nowa.</summary>
-        public static void Invalidate() { _index.Clear(); }
+        public static void Invalidate() { _index.Clear(); _tried.Clear(); }
 
         /// <summary>Czy ImageSharp się ładuje. Brak DLL w UserLibs = cała paczka wyłączona, ogłoszenia ze zdjęciem z gry.</summary>
         public static bool DecoderAvailable
@@ -69,11 +69,19 @@ namespace CMS2026_OXL
         {
             try
             {
-                string cond = ConditionFolder(l);
-                if (cond == null || !DecoderAvailable) return false;
-                var colors = Colors(carId, l.CarConfig).Where(c => c.Spots.ContainsKey(cond)).ToList();
-                if (colors.Count == 0) return false;
-                var color = colors[rng.Next(colors.Count)];
+                string want = ConditionFolder(l);
+                if (want == null || !DecoderAvailable) return false;
+                // Auto z paczki nigdy nie dostaje zdjęcia z gry (użytkownik 2026-11-26): brak folderu tej wersji = zdjęcia innej wersji tego samego auta
+                // (ta sama karoseria), brak zdjęć w tym stanie = najbliższy stan.
+                var all = Colors(carId, l.CarConfig);
+                if (all.Count == 0) all = OtherVersions(carId, l.CarConfig);
+                if (all.Count == 0) return false;
+                string cond = NearestConditions(want).FirstOrDefault(c => all.Any(x => x.Spots.ContainsKey(c)));
+                if (cond == null) return false;
+                var colors = all.Where(c => c.Spots.ContainsKey(cond)).ToList();
+                // Ogłoszenie, które już ma kolor (stare, sprzed paczki): ten sam lakier, jeśli paczka go ma, żeby opis i dostawa dalej się zgadzały.
+                var same = colors.Where(c => string.Equals("#" + c.Hex, l.Color, StringComparison.OrdinalIgnoreCase)).ToList();
+                var color = same.Count > 0 ? same[0] : colors[rng.Next(colors.Count)];
                 var spots = color.Spots[cond];
                 // Miejsca z kilkoma ujęciami mają pierwszeństwo: galeria z 1 zdjęciem wygląda ubogo.
                 var rich = spots.Where(s => s.Count >= 2).ToList();
@@ -95,6 +103,28 @@ namespace CMS2026_OXL
             string root = ResourcesRoot;
             foreach (var f in l.PhotoFiles)
                 if (f != null && f.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(root, f))) list.Add(f);
+            // Ogłoszenie bez zdjęć z paczki (sprzed paczki, stara paczka 2026 albo usunięte pliki): dopisujemy je teraz. Losowanie z ziarnem z ID,
+            // więc wynik jest stały także bez zapisu; raz na ogłoszenie na sesję (_tried), żeby nie skanować przy każdym odświeżeniu.
+            if (list.Count == 0 && l.InternalId != null && _tried.Add(l.InternalId))
+            {
+                if (TryAssign(l, GameBridge.ToGameId(l.InternalId), new System.Random(OXLUi.StableHash(l.InternalId)))) return Photos(l);
+            }
+            return list;
+        }
+
+        private static readonly HashSet<string> _tried = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Kolejność stanów, gdy brakuje zdjęć w potrzebnym: najpierw sąsiedni przedział.
+        private static string[] NearestConditions(string c) => c == "030" ? new[] { "030", "3060", "60100" } : c == "3060" ? new[] { "3060", "030", "60100" } : new[] { "60100", "3060", "030" };
+
+        // Wszystkie inne wersje auta, które mają zdjęcia (paczka ma zwykle jedną wersję na auto, a OXL sprzedaje kilka).
+        private static List<ColorDir> OtherVersions(string carId, int cfg)
+        {
+            var list = new List<ColorDir>();
+            string dir = Path.Combine(ResourcesRoot, "CarPhotos", carId);
+            if (!Directory.Exists(dir)) return list;
+            foreach (var vd in Directory.GetDirectories(dir))
+                if (int.TryParse(Path.GetFileName(vd), out int v) && v != cfg) list.AddRange(Colors(carId, v));
             return list;
         }
 

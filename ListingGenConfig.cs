@@ -8,7 +8,9 @@ namespace CMS2026_OXL
     public class ListingGenConfig
     {
         // ── Parametry generacji ───────────────────────────────────────────────
-        public int MaxListings { get; set; } = 20;
+        public int MaxListings { get; set; } = 16;   // docelowa liczba aukcji aut (system dokłada do tej liczby)
+        public int TargetParts { get; set; } = 5;    // docelowo silniki i części
+        public int TargetDecor { get; set; } = 4;    // docelowo narzędzia i dekoracje
         public int GenChancePct { get; set; } = 50;   // % szansy per interwał
         public int GenMin { get; set; } = 1;
         public int GenMax { get; set; } = 4;

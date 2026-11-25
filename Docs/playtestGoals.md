@@ -8,7 +8,7 @@
 - Goal działa: usuń go, wniosek do `Docs/Design/` albo `Docs/Research/`. Nie działa: poprawka z nowym goalem albo wpis w `Docs/BACKLOG.md`. Brak danych: zostaje.
 - Przed testem: zamknij grę, zbuduj w VS (DLL kopiuje się sam), uruchom grę.
 
-Następny numer: **G67**
+Następny numer: **G71**
 
 ## Etap 1: port na 2027, bank, tylko przeglądarka (2026-11-25)
 
@@ -106,3 +106,10 @@ Wygeneruj nowe ogłoszenia (`oxl_logs on`). Scammera rozpoznasz w logu po `[OXL:
 - **G64** Ogłoszenia sprzed zmiany (stary `listings.dat`) dalej się wczytują, oceny całkowite pokazują się jak wcześniej ("4.0 / 5"). OUA:
 - **G65** Przedmiot od scammera (także narzędzie albo dekoracja): ocena 1 albo 2 gwiazdki, "Joined OXL this week", ogłoszenie znika po kilku godzinach gry; L1 krzyczy wielkimi literami, L2 pisze spokojniej. UA:
 - **G66** Kup przedmiot od scammera: w logu `[OXL:SCAM] item ... swapped for cheapest '...'`, mail potwierdza kupioną rzecz, a w paczce przychodzi najtańszy przedmiot gry (wpisz, co to jest). Pieniądze pobrane raz. UA:
+
+## Liczba aukcji i mieszanka sprzedawców (2026-11-26)
+
+- **G67** `oxl.com/settings`: pola "Listings on OXL" (domyślnie 16 aut, 5 silników i części, 4 narzędzia i dekoracje; stary cfg może mieć `lg_max_listings = 20`), "Seller mix" i "... levels" z `-` / `+`. Po wejściu do garażu aut tyle, ile ustawione; po kupnie albo wygaśnięciu brakujące wracają przy następnym sprawdzeniu (aukcje aut) albo po godzinie gry (przedmioty). UA:
+- **G68** Ustaw Scammer na 100% (zablokuj resztę albo podbijaj "+"): nowe aukcje aut i przedmiotów tylko od scammerów, poziomy wg "Scammer levels" (przedmioty tylko L1/L2). Wartości zostają po restarcie gry (`CMS2026_OXL.cfg`, `lg_*`). UA:
+- **G69** (poprawka "Stock photo" 2026-11-26) Na liście aut żadne auto z paczki (7 aut demo) nie ma znaczka STOCK PHOTO, także inne wersje (Bolt Nevada 3/4, DNB 3, Luxor 1: zdjęcia wersji z paczki) i ogłoszenia sprzed paczki (dostają zdjęcia przy pierwszym pokazaniu, w logu `[OXL:PHOTO]`). UA:
+- **G70** `oxl.com/settings`, "Seller mix" i "... levels": każda grupa sumuje się do 100%; "+" w jednej pozycji zabiera z innych (od największej), "-" oddaje najmniejszej; pozycja z "Locked" się nie zmienia ani nie oddaje (nie ma przy niej -/+). Gdy wszystkie inne są zablokowane, zmiana nic nie robi. UA:

@@ -15,13 +15,10 @@ namespace CMS2026_OXL
     public static class ItemListingSystem
     {
         // Ile ogłoszeń naraz w każdej zakładce i jak często przybywają (godziny gry). Perełki rzadko (site.md 9.4).
-        private const int MaxEnginesParts = 14;
-        private const int MaxToolsDecor = 18;
         private const float EngineShareOfEnginesParts = 0.30f;
         private const float ToolShareOfToolsDecor = 0.50f;
         private const float GemChance = 0.04f;
         private const double CheckEveryHours = 1.0;
-        private const float AddChancePerCheck = 0.55f;
         private const double MinLifeHours = 10.0, MaxLifeHours = 48.0;
         private const double ScamMinLifeHours = 2.0, ScamMaxLifeHours = 6.0;   // scammer znika, zanim ktoś go zgłosi
 
@@ -62,12 +59,13 @@ namespace CMS2026_OXL
             if (first) DropUnknown();
 
             int added = 0;
-            // Pierwsze wejście: od razu połowa limitu, żeby strona nie była pusta; potem 0..2 na godzinę gry.
+            // Co godzinę gry dokładamy brakujące do docelowej liczby z ustawień OXL (Settings: listings per category).
             foreach (var cat in new[] { MarketCategory.EnginesParts, MarketCategory.ToolsDecor })
             {
-                int max = cat == MarketCategory.EnginesParts ? MaxEnginesParts : MaxToolsDecor;
+                var gc = OXLSettings.SavedGenConfig;
+                int max = cat == MarketCategory.EnginesParts ? gc.TargetParts : gc.TargetDecor;
                 int have = _listings.Count(l => l.Category == cat);
-                int want = first ? Math.Max(0, max / 2 - have) : (_rng.NextDouble() < AddChancePerCheck ? _rng.Next(1, 3) : 0);
+                int want = max - have;   // docelowa liczba z ustawień OXL, brakujące od razu
                 for (int i = 0; i < want && have < max; i++, have++) if (Generate(cat, now) != null) added++;
             }
             if (added > 0) { Save(); OXLLog.Msg($"[OXL:ITEMS] +{added} listings, active={_listings.Count}"); }
@@ -115,7 +113,9 @@ namespace CMS2026_OXL
             {
                 // Scammer przedmiotów (scammer.md 5): tylko L1 i L2, łatwy do rozpoznania: nowe konto, niska ocena, ogłoszenie wisi krótko.
                 l.IsGem = false;
-                l.Level = _rng.Next(1, 3);
+                // Poziom z wag scammera (L1/L2 z ustawień; L3 w przedmiotach nie ma).
+                var lw = OXLSettings.SavedGenConfig.LvlWeights[3];
+                l.Level = _rng.Next(Math.Max(1, lw[0] + lw[1])) < lw[0] ? 1 : 2;
                 l.ExpiresAt = now + (ScamMinLifeHours + _rng.NextDouble() * (ScamMaxLifeHours - ScamMinLifeHours)) * 3600.0;
             }
             Price(l);
@@ -137,9 +137,11 @@ namespace CMS2026_OXL
         // Scammerzy są we wszystkich kategoriach (scammer.md 5): w narzędziach i dekoracjach nie kłamią o stanie, tylko przysyłają co innego.
         private static SellerArchetype PickArchetype(OXLItemKind kind)
         {
-            int r = _rng.Next(100);
-            if (kind == OXLItemKind.Customizable) return r < 40 ? SellerArchetype.Honest : r < 65 ? SellerArchetype.Wrecker : r < 88 ? SellerArchetype.Dealer : SellerArchetype.Scammer;
-            return r < 35 ? SellerArchetype.Honest : r < 60 ? SellerArchetype.Wrecker : r < 85 ? SellerArchetype.Dealer : SellerArchetype.Scammer;
+            // Te same wagi archetypów co auta (ustawienia OXL, "Seller mix"), żeby gracz sterował liczbą scammerów wszędzie.
+            var w = OXLSettings.SavedGenConfig.ArchWeights;
+            int total = Math.Max(1, w.Sum()), r = _rng.Next(total);
+            for (int i = 0; i < 4; i++) { r -= w[i]; if (r < 0) return (SellerArchetype)i; }
+            return SellerArchetype.Honest;
         }
 
         // Stan i cena wg archetypu (archetypes.md w skrócie dla przedmiotów). Cena względem nowego ze sklepu gry, potem mnożnik trudności.
