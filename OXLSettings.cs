@@ -17,6 +17,12 @@ namespace CMS2026_OXL
 
         public static void SetUseMiles(bool value) { UseMiles = value; Save(); }
 
+        // Dostawa części, silników, narzędzi i dekoracji (site.md 9.5, 13). false = kurier OXL: jutro albo pojutrze o godzinie dostaw gry
+        // (złudzenie paczkomatu), true = od razu. Ustawienie na stronie oxl.com/settings.
+        public static bool InstantDelivery { get; private set; } = false;
+
+        public static void SetInstantDelivery(bool value) { InstantDelivery = value; Save(); }
+
         public static string FormatMileage(int mileage) => UseMiles
             ? (mileage >= 1000 ? $"{mileage / 1000}k mi" : $"{mileage} mi")
             : (mileage >= 1000 ? $"{mileage * 1609 / 1000 / 1000}k km" : $"{mileage * 1609 / 1000} km");
@@ -100,6 +106,10 @@ namespace CMS2026_OXL
 
                         case "use_miles":
                             UseMiles = value.Equals("true", StringComparison.OrdinalIgnoreCase);
+                            break;
+
+                        case "instant_delivery":
+                            InstantDelivery = value.Equals("true", StringComparison.OrdinalIgnoreCase);
                             break;
 
                         // ── ListingGen — skalary ─────────────────────────────
@@ -199,6 +209,8 @@ namespace CMS2026_OXL
                     "#   Hard   = listing prices 20% higher\n" +
                     $"difficulty = {CurrentDifficulty}\n" +
                     $"use_miles = {UseMiles}\n" +
+                    "# instant_delivery: True = parcels arrive at once, False = OXL courier delivers tomorrow or the day after\n" +
+                    $"instant_delivery = {InstantDelivery}\n" +
                     "#\n" +
                     "# ── Listing Generation ────────────────────────────────────────────\n" +
                     $"lg_max_listings   = {cfg.MaxListings}\n" +

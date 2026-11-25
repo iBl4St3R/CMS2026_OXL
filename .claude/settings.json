@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash Scripts/_build_check.sh)",
+      "Bash(bash Scripts/_check.sh:*)"
+    ],
+    "deny": [
+      "Read(./bin/**)",
+      "Read(./obj/**)",
+      "Read(./.git/**)",
+      "Read(./.vs/**)",
+      "Edit(./bin/**)",
+      "Edit(./obj/**)",
+      "Edit(./.vs/**)",
+      "Edit(./*.sln)",
+      "Edit(./logo.png)",
+      "Edit(./archetypes.png)",
+      "Edit(//c/Users/usmat/source/repos/cms2027assembly/**)",
+      "Edit(//c/Users/usmat/source/repos/BlastCoreOS/**)",
+      "Edit(//c/Users/usmat/source/repos/GlideRail/**)",
+      "Edit(//c/Users/usmat/source/repos/_CMS2026_UITK_Framework/**)",
+      "Edit(//c/Users/usmat/source/repos/CMS2026-Simple-Console/**)",
+      "Edit(//c/Program Files (x86)/Steam/steamapps/common/Car Mechanic Simulator 2026 Demo/**)"
+    ]
+  }
+}

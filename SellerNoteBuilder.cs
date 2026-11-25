@@ -39,14 +39,21 @@ namespace CMS2026_OXL
         /// </summary>
         public static string BuildNote(CarListing l, Random rng)
         {
-            return l.Archetype switch
+            // Kolor z danych gry albo z paczki zdjęć to "#RRGGBB": w opisie sprzedawca mówi "silver", nie "#7A745F". Zapis ogłoszenia zostaje z hex (dostawa, zdjęcia).
+            string saved = l.Color;
+            if (!string.IsNullOrEmpty(l.FakeColor) || (saved != null && saved.StartsWith("#"))) l.Color = ScammerLies.ShownColor(l).ToLowerInvariant();
+            try
             {
-                SellerArchetype.Honest => BuildHonest(l, rng),
-                SellerArchetype.Wrecker => BuildWrecker(l, rng),
-                SellerArchetype.Dealer => BuildDealer(l, rng),
-                SellerArchetype.Scammer => BuildScammer(l, rng),
-                _ => BuildHonest(l, rng),
-            };
+                return l.Archetype switch
+                {
+                    SellerArchetype.Honest => BuildHonest(l, rng),
+                    SellerArchetype.Wrecker => BuildWrecker(l, rng),
+                    SellerArchetype.Dealer => BuildDealer(l, rng),
+                    SellerArchetype.Scammer => BuildScammer(l, rng),
+                    _ => BuildHonest(l, rng),
+                };
+            }
+            finally { l.Color = saved; }
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -105,7 +112,7 @@ namespace CMS2026_OXL
                 .Replace("{mileage}", $"{l.Mileage:N0}")
                 .Replace("{price}", $"${l.Price:N0}")
                 .Replace("{location}", l.Location)
-                .Replace("{rating}", l.SellerRating.ToString());
+                .Replace("{rating}", l.RatingText);
 
         /// <summary>
         /// Łączy niepuste fragmenty w 1–3 akapity rozdzielone \n\n.
@@ -1898,7 +1905,7 @@ namespace CMS2026_OXL
                     $"I am the CEO of <color={C_SCREAM}>Car-King International</color>. My time costs more than this car. <color={C_ASIDE}>You should feel lucky I responded.</color>",
                     $"This <b>{l.Year}</b> <b>{l.Make}</b> was <color={C_GOOD}>custom built for a famous Sultan</color>. You are lucky I even let you look at it.",
                     $"I don't deal with amateurs. If you can't handle a <color={C_SCREAM}>high-performance</color> <b>{l.Model}</b>, move along.",
-                    $"My reputation is <color={C_GOOD}>absolutely flawless</color>. Only a fool would doubt a <color={C_SCREAM}>{l.SellerRating}-star expert</color> like me.",
+                    $"My reputation is <color={C_GOOD}>absolutely flawless</color>. Only a fool would doubt a <color={C_SCREAM}>{l.RatingText}-star expert</color> like me.",
                     $"Forget about the listed location. This car is currently in my <color={C_SCAM_CYN}>private storage facility</color>. Viewing by appointment only.",
                 }),
 
@@ -2016,7 +2023,7 @@ namespace CMS2026_OXL
                 2 => MaybePick(rng, new[]
                 {
                     $"I'm only selling because I'm moving abroad. <color={C_GOOD}>Delivery takes only days</color>. <color={C_ASIDE}>I arrange everything personally.</color>",
-                    $"Ignore the <b>{l.SellerRating}</b>-star rating. It was <color={C_SCREAM}>sabotaged by jealous rivals</color> from <b>{l.Location}</b>.",
+                    $"Ignore the <b>{l.RatingText}</b>-star rating. It was <color={C_SCREAM}>sabotaged by jealous rivals</color> from <b>{l.Location}</b>.",
                     $"The <b>{l.Make}</b> comes with a <color={C_GOOD}>gold-plated engine block</color>. You can't see it, but you can <color={C_ASIDE}>feel the luxury when driving.</color>",
                     $"I just checked the VIN. This car was actually built in <color={C_SCREAM}>{l.Year - 10}</color>. A true <color={C_GOOD}>pre-production antique!</color>",
                     $"The car is <color={C_GOOD}>completely invisible to speed cameras</color>. I paid extra for this <color={C_ASIDE}>'stealth' coating.</color> You are welcome.",
@@ -2102,7 +2109,7 @@ namespace CMS2026_OXL
                     $"Transfer the <color={C_SCREAM}>${l.Price:N0}</color> immediately. <color={C_GOOD}>My lawyer is already drafting the contract.</color>",
                     $"I have <color={C_DANGER}>zero patience</color> for lowballers. This <b>{l.Make}</b> is for <color={C_SCREAM}>serious winners only.</color>",
                     $"If you don't buy this <b>{l.Model}</b> in the next 60 seconds, I'm <color={C_DANGER}>increasing the price by 50%.</color>",
-                    $"You want the best? <color={C_SCREAM}>You pay the best.</color> My <color={C_GOOD}>{l.SellerRating}-star rating</color> doesn't lie. Send the money.",
+                    $"You want the best? <color={C_SCREAM}>You pay the best.</color> My <color={C_GOOD}>{l.RatingText}-star rating</color> doesn't lie. Send the money.",
                     $"I'm doing you a <color={C_SCREAM}>massive favor</color> by even talking to you. <color={C_DANGER}>Close the deal now.</color>",
                     $"This is the last time you'll see a <b>{l.Year}</b> <b>{l.Make}</b> in this condition. <color={C_SCREAM}>Final warning.</color>",
                     $"Don't look at the stats, look at my <color={C_SCAM_GRN}>confidence</color>. <color={C_ASIDE}>I know what I have. Buy it.</color>",

@@ -59,7 +59,17 @@ namespace CMS2026_OXL
         /// <summary>1 = Novice/Casual/Backyard/Amateur, 2 = Experienced/Busy/Pro/Intermediate, 3 = Veteran/Hoarder/Criminal/Expert</summary>
         public int ArchetypeLevel { get; set; } = 1;
 
-        public int SellerRating { get; set; } = 3;
+        /// <summary>Ocena 1..5, połówki dozwolone (scammer L3 ma 3 albo 3.5, scammer.md 2.3).</summary>
+        public float SellerRating { get; set; } = 3f;
+
+        /// <summary>Ocena do tekstów dla gracza: "3.5" albo "4" (kropka niezależnie od języka systemu).</summary>
+        public string RatingText => SellerRating.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+        // Kłamstwa scammera w ogłoszeniu (scammer.md 3): to, co pokazuje strona i opis zamiast danych gry. Puste / 0 = prawda.
+        public string FakeColor { get; set; } = "";
+        public string FakeEngine { get; set; } = "";
+        public string FakeVersion { get; set; } = "";
+        public float FakeHpMult { get; set; }
         public FaultFlags Faults { get; set; } = FaultFlags.None;
 
         /// <summary>Uczciwa wartość rynkowa na podstawie actual condition + roku. Niezależna od archetype.</summary>

@@ -11,6 +11,8 @@
     <Optimize>true</Optimize>
     <PlatformTarget>x64</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- DLL z pakietów NuGet (ImageSharp) do bin, skąd CopyToMods kopiuje je do UserLibs gry -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -118,13 +120,30 @@
     <Private>false</Private>
   </Reference>
   </ItemGroup>
-  
+
+  <!-- Dekoder WebP paczki zdjęć (CarPhotoPack.cs). Six Labors Split License = Apache 2.0 dla osób z przychodem < 1 mln USD. Trafia do UserLibs gry. -->
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+  </ItemGroup>
+
    <Target Name="CopyToMods" AfterTargets="Build">
     <Copy
       SourceFiles="$(OutputPath)$(AssemblyName).dll"
       DestinationFolder="$(GameDir)\Mods"
       OverwriteReadOnlyFiles="true"
     />
+    <Copy
+      SourceFiles="$(OutputPath)SixLabors.ImageSharp.dll"
+      DestinationFolder="$(GameDir)\UserLibs"
+      SkipUnchangedFiles="true"
+      OverwriteReadOnlyFiles="true"
+    />
   </Target>
+
+  <!-- Skrypty REPL konsoli (runfile) i narzędzia nie są częścią moda -->
+  <ItemGroup>
+    <Compile Remove="Scripts/**" />
+    <None Include="Scripts/**" />
+  </ItemGroup>
 
 </Project>

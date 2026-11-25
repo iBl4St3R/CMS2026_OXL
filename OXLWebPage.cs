@@ -13,8 +13,9 @@ namespace CMS2026_OXL
     /// </summary>
     public static class OXLWebPage
     {
-        public const string HomeUrl = "oxl.com";
         public const string ListingsUrl = "oxl.com/listings";
+        // Zakładka Cars nowej strony (OXLSite); stare strony aut wracają tutaj zamiast do starej listy.
+        public const string CarsUrl = "oxl.com/cars";
 
         private static bool _registered;
         private static OXLPanel _backend;
@@ -30,7 +31,9 @@ namespace CMS2026_OXL
             _backend = new OXLPanel();
             _backend.BuildBackend();
 
-            BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = HomeUrl, DisplayName = "OXL Marketplace", Build = ctx => { ctx.SetTitle?.Invoke("OXL \u2014 Online eX-Owner Lies"); GetInstance(ctx).BuildHomeInto(ctx.ContentContainer, ctx); }, ShowInDirectory = true });
+            // Nowa strona (site.md): oxl.com i wszystkie podstrony bez dok\u0142adnej rejestracji. Stara lista aut (oxl.com/listings)
+            // i stare strony og\u0142osze\u0144 aut (oxl.com/listing/{id}) zostaj\u0105 do przeniesienia aut na now\u0105 stron\u0119 (BACKLOG).
+            OXLSite.Register();
             BlastCoreWebAPI.RegisterPage(new BlastCoreWebPage { Url = ListingsUrl, DisplayName = "OXL Cars \u2014 Active Listings", Build = ctx => { ctx.SetTitle?.Invoke("OXL Cars \u2014 Active Listings"); GetInstance(ctx).BuildListingsInto(ctx.ContentContainer, ctx); }, ShowInDirectory = false });
         }
 

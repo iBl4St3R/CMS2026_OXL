@@ -146,8 +146,7 @@ namespace CMS2026_OXL
             if (!_initialSeeded)
             {
                 int seedCount = UnityEngine.Mathf.Min(4, _config.MaxListings);
-                while (ActiveListings.Count < seedCount)
-                    ActiveListings.Add(GenerateListing());
+                while (ActiveListings.Count < seedCount && AddGenerated()) { }
                 _initialSeeded = true;
                 _lastGenCheckTime = _gameTime;
                 return;
@@ -221,7 +220,7 @@ namespace CMS2026_OXL
             OXLLog.Msg($"[OXL:LGSYS] Batch: +{batchSize} (cap={_config.MaxListings} current={ActiveListings.Count})");
 
             for (int i = 0; i < batchSize; i++)
-                ActiveListings.Add(GenerateListing());
+                if (!AddGenerated()) break;
 
             Save();  // ← zapis po każdym batchu
         }
@@ -233,7 +232,7 @@ namespace CMS2026_OXL
                 OXLLog.Msg($"[OXL:LGSYS] ForceGenerate skipped — at cap ({_config.MaxListings})");
                 return;
             }
-            ActiveListings.Add(GenerateListing());
+            if (!AddGenerated()) return;
             Save();  
         }
 
@@ -244,35 +243,43 @@ namespace CMS2026_OXL
         //  GENEROWANIE LISTINGU
         // ══════════════════════════════════════════════════════════════════════
 
+        // Dodaje nowe ogłoszenie; false, gdy nie ma bezpiecznej wersji auta (pętle generowania się wtedy zatrzymują).
+        private bool AddGenerated()
+        {
+            var l = GenerateListing();
+            if (l == null) return false;
+            ActiveListings.Add(l);
+            return true;
+        }
+
         private CarListing GenerateListing()
         {
             var rng = new Random();
-            var def = CarDefs[rng.Next(CarDefs.Length)];
+
+            // ── Auto i wersja: wszystkie bezpieczne wersje z danych gry (MarketCatalog, site.md 9.3), także auta, których mod nie zna ──
+            // Gracz zobaczy każde auto gry (w demie 7, w pełnej grze ponad 100) bez zmian w kodzie. 5 aut z 2026 ma dodatkowo
+            // paczkę zdjęć i car_spec.json (dawne CarDefs): wtedy ceny i kolory z nich, inaczej z danych wersji.
+            if (!MarketCatalog.EnsureBuilt()) { OXLPlugin.Log.Warning("[OXL:GEN] Game data not ready; listing skipped."); return null; }
+            var versions = MarketCatalog.In(MarketCategory.Cars).ToList();
+            if (versions.Count == 0) { OXLPlugin.Log.Warning("[OXL:GEN] No spawnable car version; listing skipped."); return null; }
+            var entry = versions[rng.Next(versions.Count)];
+            int carConfig = entry.Version;
+            var known = CarDefs.FirstOrDefault(d => GameBridge.ToGameId(d.InternalId) == entry.CarId);
+            int value = Math.Max(1000, entry.Price);
+            var def = known ?? new CarDef { Make = entry.Make, Model = entry.Model, ImageFolder = "", InternalId = entry.CarId, MinYear = entry.YearMin, MaxYear = Math.Max(entry.YearMin, entry.YearMax), MinPrice = value / 10, MaxPrice = value * 34 / 100 };
             int year = rng.Next(def.MinYear, def.MaxYear + 1);
 
-
-            // ── Config — wykryty dynamicznie z folderów przez CarPhotoLoader ──────────
-            int carConfig = 0;
-            if (_photoLoader != null)
-            {
-                var availableConfigs = _photoLoader.GetAvailableConfigs(def.ImageFolder);
-                carConfig = availableConfigs[rng.Next(availableConfigs.Length)];
-            }
-
-            // ── Kolor — czytany dynamicznie z CarPhotoLoader ─────────────────────
+            // ── Kolor: z paczki zdjęć, gdy jest dla tej wersji; inaczej losowy kolor fabryczny wersji ("#RRGGBB") ──
             string color = "white";
             int colorIndex = 0;
-
-            if (_photoLoader != null)
+            string[] packColors = (_photoLoader != null && known != null) ? _photoLoader.GetAvailableColors(def.ImageFolder, carConfig) : new string[0];
+            if (packColors.Length > 0)
             {
-                var availableColors = _photoLoader.GetAvailableColors(def.ImageFolder, carConfig);
-                if (availableColors.Length > 0)
-                    color = availableColors[rng.Next(availableColors.Length)];
-                else
-                    OXLPlugin.Log.Msg($"[OXL:GEN] No colors found for '{def.ImageFolder}' cfg={carConfig}, using white");
-
+                color = packColors[rng.Next(packColors.Length)];
                 colorIndex = _photoLoader.GetColorIndex(def.ImageFolder, color, carConfig);
             }
+            else if (entry.Colors != null && entry.Colors.Length > 0)
+                color = entry.Colors[rng.Next(entry.Colors.Length)];
 
             var archetype = RollArchetype(rng);
             int level = RollLevel(archetype, rng);
@@ -318,7 +325,7 @@ namespace CMS2026_OXL
             float ttl = RollTTL(archetype, level, rng);
 
             // ── Rating sprzedawcy ──────────────────────────────────────────────
-            int rating = RollSellerRating(archetype, level, rng);
+            float rating = RollSellerRating(archetype, level, rng);
 
             // ── Przebieg ───────────────────────────────────────────────────────
             int mileage = Mathf.RoundToInt(Mathf.Lerp(180000, 4000, actual) * (1f + (float)(rng.NextDouble() * 0.30 - 0.15)));
@@ -359,7 +366,13 @@ namespace CMS2026_OXL
 
 
             // Photo files wybrane raz, z uwzględnieniem konfigu
-            listing.PhotoFiles = _photoLoader?.SelectPhotoFiles(listing) ?? new List<string>();
+            // Zdjęcia z paczki tylko dla aut z paczką; bez niej strona pokazuje zdjęcie z gry ze znaczkiem STOCK PHOTO (site.md 10).
+            try { listing.PhotoFiles = string.IsNullOrEmpty(def.ImageFolder) ? new List<string>() : (_photoLoader?.SelectPhotoFiles(listing) ?? new List<string>()); }
+            catch (Exception ex) { OXLLog.Msg($"[OXL:GEN] photos for {def.Make} {def.Model}: {ex.Message}"); listing.PhotoFiles = new List<string>(); }
+            // Paczka zdjęć 2027 ma pierwszeństwo: kolor z paczki i zdjęcia jednego miejsca w stanie karoserii auta (CarPhotoPack, zasada 5).
+            CarPhotoPack.TryAssign(listing, entry.CarId, rng);
+            // Kłamstwa scammera L2/L3 (scammer.md 3) po ustaleniu koloru, przed opisem, który z nich korzysta.
+            ScammerLies.Roll(listing, entry, rng);
 
             var (avatarTex, nick, avatarPath) = _sellerProfile.Generate(listing, rng);
 			listing.SellerNick = nick;
@@ -367,6 +380,8 @@ namespace CMS2026_OXL
 
 			// ── Nota sprzedawcy ────────────────────────────────────────────────
 			listing.SellerNote = SellerNoteBuilder.BuildNote(listing, rng);
+			string specs = ScammerLies.SpecsSentence(listing, entry);
+			if (specs.Length > 0) listing.SellerNote += "\n\n" + specs;
 
             OXLLog.Msg($"[OXL:GEN] {def.Make} {def.Model} {year} | Arch={archetype} L{level} | Rating={rating}★ | Apparent={apparent:P0} Actual={actual:P0} Body={bodyCondition:P0} | Price=${price:N0} Fair=${fairValue:N0} ({(fairValue > 0 ? (float)price / fairValue : 0):F2}x) | Faults={faults} | Color={color} | TTL={ttl:F0}s");
 
@@ -912,7 +927,7 @@ namespace CMS2026_OXL
         //  RATING
         // ══════════════════════════════════════════════════════════════════════
 
-        private static int RollSellerRating(SellerArchetype arch, int level, Random rng)
+        private static float RollSellerRating(SellerArchetype arch, int level, Random rng)
         {
             return (arch, level) switch
             {
@@ -930,7 +945,7 @@ namespace CMS2026_OXL
 
                 (SellerArchetype.Scammer, 1) => rng.Next(0, 10) < 7 ? 1 : 2,           // amator: widać że oszust
                 (SellerArchetype.Scammer, 2) => rng.Next(0, 10) < 5 ? 2 : 3,           // intermediate: trochę lepiej
-                (SellerArchetype.Scammer, 3) => rng.Next(0, 10) < 7 ? 4 : 5,           // expert: sfałszowany rating, wygląda jak Dealer
+                (SellerArchetype.Scammer, 3) => rng.Next(0, 10) < 5 ? 3f : 3.5f,      // expert: przeciętna ocena, nie budzi podejrzeń (scammer.md 2.3)
 
                 _ => 3,
             };
@@ -1425,7 +1440,7 @@ namespace CMS2026_OXL
             return sb.ToString();
         }
 
-        private static readonly string[] Locations =
+        internal static readonly string[] Locations =
         {
             "Ashford Creek", "Dunmore Hill", "Crestwick", "Barlow Falls",
             "Tyndall Cross", "Greystone Bay", "Portwick", "Aldenmoor",

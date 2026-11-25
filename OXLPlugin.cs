@@ -5,8 +5,8 @@ using System.Linq;
 
 [assembly: MelonInfo(typeof(CMS2026_OXL.OXLPlugin),
     "CMS2026_OXL", "0.6.0", "iBlaster")]
-[assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026 Demo")]
-[assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2026")]
+[assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2027 Demo")]
+[assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2027")]
 
 namespace CMS2026_OXL
 {
@@ -16,8 +16,6 @@ namespace CMS2026_OXL
 
         private OXLPanel _panel;
 
-        private UnityEngine.GameObject _oxlShopButton;
-
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             if (!sceneName.ToLower().Contains("garage")) return;
@@ -25,237 +23,45 @@ namespace CMS2026_OXL
 
             GameTimeProvider.Reset();// reset przy każdym załadowaniu sceny
 
-            CursorManager.OnCursorShow -= OnCursorShow;
-            CursorManager.OnCursorHide -= OnCursorHide;
-            CursorManager.OnCursorShow += OnCursorShow;
-            CursorManager.OnCursorHide += OnCursorHide;
+            // Nazwa w historii banku Redline zamiast samego "Oxl" (kolumna "From").
+            try { BlastCoreOS.BlastCoreBankAPI.RegisterMod(GameBridge.BankModId, "OXL Marketplace"); }
+            catch (Exception ex) { Log.Warning($"[OXL] Bank RegisterMod failed: {ex.Message}"); }
 
             OXLSettings.Load();
+
+            // Rynek z danych gry przebudowuje się po każdym wejściu do garażu; nadawca maili "OXL Marketplace".
+            MarketCatalog.Invalidate();
+            CarPhotoPack.Invalidate();
+            OXLMail.Register();
 
             OXLWebPage.EnsureRegistered();
             _panel = OXLWebPage.Backend;
 
-            MelonCoroutines.Start(InjectShopButtonDelayed());
+            // Ogłoszenia przedmiotów (silniki, części, narzędzia, dekoracje) żyją tylko w garażu (zasada 7).
+            ItemListingSystem.OnGarageLoaded();
+            _inGarage = true;
 
             TryRegisterConsole();
         }
 
-        private static void OnCursorShow()
-        {
-            try
-            {
-                if (Il2CppCMS.Core.GameMode.Get().currentMode != Il2Cpp.gameMode.UI)
-                    Il2CppCMS.Core.GameMode.Get().SetCurrentMode(Il2Cpp.gameMode.UI);
-            }
-            catch (Exception ex) { Log.Warning($"[OXL] OnCursorShow: {ex.Message}"); }
-        }
+        private bool _inGarage;
 
-        private void OnCursorHide()
+        // Wyjście ze sceny garażu (menu, inna lokacja): ogłoszenia przedmiotów przestają tykać. Inne doładowywane sceny nie wyłączają.
+        public override void OnSceneWasUnloaded(int buildIndex, string sceneName)
         {
-            try
-            {
-                if (Il2CppCMS.Core.GameMode.Get().currentMode == Il2Cpp.gameMode.UI)
-                {
-                    var wm = Il2CppCMS.UI.WindowManager.Instance;
-                    if (wm == null || wm.activeWindows.Count <= 0)
-                        Il2CppCMS.Core.GameMode.Get().SetCurrentMode(Il2Cpp.gameMode.Garage);
-                }
-            }
-            catch (Exception ex) { Log.Warning($"[OXL] OnCursorHide: {ex.Message}"); }
+            if (sceneName != null && sceneName.ToLower().Contains("garage")) _inGarage = false;
         }
 
         public override void OnUpdate()
         {
             OXLWebPage.Tick(UnityEngine.Time.deltaTime);
-        }
-
-        // ── Wstrzyknięcie przycisku do menu sklepu ────────────────────────────────
-        private void InjectShopButton()
-        {
-            try
+            try { CarPhotoPack.Tick(); }
+            catch (Exception ex) { Log.Warning($"[OXL:PHOTO] Tick failed: {ex.Message}"); }
+            if (_inGarage)
             {
-                UnityEngine.GameObject shopListGO = null;
-
-                foreach (var go in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.GameObject>())
-                {
-                    if (go.name == "ShopsList" && go.scene.name == "garage")
-                    {
-                        shopListGO = go;
-                        break;
-                    }
-                }
-
-                if (shopListGO == null)
-                {
-                    Log.Msg("[OXL] ShopsList not found in scene.");
-                    return;
-                }
-
-                Log.Msg($"[OXL] ShopsList found, active={shopListGO.activeInHierarchy}, children={shopListGO.transform.childCount}");
-
-                var existing = shopListGO.transform.Find("OXLShopButton");
-                if (existing != null) UnityEngine.Object.Destroy(existing.gameObject);
-
-                if (shopListGO.transform.childCount == 0)
-                {
-                    Log.Msg("[OXL] ShopsList has no children — cannot clone template.");
-                    return;
-                }
-
-                var lastChild = shopListGO.transform.GetChild(shopListGO.transform.childCount - 1);
-                var clone = UnityEngine.Object.Instantiate(lastChild.gameObject, shopListGO.transform);
-                clone.name = "OXLShopButton";
-                clone.SetActive(true);
-                clone.transform.SetAsLastSibling();
-                _oxlShopButton = clone;
-
-                // ── Podmień obrazek ──────────────────────────────────────────────────
-                string imgPath = System.IO.Path.Combine(
-                    UnityEngine.Application.dataPath, "..", "Mods", "CMS2026_OXL",
-                    "Resources", "buttons", "OXLbutton.png");
-
-                var imageGO = clone.transform.Find("Image");
-                if (imageGO != null && System.IO.File.Exists(imgPath))
-                {
-                    var img = imageGO.gameObject.GetComponent<UnityEngine.UI.Image>();
-                    if (img != null)
-                    {
-                        var bytes = System.IO.File.ReadAllBytes(imgPath);
-                        var tex = new UnityEngine.Texture2D(2, 2, UnityEngine.TextureFormat.RGBA32, false);
-
-                        var il2b = new Il2CppInterop.Runtime.InteropTypes
-                                       .Arrays.Il2CppStructArray<byte>(bytes.Length);
-                        for (int i = 0; i < bytes.Length; i++) il2b[i] = bytes[i];
-
-                        var icType = AppDomain.CurrentDomain.GetAssemblies()
-                            .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
-                            .FirstOrDefault(t => t.FullName == "UnityEngine.ImageConversion");
-
-                        var loadImg = icType?.GetMethods()
-                            .FirstOrDefault(m => m.Name == "LoadImage" && m.GetParameters().Length == 2);
-
-                        bool ok = loadImg != null && (bool)loadImg.Invoke(null, new object[] { tex, il2b });
-                        if (!ok)
-                            Log.Msg("[OXL] InjectShopButton: texture load failed");
-                        else
-                        {
-                            tex.hideFlags = UnityEngine.HideFlags.DontUnloadUnusedAsset;
-                            img.sprite = UnityEngine.Sprite.Create(
-                                tex,
-                                new UnityEngine.Rect(0, 0, tex.width, tex.height),
-                                new UnityEngine.Vector2(0.5f, 0.5f));
-                            img.color = UnityEngine.Color.white;
-                        }
-                    }
-                }
-
-                // ── Podmień tekst ────────────────────────────────────────────────────
-                var textGO = clone.transform.Find("Text");
-                if (textGO != null)
-                {
-                    foreach (var c in textGO.gameObject.GetComponents<UnityEngine.Component>())
-                    {
-                        if (c.GetIl2CppType().FullName == "CMS.Localization.TextLocalize")
-                        {
-                            UnityEngine.Object.Destroy(c);
-                            break;
-                        }
-                    }
-                    foreach (var c in textGO.gameObject.GetComponents<UnityEngine.Component>())
-                    {
-                        if (c.GetIl2CppType().FullName == "TMPro.TextMeshProUGUI")
-                        {
-                            c.GetIl2CppType().GetProperty("text")?.SetValue(c, "OXL Market Place v0.6.0");
-                            c.GetIl2CppType().GetProperty("enabled")?.SetValue(c, true);
-                            break;
-                        }
-                    }
-                }
-
-                // ── Ukryj DealsIcon ──────────────────────────────────────────────────
-                var dealsGO = clone.transform.Find("DealsIcon");
-                if (dealsGO != null) dealsGO.gameObject.SetActive(false);
-
-                // ── Zachowaj ShopAvatar25 dla dźwięku, wyczyść jego akcję ───────────
-                UnityEngine.Component shopAvatar = null;
-                foreach (var c in clone.GetComponents<UnityEngine.Component>())
-                {
-                    if (c.GetIl2CppType().FullName == "CMS.UI.Logic.Shop.Controls.ShopAvatar25")
-                    {
-                        shopAvatar = c;
-                        break;
-                    }
-                }
-
-                if (shopAvatar != null)
-                {
-                    try
-                    {
-                        var onItemSubmit = shopAvatar.GetIl2CppType().GetField("OnItemSubmit");
-                        onItemSubmit?.SetValue(shopAvatar, null);
-                        Log.Msg("[OXL] ShopAvatar25.OnItemSubmit cleared.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"[OXL] Could not clear OnItemSubmit: {ex.Message}");
-                    }
-                }
-
-                // ── Kliknięcie → dźwięk z ShopAvatar25 + otwórz panel ───────────────
-                var trigger = clone.AddComponent<UnityEngine.EventSystems.EventTrigger>();
-                var entry = new UnityEngine.EventSystems.EventTrigger.Entry();
-                entry.eventID = UnityEngine.EventSystems.EventTriggerType.PointerClick;
-                entry.callback.AddListener(
-                    new System.Action<UnityEngine.EventSystems.BaseEventData>(eventData =>
-                    {
-                        if (shopAvatar != null)
-                        {
-                            try
-                            {
-                                var pointerData = eventData
-                                    .TryCast<UnityEngine.EventSystems.PointerEventData>();
-                                var onPointerClick = shopAvatar.GetIl2CppType()
-                                    .GetMethod("OnPointerClick");
-                                var args = new Il2CppInterop.Runtime.InteropTypes.Arrays
-                                               .Il2CppReferenceArray<Il2CppSystem.Object>(1);
-                                args[0] = pointerData?.TryCast<Il2CppSystem.Object>();
-                                onPointerClick?.Invoke(shopAvatar, args);
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning($"[OXL] OnPointerClick invoke failed: {ex.Message}");
-                            }
-                        }
-
-                        _panel?.Open();
-                    }));
-                trigger.triggers.Add(entry);
-
-                Log.Msg("[OXL] Shop button injected successfully.");
+                try { ItemListingSystem.Tick(); }
+                catch (Exception ex) { Log.Warning($"[OXL:ITEMS] Tick failed: {ex.Message}"); }
             }
-            catch (Exception ex)
-            {
-                Log.Warning($"[OXL] InjectShopButton failed: {ex.Message}");
-            }
-        }
-
-        private System.Collections.IEnumerator InjectShopButtonDelayed()
-        {
-            float timeout = 10f;
-            while (timeout > 0f)
-            {
-                bool found = false;
-                foreach (var go in UnityEngine.Resources.FindObjectsOfTypeAll<UnityEngine.GameObject>())
-                {
-                    if (go.name == "ShopsList" && go.scene.name == "garage")
-                    { found = true; break; }
-                }
-                if (found) break;
-
-                timeout -= 0.5f;
-                yield return new UnityEngine.WaitForSeconds(0.5f);
-            }
-            InjectShopButton();
         }
 
         private void TryRegisterConsole()
@@ -272,14 +78,6 @@ namespace CMS2026_OXL
                 var register = apiType.GetMethod("RegisterCommand");
 
                 void Print(string msg) => print?.Invoke(null, new object[] { msg, "OXL" });
-
-                // ── Istniejąca komenda ────────────────────────────────────────────
-                register?.Invoke(null, new object[]
-                {
-            "oxl_open",
-            "Toggle the OXL auction panel",
-            (Action<string[]>)(_ => { _panel?.Toggle(); })
-                });
 
                 // ── oxl_status — podsumowanie aktywnych listingów ─────────────────
                 register?.Invoke(null, new object[]
@@ -489,6 +287,73 @@ namespace CMS2026_OXL
                     Print($"Unknown difficulty '{args[1]}'. Use: easy | normal | hard");
             })
                 });
+
+                // ── oxl_items — ogłoszenia przedmiotów (przed nowymi stronami: podgląd i kupno z konsoli) ──
+                register?.Invoke(null, new object[] { "oxl_items", "oxl_items [parts|tools] - list active OXL listings of engines, parts, tools and decorations", (Action<string[]>)(args =>
+                {
+                    var list = ItemListingSystem.Active.ToList();
+                    if (args.Length > 1) { var cat = args[1].StartsWith("tool", StringComparison.OrdinalIgnoreCase) ? MarketCategory.ToolsDecor : MarketCategory.EnginesParts; list = list.Where(l => l.Category == cat).ToList(); }
+                    double now = GameTimeProvider.TotalGameSeconds;
+                    Print($"Item listings: {list.Count}");
+                    for (int i = 0; i < ItemListingSystem.Active.Count; i++)
+                    {
+                        var l = ItemListingSystem.Active[i];
+                        if (!list.Contains(l)) continue;
+                        string cond = l.HasCondition ? $" stated {l.ApparentCondition:P0} real {l.ActualCondition:P0}" : "";
+                        Print($"  [{i}] {l.Name} | ${l.Price:N0} (new ${l.NewPrice:N0}) | {l.Archetype}{(l.IsGem ? " GEM" : "")}{cond} | {l.SellerNick} | {(l.ExpiresAt - now) / 3600.0:F0}h left");
+                        Print($"      \"{l.Story}\"");
+                    }
+                }) });
+
+                register?.Invoke(null, new object[] { "oxl_items_generate", "oxl_items_generate <count> [parts|tools] - add new item listings now", (Action<string[]>)(args =>
+                {
+                    if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
+                    int n = 3; if (args.Length > 1) int.TryParse(args[1], out n);
+                    var cat = args.Length > 2 && args[2].StartsWith("tool", StringComparison.OrdinalIgnoreCase) ? MarketCategory.ToolsDecor : MarketCategory.EnginesParts;
+                    int made = 0;
+                    for (int i = 0; i < Math.Max(1, Math.Min(30, n)); i++) if (ItemListingSystem.Generate(cat, GameTimeProvider.TotalGameSeconds) != null) made++;
+                    Print($"Generated {made} {cat} listing(s). Total: {ItemListingSystem.Active.Count}");
+                }) });
+
+                register?.Invoke(null, new object[] { "oxl_buyitem", "oxl_buyitem <index> - buy an item listing from oxl_items (pays from your Redline account)", (Action<string[]>)(args =>
+                {
+                    if (args.Length < 2 || !int.TryParse(args[1], out int idx) || idx < 0 || idx >= ItemListingSystem.Active.Count) { Print("Usage: oxl_buyitem <index from oxl_items>"); return; }
+                    ItemListingSystem.Buy(ItemListingSystem.Active[idx], out string msg);
+                    Print(msg);
+                }) });
+
+                // ── oxl_parcels — paczki u kuriera OXL (jeszcze nie w systemie przesyłek gry, więc kalendarz ich nie widzi) ──
+                register?.Invoke(null, new object[] { "oxl_parcels", "oxl_parcels - list OXL parcels on the way that the game courier has not received yet", (Action<string[]>)(_ =>
+                {
+                    var list = ItemListingSystem.GetPendingParcels();
+                    Print(list.Count == 0 ? "No OXL parcels waiting at the OXL courier." : $"OXL parcels at the OXL courier: {list.Count}");
+                    foreach (var (_, name, kind, secs) in list) Print($"  {name} ({kind}) arrives in {Math.Max(0, (int)(secs / 3600))}h {Math.Max(0, (int)(secs % 3600 / 60))}m");
+                }) });
+
+                // ── oxl_market — co OXL może sprzedawać (dane z gry, MarketCatalog) ──
+                register?.Invoke(null, new object[] { "oxl_market", "oxl_market [cars|parts|tools] - show what OXL can sell (read from game data)", (Action<string[]>)(args =>
+                {
+                    if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
+                    var all = MarketCatalog.All;
+                    Print($"Cars (safe versions): {all.Count(e => e.Category == MarketCategory.Cars)}, engines: {all.Count(e => e.Kind == OXLItemKind.Engine)}, parts >= ${MarketCatalog.ExpensiveThreshold}: {all.Count(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part)}, tools: {all.Count(e => e.Category == MarketCategory.ToolsDecor && e.IsTool)}, decorations: {all.Count(e => e.Category == MarketCategory.ToolsDecor && !e.IsTool)}");
+                    if (args.Length < 2) return;
+                    MarketCategory cat = args[1].StartsWith("car", StringComparison.OrdinalIgnoreCase) ? MarketCategory.Cars : args[1].StartsWith("tool", StringComparison.OrdinalIgnoreCase) ? MarketCategory.ToolsDecor : MarketCategory.EnginesParts;
+                    foreach (var e in MarketCatalog.In(cat).Take(40)) Print($"  {e.Id} | {e.Name} | ${e.Price:N0} | {e.Group} | photo={(MarketCatalog.GetThumbnail(e) != null ? "yes" : "no")}{(e.Category == MarketCategory.Cars ? $" | {e.Make} / {e.Model} / {e.VersionName} | {e.YearMin}-{e.YearMax} | {e.Drive} | {e.EngineName} | {e.Hp} HP @{e.HpRpm} | {e.TorqueNm} Nm @{e.TorqueRpm} | {e.Weight} kg | {e.Gears} gears" : "")}");
+                }) });
+
+                // ── oxl_deliver — test dostawy bez zakupu (bez pobrania z banku): paczka i mail jak po kupnie ──
+                register?.Invoke(null, new object[] { "oxl_deliver", "oxl_deliver <id> [condition 1-100] [now] - TEST: send an OXL parcel with this part, engine, tool or decoration (free)", (Action<string[]>)(args =>
+                {
+                    if (args.Length < 2) { Print("Usage: oxl_deliver <id> [condition 1-100] [now]"); return; }
+                    if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
+                    if (!MarketCatalog.TryGet(args[1], out var e) || e.Category == MarketCategory.Cars) { Print($"'{args[1]}' is not a part, engine, tool or decoration OXL can sell (see oxl_market parts / tools)."); return; }
+                    int cond = 60; if (args.Length > 2) int.TryParse(args[2], out cond);
+                    bool now = args.Length > 3 ? args[3].Equals("now", StringComparison.OrdinalIgnoreCase) : OXLSettings.InstantDelivery;
+                    var r = OXLDelivery.Send(e.Kind, e.Id, Math.Max(1, Math.Min(100, cond)) / 100f, now);
+                    if (!r.Ok) { Print($"Delivery failed: {r.Error}"); return; }
+                    OXLMail.SendPurchase(e.Name, "OXL test", 0, OXLDelivery.EtaText(r), "test-" + DateTime.Now.Ticks);
+                    Print($"Sent {e.Name}: {OXLDelivery.EtaText(r)}.");
+                }) });
 
                 Log.Msg("[OXL] Registered in SimpleConsole.");
             }

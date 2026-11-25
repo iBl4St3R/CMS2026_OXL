@@ -36,10 +36,38 @@ namespace CMS2026_OXL
             MelonCoroutines.Start(DoSpawn(ToGameId(internalId), dummy, onDone));
         }
 
-        public static void DeductMoney(int amount)
+        // ── Płatności przez bank Redline (BlastCoreOS 0.2.0, bank.md 1 i 3.3) ─────────
+        // Strony w przeglądarce płacą z konta w banku, nigdy z portfela gry. Gracz bez środków na koncie dostaje
+        // komunikat z adresem banku (wpłata gotówki w bankomacie redline.bank).
+        public const string BankModId = "oxl";
+
+        /// <summary>Ile gracz może wydać z konta; -1, gdy bank niegotowy (poza garażem albo zapis gry nieznany).</summary>
+        public static long GetBankAvailable()
         {
-            try { Il2CppCMS.Shared.SharedGameDataManager.Instance.AddMoneyRpc(-amount); }
-            catch { }
+            try { return BlastCoreOS.BlastCoreBankAPI.IsReady ? BlastCoreOS.BlastCoreBankAPI.GetAvailable() : -1L; }
+            catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL] Bank GetAvailable failed: {ex.Message}"); return -1L; }
+        }
+
+        /// <summary>Pobiera cenę auta z konta. Wołane dopiero po udanym spawnie (kontrakt kupna). Błąd zawsze w logu.</summary>
+        public static bool ChargeForCar(CarListing listing, out string reason)
+        {
+            reason = "";
+            try
+            {
+                bool ok = BlastCoreOS.BlastCoreBankAPI.TryCharge(BankModId, listing.Price, $"{listing.Make} {listing.Model} {listing.Year}", out reason);
+                if (!ok) OXLPlugin.Log.Warning($"[OXL] Bank charge {listing.Price} for {listing.InternalId} refused after delivery: {reason}");
+                return ok;
+            }
+            catch (Exception ex) { reason = ex.Message; OXLPlugin.Log.Warning($"[OXL] Bank charge {listing.Price} failed: {ex.Message}"); return false; }
+        }
+
+        // ── Czy wersję auta da się bezpiecznie sprzedać (G12, G48, Docs/Research/Market.md) ─────
+        // Bezpieczna = jest w MarketCatalog (silnik, felgi i opony fabryczne w tej wersji gry). Inne spawnują się, ale psują zapis gracza.
+        // Gdy dane jeszcze niegotowe: false (lepiej nie sprzedać auta niż zepsuć zapis). Stare ogłoszenia z listings.dat też przez to przechodzą.
+        public static bool IsVersionSpawnable(string internalId, int config)
+        {
+            try { return MarketCatalog.EnsureBuilt() && MarketCatalog.TryGet($"{ToGameId(internalId)}#{config}", out var e) && e.Category == MarketCategory.Cars; }
+            catch (Exception ex) { OXLLog.Msg($"[OXL:GEN] IsVersionSpawnable {internalId} cfg={config} failed: {ex.Message}"); return false; }
         }
 
         public static bool HasFreeSlot()
@@ -51,7 +79,7 @@ namespace CMS2026_OXL
             catch
             {
                 return System.Linq.Enumerable.Any(GetLoaders(),
-                    cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.modelLoaded);
+                    cl => string.IsNullOrWhiteSpace(cl.CarID) && !cl.IsCarLoaded());
             }
         }
 
@@ -140,21 +168,47 @@ namespace CMS2026_OXL
         // ── Helper: historia pojazdu (przebieg, rok, tablica) ──────────────────────
         private static void ApplyCarHistory(Il2CppCMS.Core.Car.CarLoader cl, CarListing listing)
         {
-            var cid = cl.CarInfoData;
-            if (cid != null)
+            // 2027: CarInfoData to struktura sieciowa; ref z interopu daje kopię (G1), więc przebieg przez GameCarAccess, rok przez SetYear.
+            // Gracz widzi w karcie auta przebieg i rocznik z ogłoszenia.
+            try
             {
-                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
-                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
+                if (cl.IsCarLoaded())
+                {
+                    bool mileageOk = GameCarAccess.TrySetMileage(cl, (uint)Mathf.Max(0, listing.Mileage));
+                    cl.SetYear((ushort)Mathf.Clamp(listing.Year, 1960, 2027));
+                    GameCarAccess.TryReadCarInfo(cl, out uint m, out ushort y);
+                    OXLLog.Msg($"[OXL:WEAR] car info: mileage {listing.Mileage} set={mileageOk} read={m}, year {listing.Year} read={y}");
+                }
             }
+            catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetCarInfo failed: {ex.Message}"); }
             if (!string.IsNullOrEmpty(listing.Registration))
             {
                 try
                 {
-                    cl.SetNewLicensePlateNumber(listing.Registration, true);
-                    cl.SetNewLicensePlateNumber(listing.Registration, false);
+                    cl.SetNewLicensePlateNumber(listing.Registration, Il2CppCMS.Core.Car.CarLoader.LicensePlateSide.Front);
+                    cl.SetNewLicensePlateNumber(listing.Registration, Il2CppCMS.Core.Car.CarLoader.LicensePlateSide.Rear);
                 }
                 catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL] SetLicensePlate failed: {ex.Message}"); }
             }
+        }
+
+        // 2027: części karoserii szuka GameCarAccess (dzieci auta albo scena z filtrem po właścicielu). Log mówi, skąd i ile.
+        private static System.Collections.Generic.List<Il2CppCMS.Core.Car.Body.CarBodyPart> GetBodyParts(Il2CppCMS.Core.Car.CarLoader cl)
+        {
+            var parts = GameCarAccess.GetBodyParts(cl, out string source);
+            OXLLog.Msg($"[OXL:WEAR] body parts for {cl.CarID}: {parts.Count} ({source})");
+            return parts;
+        }
+
+        // Zamiennik SetConditionOnBody z 2026 (w 2027 brak): jedna kondycja na wszystkie blachy, potem pętle per część ją nadpisują.
+        private static void SetBodyCondition(Il2CppCMS.Core.Car.CarLoader cl, float value)
+        {
+            try
+            {
+                var parts = GetBodyParts(cl);
+                for (int i = 0; i < parts.Count; i++) if (parts[i] != null) parts[i].SetCondition(value);
+            }
+            catch (Exception ex) { OXLPlugin.Log.Msg($"[OXL:WEAR] SetBodyCondition failed: {ex.Message}"); }
         }
 
 
@@ -233,10 +287,10 @@ namespace CMS2026_OXL
             // ── KROK 1: Karoseria — Dev_RepairAllBody MUSI być przed indexed parts ─
             // Dev_RepairAllBody może resetować część indexed parts (zawieszenie, strukturalne).
             // Dlatego najpierw naprawiamy i ustawiamy karoserię, a indexed parts na końcu.
-            cl.Dev_RepairAllBody();
+            cl.RepairAllBodyParts();
             yield return new WaitForEndOfFrame();
 
-            var cp = cl.carParts;
+            var cp = GetBodyParts(cl);
             if (cp != null)
             {
                 for (int i = 0; i < cp.Count; i++)
@@ -244,7 +298,7 @@ namespace CMS2026_OXL
                     if (cp[i] == null) continue;
                     string name = cp[i].name ?? "";
                     float wear = WearForPart(name, bodyBase, exhaustableMax, 0f, faults, isBodyPart: true);
-                    cl.SetCondition(cp[i], wear);
+                    cp[i].SetCondition(wear);
 
                     if (!IsGlass(name))
                     {
@@ -256,7 +310,7 @@ namespace CMS2026_OXL
                             SellerArchetype.Scammer => UnityEngine.Random.Range(0.65f, 1.0f),
                             _ => Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f),
                         };
-                        try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
+                        try { cp[i].Dent = dent * UnityEngine.Random.Range(0.6f, 1.0f); } catch { }
 
                         float dust = listing.Archetype switch
                         {
@@ -266,23 +320,21 @@ namespace CMS2026_OXL
                             SellerArchetype.Scammer => UnityEngine.Random.Range(0.70f, 1.0f),
                             _ => 0f,
                         };
-                        if (dust > 0f) try { cl.EnableDust(cp[i], dust); } catch { }
+                        if (dust > 0f) try { cp[i].Dust = dust; } catch { }
                     }
                 }
             }
 
-            cl.SetConditionOnBody(bodyBase);
+            SetBodyCondition(cl, bodyBase);
             cl.SetConditionOnDetails(bodyBase);
-            if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
+            if (bodyBase < 0.50f) cl.EnableRustOnAllParts(true);
 
             yield return new WaitForFixedUpdate();
-            try { cl.UpdateCarBodyParts(); } catch { }
-            try { cl.SetupCarSupport(); } catch { }
             yield return new WaitForFixedUpdate();
 
             // ── KROK 2: IndexedParts — PO wszystkich repair calls ─────────────────
             // Dopiero teraz ustawiamy mechanikę. Żaden repair call już po tym nie nastąpi.
-            var ip = cl.indexedParts;
+            var ip = cl.GetAllPartScriptsCopy();
             if (ip != null)
             {
                 for (int i = 0; i < ip.Count; i++)
@@ -290,7 +342,7 @@ namespace CMS2026_OXL
                     if (ip[i] == null) continue;
                     string id = ip[i].id ?? "";
                     float wear = WearForPart(id, mechBase, exhaustableMax, startFloor, faults, isBodyPart: false);
-                    try { ip[i].SetCondition(wear, false); } catch { try { ip[i].SetCondition(wear); } catch { ip[i].condition = wear; } }
+                    try { ip[i].SetCondition(wear, false); } catch { }
                 }
             }
             cl.ClearEnginePartsConditionCache();
@@ -325,10 +377,10 @@ namespace CMS2026_OXL
                     {
                         if (ip[i] == null) continue;
                         if (!startCritical.Contains(ip[i].id ?? "")) continue;
-                        if (ip[i].condition < startFloor)
+                        if (ip[i].Condition < startFloor)
                         {
                             float g = startFloor + UnityEngine.Random.Range(0f, 0.08f);
-                            try { ip[i].SetCondition(g, false); } catch { ip[i].condition = g; }
+                            try { ip[i].SetCondition(g, false); } catch { }
                         }
                     }
                 }
@@ -353,10 +405,10 @@ namespace CMS2026_OXL
                         if (ip[i] == null) continue;
                         var cat = PartCatalog.Classify(ip[i].id ?? "");
                         if (!startCats.Contains(cat)) continue;
-                        if (ip[i].condition < EngineFloor)
+                        if (ip[i].Condition < EngineFloor)
                         {
                             float b = EngineFloor + UnityEngine.Random.Range(0f, 0.04f);
-                            try { ip[i].SetCondition(b, false); } catch { ip[i].condition = b; }
+                            try { ip[i].SetCondition(b, false); } catch { }
                         }
                     }
                 }
@@ -430,14 +482,14 @@ namespace CMS2026_OXL
             yield return new WaitForSeconds(0.2f);
 
             // ── Krok 2: IndexedParts → 0.02 ──────────────────────────────────────
-            var ip = cl.indexedParts;
+            var ip = cl.GetAllPartScriptsCopy();
             if (ip != null)
             {
                 for (int i = 0; i < ip.Count; i++)
                 {
                     if (ip[i] == null) continue;
                     try { ip[i].SetCondition(0.02f, false); }
-                    catch { ip[i].condition = 0.02f; }
+                    catch { }
                 }
                 cl.ClearEnginePartsConditionCache();
                 OXLPlugin.Log.Msg($"[OXL:WRECKER] {ip.Count} indexedParts → 0.02");
@@ -446,15 +498,15 @@ namespace CMS2026_OXL
             yield return new WaitForEndOfFrame();
 
             // ── Krok 3: CarParts → 0.02 ──────────────────────────────────────────
-            var cp = cl.carParts;
+            var cp = GetBodyParts(cl);
             if (cp != null)
             {
                 for (int i = 0; i < cp.Count; i++)
                 {
                     if (cp[i] == null) continue;
-                    try { cl.SetCondition(cp[i], 0.02f); } catch { }
+                    try { cp[i].SetCondition(0.02f); } catch { }
                 }
-                cl.SetConditionOnBody(0.02f);
+                SetBodyCondition(cl, 0.02f);
                 cl.SetConditionOnDetails(0.02f);
                 OXLPlugin.Log.Msg($"[OXL:WRECKER] {cp.Count} carParts → 0.02");
             }
@@ -465,7 +517,7 @@ namespace CMS2026_OXL
             if (dbg != null)
             {
                 try { dbg.SetFrameCondition(0.02f); } catch { }
-                try { dbg.SetDetailsCondtition(0.02f); } catch { }
+                try { dbg.SetDetailsCondition(0.02f); } catch { }
                 OXLPlugin.Log.Msg("[OXL:WRECKER] Frame + Details → 0.02");
             }
 
@@ -488,22 +540,7 @@ namespace CMS2026_OXL
             yield return new WaitForFixedUpdate();
 
             // ── Krok 6: Historia pojazdu (przebieg, rok, tablica) ─────────────────
-            var cid = cl.CarInfoData;
-            if (cid != null)
-            {
-                cid.Mileage = (uint)Mathf.Max(0, listing.Mileage);
-                cid.Year = (ushort)Mathf.Clamp(listing.Year, 1960, 2025);
-            }
-
-            if (!string.IsNullOrEmpty(listing.Registration))
-            {
-                try
-                {
-                    cl.SetNewLicensePlateNumber(listing.Registration, true);
-                    cl.SetNewLicensePlateNumber(listing.Registration, false);
-                }
-                catch { }
-            }
+            ApplyCarHistory(cl, listing);
 
             OXLPlugin.Log.Msg(
                 $"[OXL:WRECKER] ══ WRECKER WEAR DONE ═══════════════════" +
@@ -517,21 +554,21 @@ namespace CMS2026_OXL
 		{
 			int level = listing.ArchetypeLevel;
 
-			cl.Dev_RepairAllBody();
+			cl.RepairAllBodyParts();
 			yield return new WaitForEndOfFrame();
 
 			// Body: zawsze 0-30% (wrak), ale nie flat 0.02
 			float bodyWear = UnityEngine.Random.Range(0.01f, 0.30f);
 
 
-			cl.SetConditionOnBody(bodyWear);
+			SetBodyCondition(cl, bodyWear);
 			cl.SetConditionOnDetails(bodyWear);
-			cl.SwitchRusted(bodyWear);
+			cl.EnableRustOnAllParts(true);
 
 			yield return new WaitForFixedUpdate();
 
 
-			var cp = cl.carParts;
+			var cp = GetBodyParts(cl);
 			if (cp != null)
 			{
 				for (int i = 0; i < cp.Count; i++)
@@ -539,7 +576,7 @@ namespace CMS2026_OXL
 					if (cp[i] == null) continue;
 					string name = cp[i].name ?? "";
 					float partWear = UnityEngine.Random.Range(0.01f, 0.30f);
-					cl.SetCondition(cp[i], partWear);
+					cp[i].SetCondition(partWear);
 
 					if (!IsGlass(name))
 					{
@@ -547,20 +584,18 @@ namespace CMS2026_OXL
 						if (partWear <= 0.25f)
 						{
 							float dent = UnityEngine.Random.Range(0.50f, 0.90f) * UnityEngine.Random.Range(0.70f, 1.00f);
-							try { cl.SetDent(cp[i], dent); } catch { }
+							try { cp[i].Dent = dent; } catch { }
 						}
 
 						float dust = UnityEngine.Random.Range(0.60f, 0.85f);
-						try { cl.EnableDust(cp[i], dust); } catch { }
+						try { cp[i].Dust = dust; } catch { }
 					}
 				}
 			}
 
-			try { cl.UpdateCarBodyParts(); } catch { }
-			try { cl.SetupCarSupport(); } catch { }
 			yield return new WaitForFixedUpdate();
 
-			var ip = cl.indexedParts;
+			var ip = cl.GetAllPartScriptsCopy();
 			if (ip != null)
 			{
 				if (level == 3)
@@ -572,7 +607,7 @@ namespace CMS2026_OXL
 						var cat = PartCatalog.Classify(ip[i].id ?? "");
 						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
 						float wear = UnityEngine.Random.Range(0.10f, 0.35f);
-						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+						try { ip[i].SetCondition(wear, false); } catch { }
 					}
 					OXLLog.Msg($"[OXL:WRECKER-L3] IndexedParts → 10-35% (stripped by trader, no surprises)");
 				}
@@ -585,7 +620,7 @@ namespace CMS2026_OXL
 						var cat = PartCatalog.Classify(ip[i].id ?? "");
 						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
 						float wear = UnityEngine.Random.Range(0.20f, 0.45f);
-						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+						try { ip[i].SetCondition(wear, false); } catch { }
 					}
 					OXLLog.Msg($"[OXL:WRECKER-L2] IndexedParts → 20-45% (knows car, cherry-picked parts removed)");
 				}
@@ -602,7 +637,7 @@ namespace CMS2026_OXL
 						var cat = PartCatalog.Classify(ip[i].id ?? "");
 						if (cat == WearCat.Hardware || cat == WearCat.Structural) continue;
 						float wear = UnityEngine.Random.Range(0.20f, 0.55f);
-						try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+						try { ip[i].SetCondition(wear, false); } catch { }
 					}
 
 					// Pozytywne niespodzianki: 3-5 dużych podzespołów na 55-80%
@@ -622,7 +657,7 @@ namespace CMS2026_OXL
 						var cat = PartCatalog.Classify(ip[idx].id ?? "");
 						if (!surpriseSet.Contains(cat)) continue;
 						float good = UnityEngine.Random.Range(0.55f, 0.80f);
-						try { ip[idx].SetCondition(good, false); } catch { ip[idx].condition = good; }
+						try { ip[idx].SetCondition(good, false); } catch { }
 						OXLLog.Msg($"[OXL:WRECKER-L1] ★ Barn find surprise: '{ip[idx].id}' → {good:P0}");
 						done++;
 					}
@@ -657,17 +692,17 @@ namespace CMS2026_OXL
 			// Body — zawsze odpowiada actual condition, Honest nie ukrywa stanu
 			float bodyBase = Mathf.Clamp(actual * UnityEngine.Random.Range(0.90f, 1.00f), 0.02f, 0.95f);
 
-			cl.Dev_RepairAllBody();
+			cl.RepairAllBodyParts();
 			yield return new WaitForEndOfFrame();
 
-			cl.SetConditionOnBody(bodyBase);
+			SetBodyCondition(cl, bodyBase);
 			cl.SetConditionOnDetails(bodyBase);
-			if (bodyBase < 0.50f) cl.SwitchRusted(bodyBase);
+			if (bodyBase < 0.50f) cl.EnableRustOnAllParts(true);
 
 			yield return new WaitForFixedUpdate();
 
 			// Karoseria
-			var cp = cl.carParts;
+			var cp = GetBodyParts(cl);
 			if (cp != null)
 			{
 				for (int i = 0; i < cp.Count; i++)
@@ -675,22 +710,20 @@ namespace CMS2026_OXL
 					if (cp[i] == null) continue;
 					string name = cp[i].name ?? "";
 					float wear = WearForPart(name, bodyBase, 0.40f, 0f, faults, isBodyPart: true);
-					cl.SetCondition(cp[i], wear);
+					cp[i].SetCondition(wear);
 
 					if (!IsGlass(name))
 					{
 						float dent = Mathf.Clamp(1.0f - bodyBase, 0f, 0.80f);
-						try { cl.SetDent(cp[i], dent * UnityEngine.Random.Range(0.6f, 1.0f)); } catch { }
+						try { cp[i].Dent = dent * UnityEngine.Random.Range(0.6f, 1.0f); } catch { }
 					}
 				}
 			}
 			
-			try { cl.UpdateCarBodyParts(); } catch { }
-			try { cl.SetupCarSupport(); } catch { }
 			yield return new WaitForFixedUpdate();
 
 			// IndexedParts — różna logika per level
-			var ip = cl.indexedParts;
+			var ip = cl.GetAllPartScriptsCopy();
 			if (ip != null)
 			{
 				// Shuffle dla L1 i L3 (niespodzianki)
@@ -705,7 +738,7 @@ namespace CMS2026_OXL
 					string id = ip[i].id ?? "";
 					var cat = PartCatalog.Classify(id);
 					float wear = HonestWearForCategory(cat, level, actual, faults, i, ip.Count, indices);
-					try { ip[i].SetCondition(wear, false); } catch { ip[i].condition = wear; }
+					try { ip[i].SetCondition(wear, false); } catch { }
 				}
 
 				// L1: pozytywne niespodzianki — 3-5 losowych indexedParts na 70-85%
@@ -722,7 +755,7 @@ namespace CMS2026_OXL
 						if (cat == WearCat.SparkPlug || cat == WearCat.FilterOil ||
 							cat == WearCat.FilterFuel || cat == WearCat.FilterAir) continue;
 						float good = UnityEngine.Random.Range(0.70f, 0.85f);
-						try { ip[idx].SetCondition(good, false); } catch { ip[idx].condition = good; }
+						try { ip[idx].SetCondition(good, false); } catch { }
 						OXLLog.Msg($"[OXL:HONEST-L1] ★ Positive surprise: '{ip[idx].id}' → {good:P0}");
 						done++;
 					}
@@ -744,10 +777,10 @@ namespace CMS2026_OXL
 					{
 						if (ip[i] == null) continue;
 						if (PartCatalog.Classify(ip[i].id ?? "") != badCat) continue;
-						float current = ip[i].condition;
+						float current = ip[i].Condition;
 						float penalty = UnityEngine.Random.Range(0.20f, 0.35f);
 						float bad = Mathf.Max(0.05f, current - penalty);
-						try { ip[i].SetCondition(bad, false); } catch { ip[i].condition = bad; }
+						try { ip[i].SetCondition(bad, false); } catch { }
 						applied++;
 					}
 				}
@@ -780,10 +813,10 @@ namespace CMS2026_OXL
                 {
                     if (ip[i] == null) continue;
                     if (!honestStartCritical.Contains(ip[i].id ?? "")) continue;
-                    if (ip[i].condition < HonestStartFloor)
+                    if (ip[i].Condition < HonestStartFloor)
                     {
                         float g = HonestStartFloor + UnityEngine.Random.Range(0f, 0.08f);
-                        try { ip[i].SetCondition(g, false); } catch { ip[i].condition = g; }
+                        try { ip[i].SetCondition(g, false); } catch { }
                     }
                 }
 
@@ -846,10 +879,10 @@ namespace CMS2026_OXL
 
                     if (cat == WearCat.CylinderHead && faults.HasFlag(FaultFlags.HeadGasket)) continue;
 
-                    if (ip[i].condition < HonestStartFloor)
+                    if (ip[i].Condition < HonestStartFloor)
                     {
                         float g = HonestStartFloor + UnityEngine.Random.Range(0f, 0.06f);
-                        try { ip[i].SetCondition(g, false); } catch { ip[i].condition = g; }
+                        try { ip[i].SetCondition(g, false); } catch { }
                         OXLLog.Msg($"[OXL:HONEST] startFloor: '{ip[i].id}' → {g:P0}");
                     }
                 }
@@ -1211,14 +1244,17 @@ namespace CMS2026_OXL
                     x => x.TryCast<Il2CppCMS.Core.Car.CarLoader>()));
         }
 
-        private static string ToGameId(string internalId)
+        internal static string ToGameId(string internalId)
         {
             if (internalId.StartsWith("car_dnb_censor")) return "car_dnbcensor";
             if (internalId.StartsWith("car_katagiri_tamago")) return "car_katagiritamagobp";
             if (internalId.StartsWith("car_luxor_streamliner")) return "car_luxorstreamlinermk3";
             if (internalId.StartsWith("car_mayen_m5")) return "car_mayenm5";
             if (internalId.StartsWith("car_salem_aries")) return "car_salemariesmk3";
+            // Auta z danych gry (2026-11-25): InternalId = "{id auta w grze}_{losowe}", np. "car_boltnevada_4821".
+            int us = internalId.LastIndexOf('_');
+            if (us > 0 && internalId.Length - us - 1 == 4 && int.TryParse(internalId.Substring(us + 1), out _)) return internalId.Substring(0, us);
             return internalId;
         }
     }
-}
+}

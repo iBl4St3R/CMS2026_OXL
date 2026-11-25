@@ -54,7 +54,11 @@ namespace CMS2026_OXL
                     sb.AppendLine($"mileage={l.Mileage}");
                     sb.AppendLine($"location={l.Location}");
                     sb.AppendLine($"delivery_hours={l.DeliveryHours}");
-                    sb.AppendLine($"seller_rating={l.SellerRating}");
+                    sb.AppendLine($"seller_rating={l.SellerRating.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}");
+                    sb.AppendLine($"fake_color={l.FakeColor}");
+                    sb.AppendLine($"fake_engine={l.FakeEngine}");
+                    sb.AppendLine($"fake_version={l.FakeVersion}");
+                    sb.AppendLine($"fake_hp_mult={l.FakeHpMult.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}");
                     double absoluteExpiry = gameTimeOrigin + l.ExpiresAt;
                     sb.AppendLine($"expires_abs={absoluteExpiry.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
 
@@ -185,7 +189,11 @@ namespace CMS2026_OXL
                     case "mileage": TrySetInt(val, v => current.Mileage = v); break;
                     case "location": current.Location = val.Trim(); break;
                     case "delivery_hours": TrySetInt(val, v => current.DeliveryHours = v); break;
-                    case "seller_rating": TrySetInt(val, v => current.SellerRating = v); break;
+                    case "seller_rating": TrySetFloat(val, v => current.SellerRating = v); break;
+                    case "fake_color": current.FakeColor = val.Trim(); break;
+                    case "fake_engine": current.FakeEngine = val.Trim(); break;
+                    case "fake_version": current.FakeVersion = val.Trim(); break;
+                    case "fake_hp_mult": TrySetFloat(val, v => current.FakeHpMult = v); break;
                     case "expires_abs": TrySetDouble(val, v => remaining = v); break;
                     case "seller_nick": current.SellerNick = val.Trim(); break;
                     case "avatar_path": current.AvatarPath = val; break;

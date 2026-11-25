@@ -62,8 +62,6 @@ namespace CMS2026_OXL
 
         private enum FilterSource { None, TopBar, FilterPanel }
         private FilterSource _lastFilterSource = FilterSource.None;
-        private OXLHomePage.Category _homeSelectedCategory = OXLHomePage.Category.Cars;
-        private string _pendingHomeSearchQuery = "";
 
         private const string PlaceholderText = "Search for vehicles, parts or tools";
         private static readonly string[] MakeOptions =
@@ -81,7 +79,6 @@ namespace CMS2026_OXL
         private const float RowH = 78f;
         private const float RowGap = 1f;
 
-        private bool _listingPageWasOpen = false;//flaga display
 
         private int _lastKnownListingCount = -1;
 
@@ -188,10 +185,7 @@ namespace CMS2026_OXL
         // klucz: "DNB Censor/cyan_good" itp.
         private readonly Dictionary<string, Texture2D> _carImages = new();
 
-        // Właściwość pomocnicza do sprawdzania stanu z zewnątrz
-        private bool _isVisible; // Zmienna śledząca stan
 
-        public bool IsVisible => _isVisible;
 
 
         // ── Listing Generation Settings ───────────────────────────────────────────────
@@ -289,92 +283,6 @@ namespace CMS2026_OXL
         //  BUILD
         // ══════════════════════════════════════════════════════════════════════
 
-        //public void Build()
-        //{
-        //    LoadIcons();
-
-        //    // ── Załaduj draft z zapisanego configu ────────────────────────────────
-        //    var saved = OXLSettings.SavedGenConfig;
-        //    _draftMaxListings = saved.MaxListings;
-        //    _draftGenChancePct = saved.GenChancePct;
-        //    _draftGenMin = saved.GenMin;
-        //    _draftGenMax = saved.GenMax;
-        //    _draftDurMinH = Mathf.RoundToInt(saved.DurMinSec / ListingGenConfig.SecondsPerGameHour);
-        //    _draftDurMaxH = Mathf.RoundToInt(saved.DurMaxSec / ListingGenConfig.SecondsPerGameHour);
-        //    Array.Copy(saved.ArchWeights, _draftArchW, 4);
-        //    for (int a = 0; a < 4; a++)
-        //        Array.Copy(saved.LvlWeights[a], _draftLvlW[a], 3);
-
-        //    string modsRoot = Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources");
-        //    _specLoader = new CarSpecLoader(modsRoot);
-        //    _panel_sellerProfile = new SellerProfile(modsRoot);
-        //    _photoLoader = new CarPhotoLoader(modsRoot, ListingSystem.GetColorRegistry(_specLoader));
-        //    _listings = new ListingSystem(_photoLoader, _specLoader, _panel_sellerProfile);
-
-
-
-        //    // ── Aplikuj zapisany config od razu przy starcie ──────────────────────────
-        //    _listings.ApplyConfig(OXLSettings.SavedGenConfig);
-        //    _listings.LoadSaved();
-
-        //    OXLPlugin.Log.Msg($"[OXL] ListingSystem initialized with saved config" +
-        //                      $" — max={OXLSettings.SavedGenConfig.MaxListings}" +
-        //                      $" chance={OXLSettings.SavedGenConfig.GenChancePct}%");
-
-
-
-
-        //    float x = Mathf.Max(0f, (Screen.width - PanelW) / 2f);
-        //    float y = Mathf.Max(0f, (Screen.height - PanelH) / 2f);
-
-        //    // ZMIANA: UIPanel.Create zamiast FrameworkAPI.CreatePanel
-        //    // CreatePanel teraz auto-wywołuje Build() wewnętrznie — tu chcemy
-        //    // dodać przyciski tytułu PRZED Build(), więc wywołujemy je ręcznie.
-        //    _panel = UIPanel.Create("OXL", x, y, PanelW, PanelH);
-        //    _panel.AddTitleButton("\u2014", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
-        //    _panel.AddTitleButton("\u25A1", () => { }, new Color(0.15f, 0.18f, 0.25f, 1f));
-        //    _panel.AddTitleButton("\u2715", Close, new Color(0.55f, 0.10f, 0.10f, 1f));
-        //    _panel.Build(sortOrder: 9000);   // ← jeden Build, z przyciskami już w liście
-        //    _panel.SetDraggable(false);
-        //    _panel.SetScrollbarVisible(false);
-
-        //    var pve = UIRuntime.WrapVE(_panel.GetPanelRawPtr());
-        //    var pst = UIRuntime.GetStyle(pve);
-        //    S.BgColor(pst, PageBg);
-        //    S.BorderRadius(pst, 8f);
-        //    S.BorderWidth(pst, 1f);
-        //    S.BorderColor(pst, Border);
-
-        //    // ── Content first (home page scrollable area) ───────────────────
-        //    BuildContent();
-
-        //    // ── Page overlays — added BEFORE address bar so they render under it ──
-        //    BuildPageOverlay();     // Help / Settings / About
-        //    BuildListingPage();     // car auction list
-        //    BuildDetailOverlay();   // single listing detail
-
-
-        //    BuildListingGenSettingsOverlay();   
-        //    BuildArchLevelOverlay();           
-
-
-        //    // ── Address bar LAST — renders on top of all overlays ───────────
-        //    // BuildMenuDropdown is called from inside BuildAddressBar, also last,
-        //    // so the dropdown itself renders on top of the address bar. ✓
-
-        //    BuildAlertOverlay();
-        //    BuildSettingsOverlay();
-        //    BuildAddressBar();
-
-
-
-        //    _panel.SetUpdateCallback(dt =>
-        //    {
-        //        UpdateTimers();
-        //    });
-
-        //    _panel.SetVisible(false);
-        //}
 
         public void BuildDetailInto(object container, BlastCoreWebPageContext ctx, string internalId)
         {
@@ -394,7 +302,7 @@ namespace CMS2026_OXL
                 S.WhiteSpaceNormal(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())));
                 S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(goneLbl.GetRawPtr())), TextAnchor.UpperCenter);
 
-                var backPtr = _panel.AddButtonToContainer(container, "\u2190  Back to Listings", (PanelW - 200f) / 2f, PanelH / 2f + 40f, 200f, 36f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
+                var backPtr = _panel.AddButtonToContainer(container, "\u2190  Back to Listings", (PanelW - 200f) / 2f, PanelH / 2f + 40f, 200f, 36f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.CarsUrl)));
                 _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
                 return;
             }
@@ -448,28 +356,6 @@ namespace CMS2026_OXL
 
 
 
-        public void BuildHomeInto(object container, BlastCoreWebPageContext ctx)
-        {
-            _isEmbedded = true;
-            _panel = ctx.Panel;
-            PanelW = ctx.Width;
-            PanelH = ctx.Height;
-            _currentEmbeddedCtx = ctx;
-            EvictDetailResources();
-            AddPageBackground(container);
-
-            var titleLbl = _panel.AddLabelToContainer(container, "OXL", 0f, 30f, PanelW, 60f, OXLGreen);
-            titleLbl.SetFontSize(42);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(titleLbl.GetRawPtr())), TextAnchor.MiddleCenter);
-
-            var subLbl = _panel.AddLabelToContainer(container, "Online eX-Owner Lies \u2014 marketplace", 0f, 92f, PanelW, 22f, TextGray);
-            subLbl.SetFontSize(12);
-            S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(subLbl.GetRawPtr())), TextAnchor.MiddleCenter);
-
-            var tex = new OXLHomePage.Textures { Cars = _passengerCars, Parts = _carParts, Tools = _workshopItems, Decorations = _decorations };
-
-            OXLHomePage.Build(_panel, container, PanelW, tex, _homeSelectedCategory, cat => { _homeSelectedCategory = cat; ctx.Navigate(OXLWebPage.HomeUrl); }, query => { _pendingHomeSearchQuery = query ?? ""; ctx.Navigate(OXLWebPage.ListingsUrl); }, _pendingHomeSearchQuery);
-        }
 
         public void BuildListingsInto(object container, BlastCoreWebPageContext ctx)
         {
@@ -504,14 +390,6 @@ namespace CMS2026_OXL
             _filterPanel.OptionsProvider = () => FilterOptionsBuilder.Build(_listings?.ActiveListings, _specLoader);
             _filterPanel.OnFiltersApplied += () => { _lastFilterSource = FilterSource.FilterPanel; _filteredListings = ApplyFilterCriteria(_filterPanel.Current); _currentPage = 0; RefreshListings(); };
 
-            if (!string.IsNullOrEmpty(_pendingHomeSearchQuery))
-            {
-                string q = _pendingHomeSearchQuery;
-                _pendingHomeSearchQuery = "";
-                _filterPanel.SetInitialModelQuery(q);
-                _lastFilterSource = FilterSource.FilterPanel;
-                _filteredListings = ApplyFilterCriteria(_filterPanel.Current);
-            }
 
             RefreshListings();
         }
@@ -1338,9 +1216,9 @@ namespace CMS2026_OXL
             float lineY = (RowH - ElemH) / 2f;
 
             var starsLbl = _panel.AddLabelToContainer(
-                rowPtr, FormatStars(listing.SellerRating),
+                rowPtr, FormatStars((int)Math.Round(listing.SellerRating)),
                 rightX, lineY, 68f, ElemH,
-                StarColor(listing.SellerRating));
+                StarColor((int)Math.Round(listing.SellerRating)));
             starsLbl.SetFontSize(12);
 
             var priceLbl = _panel.AddLabelToContainer(
@@ -1392,13 +1270,20 @@ namespace CMS2026_OXL
             _panel.WireHover(nextPtr, BtnDark, BtnDarkHi, SearchBdr);
         }
 
+        // Gracz widzi stan konta w banku Redline (z niego płaci za auta), nie portfel gry.
+        private static string BankBalanceText()
+        {
+            long bal = GameBridge.GetBankAvailable();
+            return bal < 0 ? "Bank:  ---" : $"Bank:  ${bal:N0}";
+        }
+
         // ── Rebuild current page ──────────────────────────────────────────────
         private void RefreshListings()
         {
             try
             {
-                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
-                _listingMoneyLbl?.SetText($"Balance:  ${bal:N0}");
+                string bal = BankBalanceText();
+                _listingMoneyLbl?.SetText(bal);
             }
             catch { _listingMoneyLbl?.SetText("Balance: ---"); }
 
@@ -1453,9 +1338,9 @@ namespace CMS2026_OXL
         {
             try
             {
-                int bal = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money;
-                _listingMoneyLbl?.SetText($"Balance:  ${bal:N0}");
-                _detailBalanceLbl?.SetText($"Balance:  ${bal:N0}");
+                string bal = BankBalanceText();
+                _listingMoneyLbl?.SetText(bal);
+                _detailBalanceLbl?.SetText(bal);
             }
             catch { }
 
@@ -1513,14 +1398,12 @@ namespace CMS2026_OXL
             _currentPage = 0;
             RefreshListings();
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), true);
-            _listingPageWasOpen = true;
         }
 
         private void HideListingPage()
         {
             if (_listingPagePtr == IntPtr.Zero) return;
             S.Display(UIRuntime.GetStyle(UIRuntime.WrapVE(_listingPagePtr)), false);
-            _listingPageWasOpen = false;
         }
 
 
@@ -1541,13 +1424,13 @@ namespace CMS2026_OXL
             S.BgColor(ts, new Color(0.05f, 0.08f, 0.14f, 1f));
             UIRuntime.AddChild(container, topBar);
 
-            var backPtr = _panel.AddButtonToContainer(topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.ListingsUrl)));
+            var backPtr = _panel.AddButtonToContainer(topBar, "\u2190  Listings", 12f, 6f, 140f, 32f, BtnDark, BlastCoreSoundLibrary.WithClick(ctx.AudioSource, () => ctx.Navigate(OXLWebPage.CarsUrl)));
             _panel.WireHover(backPtr, BtnDark, BtnDarkHi, SearchBdr);
 
             _detailBalanceLbl = _panel.AddLabelToContainer(topBar, "Balance: ---", PanelW - 240f, 0f, 228f, 44f, new Color(0.55f, 0.90f, 0.55f, 1f));
             _detailBalanceLbl.SetFontSize(14);
             S.TextAlign(UIRuntime.GetStyle(UIRuntime.WrapVE(_detailBalanceLbl.GetRawPtr())), TextAnchor.MiddleRight);
-            try { int bal0 = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money; _detailBalanceLbl.SetText($"Balance:  ${bal0:N0}"); }
+            try { _detailBalanceLbl.SetText(BankBalanceText()); }
             catch { }
 
             var topSep = UIRuntime.NewVE();
@@ -1666,7 +1549,7 @@ namespace CMS2026_OXL
             _detailSellerName = _panel.AddLabelToContainer(sellerCard, string.IsNullOrEmpty(listing.SellerNick) ? "Anonymous" : listing.SellerNick, tx, 36f, 200f, 26f, Color.white);
             _detailSellerName.SetFontSize(17);
 
-            _detailSellerStars = _panel.AddLabelToContainer(sellerCard, FormatStars(listing.SellerRating), tx, 70f, 110f, 20f, StarColor(listing.SellerRating));
+            _detailSellerStars = _panel.AddLabelToContainer(sellerCard, FormatStars((int)Math.Round(listing.SellerRating)), tx, 70f, 110f, 20f, StarColor((int)Math.Round(listing.SellerRating)));
             _detailSellerStars.SetFontSize(14);
 
             _detailListedLbl = _panel.AddLabelToContainer(sellerCard, "Member since 2024", tx + 118f, 72f, 200f, 18f, TextGray);
@@ -1911,6 +1794,9 @@ namespace CMS2026_OXL
             if (listing != null
                 && CarColorRegistry.TryGet(listing.ImageFolder, listing.Color, out Color c))
                 return c;
+            // Auta z danych gry (bez paczki zdjęć): kolor fabryczny wersji zapisany jako "#RRGGBB" (BlastCoreGameCarVersion.Colors).
+            if (listing?.Color != null && listing.Color.StartsWith("#") && ColorUtility.TryParseHtmlString(listing.Color, out Color hex))
+                return hex;
             return HexColor(listing?.Color);
         }
 
@@ -2270,13 +2156,16 @@ namespace CMS2026_OXL
                 return;  // ← listing zostaje, kasa zostaje, nic się nie dzieje
             }
 
-            int balance = 0;
-            try { balance = (int)Il2CppCMS.Shared.SharedGameDataManager.Instance.money; }
-            catch { }
-
+            // Płaci konto w banku Redline, nie portfel (BlastCoreOS bank.md 3.3). Gracz widzi, ile ma na koncie i gdzie wpłacić.
+            long balance = GameBridge.GetBankAvailable();
+            if (balance < 0)
+            {
+                ShowAlert("Payment service unavailable.\nOpen redline.bank and try again.");
+                return;  // ← listing zostaje
+            }
             if (balance < listing.Price)
             {
-                ShowAlert($"Not enough funds.\n\nRequired:  ${listing.Price:N0}\nAvailable: ${balance:N0}");
+                ShowAlert($"Not enough funds on your Redline account.\n\nRequired:  ${listing.Price:N0}\nAvailable: ${balance:N0}\n\nDeposit cash at redline.bank/atm.");
                 return;  // ← listing zostaje
             }
 
@@ -2304,20 +2193,59 @@ namespace CMS2026_OXL
                 OXLLog.Msg($"[OXL] SpawnResult: {result}");
                 if (result == GameBridge.SpawnResult.Success)
                 {
-                    GameBridge.DeductMoney(listing.Price);
+                    // Kontrakt: pobranie dopiero po udanym spawnie. Odmowa banku tutaj (saldo zmieniło się w trakcie dostawy) zostaje w logu.
+                    GameBridge.ChargeForCar(listing, out _);
                 }
                 else
                 {
-                    // Spawn się nie udał — zwróć listing i pieniędzy nie ruszaj
+                    // Spawn się nie udał — zwróć listing i pieniędzy nie ruszaj; zapis, żeby ogłoszenie przetrwało wyjście z gry
                     _listings.ActiveListings.Add(listing);
+                    _listings.Save();
                     ShowAlert($"Delivery failed ({result}).\nThe listing has been restored.");
                 }
             });
 
             if (_filteredListings != null) ApplyFilters();
             RefreshListings();
-            _currentEmbeddedCtx?.Navigate(OXLWebPage.ListingsUrl);
+            _currentEmbeddedCtx?.Navigate(OXLWebPage.CarsUrl);
 
+        }
+
+        /// <summary>
+        /// Kupno auta z nowej strony (OXLSite), bez starego UI. Ten sam kontrakt co ExecutePurchase: najpierw parking i saldo konta,
+        /// ogłoszenie znika na czas dostawy, pieniądze schodzą dopiero po udanym spawnie, przy błędzie ogłoszenie wraca (z zapisem).
+        /// done(ok, tekst dla gracza) przychodzi po spawnie (kilka klatek później). false = odmowa od razu (message), nic się nie zmieniło.
+        /// </summary>
+        public bool TryBuyCar(CarListing listing, Action<bool, string> done, out string message)
+        {
+            message = "";
+            if (_listings == null || listing == null || !_listings.ActiveListings.Contains(listing)) { message = "This listing is no longer available."; return false; }
+            if (!GameBridge.IsVersionSpawnable(listing.InternalId, listing.CarConfig)) { message = "This car is not available in this version of the game. The listing will disappear."; return false; }
+            if (!GameBridge.HasFreeSlot()) { message = "Your parking lot is full. Make room before buying a car."; return false; }
+            long balance = GameBridge.GetBankAvailable();
+            if (balance < 0) { message = "Payment service unavailable. Open redline.bank and try again."; return false; }
+            if (balance < listing.Price) { message = $"Not enough funds on your Redline account. Required ${listing.Price:N0}, available ${balance:N0}. Deposit cash at redline.bank/atm."; return false; }
+
+            _listings.ActiveListings.Remove(listing);
+            _listings.Save();
+            OXLLog.Msg($"[OXL:BUY] {listing.Make} {listing.Model} {listing.Year} cfg={listing.CarConfig} ${listing.Price} {listing.Archetype} L{listing.ArchetypeLevel} actual={listing.ActualCondition:P0}");
+            GameBridge.SpawnCar(listing, result =>
+            {
+                if (result == GameBridge.SpawnResult.Success)
+                {
+                    GameBridge.ChargeForCar(listing, out _);
+                    OXLMail.SendPurchase($"{listing.Make} {listing.Model} {listing.Year}", listing.SellerNick, listing.Price, "Delivered to your parking lot", listing.InternalId, MarketCatalog.TryGet(GameBridge.ToGameId(listing.InternalId) + "#" + listing.CarConfig, out var ce) ? OXLUi.ExportSprite(MarketCatalog.GetThumbnail(ce), "car_" + listing.InternalId) : null);
+                    done?.Invoke(true, $"Bought {listing.Make} {listing.Model} {listing.Year} for ${listing.Price:N0}. It is waiting in your parking lot.");
+                }
+                else
+                {
+                    _listings.ActiveListings.Add(listing);
+                    _listings.Save();
+                    OXLPlugin.Log.Warning($"[OXL:BUY] Car delivery failed ({result}), listing restored, nothing charged.");
+                    done?.Invoke(false, $"Delivery failed ({result}). The listing is back and nothing was charged.");
+                }
+            });
+            return true;
         }
 
         // ── Alert overlay ─────────────────────────────────────────────────────────
@@ -3593,80 +3521,6 @@ namespace CMS2026_OXL
         // ══════════════════════════════════════════════════════════════════════
 
 
-        public void Open()
-        {
-            if (_panel == null) return;
-            _panel.SetVisible(true);
-            _isVisible = true;
-            SetPlayerInput(false);
-
-            if (_listingPageWasOpen)
-            {
-                switch (_lastFilterSource)
-                {
-                    case FilterSource.FilterPanel:
-                        _filteredListings = ApplyFilterCriteria(_filterPanel?.Current);
-                        break;
-                    case FilterSource.TopBar:
-                        ApplyFilters();
-                        break;
-                }
-                _lastKnownListingCount = _listings?.ActiveListings.Count ?? 0;
-                RefreshListings();
-            }
-        }
-
-        public void Close()
-        {
-            if (_panel == null) return;
-            _panel.SetVisible(false);
-            _isVisible = false;
-            SetPlayerInput(true);
-        }
-
-        private static void SetPlayerInput(bool enabled)
-{
-    try
-    {
-        var pi = UnityEngine.Object.FindObjectOfType<Il2CppCMS.Player.Controller.PlayerInput>();
-        if (pi != null) pi.enabled = enabled;
-    }
-    catch (Exception ex)
-    {
-        OXLPlugin.Log.Warning($"[OXL] SetPlayerInput({enabled}): {ex.Message}");
-    }
-
-    try
-    {
-        // Blokuj też InputActionAsset — to samo co robi konsola
-        var assetType = System.Type.GetType(
-            "UnityEngine.InputSystem.InputActionAsset, Unity.InputSystem");
-        if (assetType == null) return;
-
-        var all = UnityEngine.Resources.FindObjectsOfTypeAll(
-            Il2CppInterop.Runtime.Il2CppType.From(assetType));
-
-        foreach (var raw in all)
-        {
-            var asset = Activator.CreateInstance(assetType, new object[] { raw.Pointer });
-            var maps  = assetType.GetProperty("actionMaps")?.GetValue(asset);
-            if (maps == null) continue;
-
-            int count  = (int)maps.GetType().GetProperty("Count").GetValue(maps);
-            var indexer = maps.GetType().GetProperty("Item");
-
-            for (int i = 0; i < count; i++)
-            {
-                var m    = indexer.GetValue(maps, new object[] { i });
-                var name = (string)m.GetType().GetProperty("name").GetValue(m);
-                if (name != "UI Common") continue;
-                m.GetType().GetMethod(enabled ? "Enable" : "Disable").Invoke(m, null);
-                break;
-            }
-        }
-    }
-    catch { /* InputSystem może nie być dostępny */ }
-}
 
 
         // ── Console API helpers ───────────────────────────────────────────────────
@@ -3708,7 +3562,6 @@ namespace CMS2026_OXL
                             ApplyFilters();
                             break;
                     }
-                    if (_isVisible) RefreshListings();
                 }
                 catch (Exception ex)
                 {
@@ -3806,13 +3659,6 @@ namespace CMS2026_OXL
         }
 
         public CarPhotoLoader.CacheInfo GetPhotoCacheInfo() => _photoLoader?.GetCacheInfo() ?? default;
-
-        // Metoda do wygodnego przełączania
-        public void Toggle()
-        {
-            if (IsVisible) Close();
-            else Open();
-        }
 
         public void ForceGenCheck() => _listings?.ForceCheckNow();
         public void SaveListings() => _listings?.Save();

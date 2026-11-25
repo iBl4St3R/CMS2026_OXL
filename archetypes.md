@@ -216,6 +216,8 @@ Normalny ApplyWear() — StartFloor = 0.20 (auto odpala).
 
 ## SCAMER
 
+> Przebudowa wyglądu ogłoszeń scammera (poziomy, niezgodności L3, ocena 3–3,5): `Docs/Design/scammer.md` (projekt 2026-11-26).
+
 ### Filozofia
 Totalne kłamstwo. Zdjęcia i opis wiarygodne — auto które
 gracz dostaje to złom. Wszystkie części na 0.02, fluidy spuszczone.
@@ -255,8 +257,8 @@ L3: 0.75–0.90× ("lekko taniej od Honest")
 | Level | Rating | TTL |
 |---|---|---|
 | L1 | 1★ lub 2★ | 120–350s |
-| L2 | 2★ lub 3★ | 200–500s |
-| L3 | 4★ lub 5★ (sfałszowany) | 300–650s |
+| L2 | 2★ lub 3★ (+ moc 5x w ogłoszeniu, `scammer.md` 2.2) | 200–500s |
+| L3 | 3★ lub 3.5★ (od 2026-11-26, `scammer.md` 2.3) | 300–650s |
 
 ### ApplyWear — ApplyWreckerWear()
 **Osobna ścieżka — nie używa normalnego ApplyWear().**
@@ -328,9 +330,11 @@ Dotyczy wszystkich archetypów. Nie zmienia FairValue.
 | Archetype | Folder zdjęć | Sens |
 |---|---|---|
 | Dealer | `60100` (Good) | wypolerowane niezależnie od actual |
-| Scammer | `60100` (Good) | kłamliwe zdjęcia |
+| Scammer | `60100` (Good) | ładne zdjęcia, przyjeżdża wrak; wyjątek od zasady 5 (decyzja użytkownika 2026-11-26, przebudowa scammera: `Docs/Design/scammer.md`) |
 | Wrecker | `030` (Bad) | zapuszczone, brudne |
-| Honest | zależnie od actual | 030 / 3060 / 60100 |
+| Honest | zależnie od karoserii | 030 / 3060 / 60100 |
+
+Od 2026-11-26 (paczka 2027, `CarPhotoPack.ConditionFolder`) folder wynika z `BodyCondition` (< 0.30 → 030, < 0.60 → 3060, reszta 60100), co daje te same foldery dla Dealera (karoseria 0.60+) i Wreckera (< 0.30). `PhotoCondition.cs` obsługuje już tylko stare paczki 2026.
 
 ---
 
