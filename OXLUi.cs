@@ -203,12 +203,16 @@ namespace CMS2026_OXL
         // ── Obrazki moda z dysku (mapka lokalizacji), z cache ───────────────────────
         private static readonly System.Collections.Generic.Dictionary<string, Texture2D> _textures = new System.Collections.Generic.Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
 
-        public static Texture2D ModImage(string fileName)
+        public static Texture2D ModImage(string fileName) => LoadPng(System.IO.Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "Images", fileName));
+
+        /// <summary>Grafika z plików BlastCoreOS (Mods/BlastCoreOS/resources/image), np. logo banku Redline w stopce. Brak pliku = null, strona bez obrazka.</summary>
+        public static Texture2D BlastCoreImage(string fileName) => LoadPng(System.IO.Path.Combine(Application.dataPath, "..", "Mods", "BlastCoreOS", "resources", "image", fileName));
+
+        private static Texture2D LoadPng(string path)
         {
-            if (_textures.TryGetValue(fileName, out var cached) && cached != null) return cached;
+            if (_textures.TryGetValue(path, out var cached) && cached != null) return cached;
             try
             {
-                string path = System.IO.Path.Combine(Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources", "Images", fileName);
                 if (!System.IO.File.Exists(path)) return null;
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
                 var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
@@ -218,24 +222,24 @@ namespace CMS2026_OXL
                 var load = ic?.GetMethod("LoadImage", new[] { typeof(Texture2D), il2.GetType() });
                 if (load == null || !(bool)load.Invoke(null, new object[] { tex, il2 })) return null;
                 tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-                _textures[fileName] = tex;
+                _textures[path] = tex;
                 return tex;
             }
-            catch (Exception ex) { OXLLog.Msg($"[OXL:SITE] image '{fileName}' failed: {ex.Message}"); return null; }
+            catch (Exception ex) { OXLLog.Msg($"[OXL:SITE] image '{path}' failed: {ex.Message}"); return null; }
         }
 
         /// <summary>
         /// Zdjęcie z gry do pliku PNG dla maila (site.md 13): sprite z atlasu (niekoniecznie czytelny z CPU) kopiowany przez RenderTexture.
         /// Zwraca ścieżkę względną do Resources/Images (np. "mail/item_ab12.png") do znacznika [img=...] poczty BlastCoreOS; null przy błędzie (mail bez zdjęcia).
         /// </summary>
-        public static string ExportSprite(Sprite sprite, string name, int maxWidth = 360)
+        public static string ExportSprite(Sprite sprite, string name, int maxWidth = 288)
         {
             if (sprite == null) return null;
             try
             {
                 var src = sprite.texture;
                 Rect r = sprite.textureRect;
-                // Mniejsze zdjęcie (użytkownik 2026-11-25: w mailu było za duże): najwyżej maxWidth px szerokości, proporcje zachowane.
+                // Mniejsze zdjęcie (użytkownik 2026-11-25: w mailu za duże; 2026-11-28: jeszcze o 20%, 360 na 288 px): najwyżej maxWidth px szerokości, proporcje zachowane.
                 float scale = Math.Min(1f, maxWidth / Math.Max(1f, r.width));
                 int w = Math.Max(1, (int)(r.width * scale)), h = Math.Max(1, (int)(r.height * scale));
                 var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);

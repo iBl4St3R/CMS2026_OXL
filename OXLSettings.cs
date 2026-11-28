@@ -36,7 +36,7 @@ namespace CMS2026_OXL
 
         // ── ListingGenConfig snapshot — ładowany przy starcie ─────────────────
         // Przechowuje ostatnio zapisane ustawienia generatora.
-        // OXLPanel inicjalizuje swój draft z tych wartości przy Build().
+        // OXLCarMarket.Build przekazuje je generatorowi aut.
         public static ListingGenConfig SavedGenConfig { get; private set; } = new ListingGenConfig();
 
         // ── Ścieżka ───────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ namespace CMS2026_OXL
 
         /// <summary>
         /// Zapisuje ListingGenConfig do SavedGenConfig i od razu do pliku.
-        /// Wywoływane z OXLPanel.SaveListingGenSettings().
+        /// Wywoływane ze strony ustawień (OXLSite, oxl.com/settings).
         /// </summary>
         public static void SaveGenConfig(ListingGenConfig config)
         {

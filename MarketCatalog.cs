@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace CMS2026_OXL
@@ -23,6 +24,8 @@ namespace CMS2026_OXL
         public string Group = "";            // grupa do filtrów: marka auta, grupa sklepu części, Tools/Decorations
         public string[] Colors = new string[0];
         public bool IsTool;                  // ToolsDecor: narzędzie (true) czy dekoracja
+        public bool IsTire, IsRim;           // części: opona albo felga ze sklepu kół gry (paczka dostaje rozmiar, WheelData)
+        public string EngineFamily = "";     // całe silniki: rodzina z gry (I4, V6, V8), losowanie po rodzinie
         // Auta (z danych gry): do tytułów, parametrów i filtrów
         public string Make = "", Model = "", VersionName = "", Drive = "", EngineId = "", EngineName = "";
         public int YearMin, YearMax, Hp, HpRpm, TorqueNm, TorqueRpm, Weight, Gears;
@@ -30,14 +33,16 @@ namespace CMS2026_OXL
 
     public static class MarketCatalog
     {
-        // Próg "droga część": percentyl cen katalogu liczony w czasie gry (site.md 9.3). 0.90 = 10% najdroższych części.
-        private const float ExpensivePercentile = 0.90f;
+        // Najtańsze części (śruby, uszczelki, korki) nie trafiają na OXL: próg = percentyl cen katalogu liczony w czasie gry (site.md 16).
+        // 0.25 = bez 25% najtańszych (demo 2026-11-28: od $70). Wcześniej 0.90, tylko 10% najdroższych.
+        private const float MinPricePercentile = 0.25f;
 
         private static List<MarketEntry> _entries = new List<MarketEntry>();
         private static int _builtDataVersion = -1;
-        private static int _expensiveThreshold;
+        private static int _minPartPrice;
 
-        public static int ExpensiveThreshold { get { EnsureBuilt(); return _expensiveThreshold; } }
+        public static int MinPartPrice { get { EnsureBuilt(); return _minPartPrice; } }
+
 
         public static IReadOnlyList<MarketEntry> All { get { EnsureBuilt(); return _entries; } }
 
@@ -70,9 +75,10 @@ namespace CMS2026_OXL
                 AddCars(list);
                 AddEnginesAndParts(list);
                 AddToolsDecor(list);
+                _wheelSizes = ReadWheelSizes();
                 _entries = list;
                 _builtDataVersion = ver;
-                OXLPlugin.Log.Msg($"[OXL:MARKET] Catalog built: cars={list.Count(e => e.Category == MarketCategory.Cars)} engines={list.Count(e => e.Kind == OXLItemKind.Engine)} parts={list.Count(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part)} (>= ${_expensiveThreshold}) tools={list.Count(e => e.Category == MarketCategory.ToolsDecor && e.IsTool)} decor={list.Count(e => e.Category == MarketCategory.ToolsDecor && !e.IsTool)} dataVersion={ver}");
+                OXLPlugin.Log.Msg($"[OXL:MARKET] Catalog built: cars={list.Count(e => e.Category == MarketCategory.Cars)} engines={list.Count(e => e.Kind == OXLItemKind.Engine)} parts={list.Count(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part)} (>= ${_minPartPrice}) tools={list.Count(e => e.Category == MarketCategory.ToolsDecor && e.IsTool)} decor={list.Count(e => e.Category == MarketCategory.ToolsDecor && !e.IsTool)} dataVersion={ver}");
                 return true;
             }
             catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL:MARKET] Catalog build failed: {ex.Message}"); return false; }
@@ -129,6 +135,65 @@ namespace CMS2026_OXL
             }
         }
 
+        // ── Rozmiary kół do opon i felg z OXL (użytkownik 2026-11-28: opona "0/0R0" warta 0, felga 0") ─────────────────
+        // Item opony/felgi bez WheelData ma zerowy rozmiar. Rozmiary bierzemy z configów aut gry ([3_wheels] i [4_wheels_rear]: rimSize,
+        // wheelWidth, tireSize = profil), więc każda opona i felga z OXL pasuje do jakiegoś auta, a nowe auta z aktualizacji dokładają swoje.
+        private static List<(int rim, int width, int profile)> _wheelSizes = new List<(int, int, int)>();
+
+        private static List<(int, int, int)> ReadWheelSizes()
+        {
+            var set = new HashSet<(int, int, int)>();
+            try
+            {
+                var cars = UnityEngine.Object.FindObjectOfType<Il2Cpp.CarBundleLoader>(true)?.CarNamesData;
+                for (int ci = 0; cars != null && ci < cars.Count; ci++)
+                {
+                    var data = cars[ci];
+                    for (int i = 0; data?.CarConfigs != null && i < data.CarConfigs.Count; i++)
+                    {
+                        var ini = data.CarConfigs[i];
+                        foreach (var sec in new[] { "3_wheels", "4_wheels_rear" })
+                        {
+                            int rim = 0, width = 0, profile = 0;
+                            for (int k = 0; ini?.Entries != null && k < ini.Entries.Count; k++)
+                            {
+                                var en = ini.Entries[k];
+                                if (en.Section != sec) continue;
+                                int.TryParse((en.Value ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int v);
+                                if (en.ID == "rimSize") rim = v; else if (en.ID == "wheelWidth") width = v; else if (en.ID == "tireSize") profile = v;
+                            }
+                            if (rim > 0 && width > 0 && profile > 0) set.Add((rim, width, profile));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL:MARKET] wheel sizes failed: {ex.Message}"); }
+            return set.OrderBy(s => s.Item1).ThenBy(s => s.Item2).ThenBy(s => s.Item3).ToList();
+        }
+
+        /// <summary>
+        /// Rozmiar koła dla ogłoszenia: stały dla seed (ID ogłoszenia), więc strona i paczka pokazują ten sam. ET felgi: config auta go nie ma,
+        /// typowy zakres 20–40 co 5 (? do potwierdzenia z felgami ze sklepu gry). False = brak danych (paczka bez rozmiaru, jak wcześniej).
+        /// </summary>
+        public static bool WheelFor(string seed, out int rim, out int width, out int profile, out int et)
+        {
+            rim = width = profile = et = 0;
+            EnsureBuilt();
+            if (_wheelSizes.Count == 0) return false;
+            int h = OXLUi.StableHash(seed ?? "") & int.MaxValue;
+            var s = _wheelSizes[h % _wheelSizes.Count];
+            (rim, width, profile) = s;
+            et = 20 + 5 * ((h / 7) % 5);
+            return true;
+        }
+
+        /// <summary>Tekst rozmiaru do ogłoszenia: opona "225/75R15", felga "15 in ET 30"; pusty dla innych części.</summary>
+        public static string WheelText(MarketEntry e, string seed)
+        {
+            if (e == null || (!e.IsTire && !e.IsRim) || !WheelFor(seed, out int rim, out int width, out int profile, out int et)) return "";
+            return e.IsTire ? $"{width}/{profile}R{rim}" : $"{rim} in ET {et}";
+        }
+
         // Felgi i opony fabryczne z configu wersji ([3_wheels] i [4_wheels_rear], klucze rim i tire), sprawdzone przez GameInventory.HaveDLC
         // (G48: felgi spoza dema mają HaveDLC = false). Klucz "carId#cfg" -> pierwsza brakująca część. API BlastCoreOS nie podaje kół wersji.
         private static Dictionary<string, string> VersionsWithMissingWheels()
@@ -169,24 +234,59 @@ namespace CMS2026_OXL
             max = years.Count > 0 ? years.Max() : 2005;
         }
 
-        // Silniki: kompletne, dostępne w tej wersji gry i sprzedawane w sklepie gry (cena z katalogu).
-        // Części: droższe niż próg z rozkładu cen, bez całych silników (są wyżej) i bez części z ceną 0.
+        // Suma cen nowych części silnika; brak danych = cena z katalogu (zapas, żeby silnik nie wypadł z rynku).
+        private static int EngineNewPrice(Il2CppSystem.Collections.Generic.Dictionary<string, Il2CppCMS.ScriptableObjects.Parts.EnginePartsConfig> look, Dictionary<string, int> partPrice, string engineId, int fallback)
+        {
+            try
+            {
+                if (look == null || !look.ContainsKey(engineId)) return fallback;
+                var parts = look[engineId]?.EngineParts;
+                int sum = 0;
+                for (int i = 0; parts != null && i < parts.Count; i++) if (partPrice.TryGetValue(parts[i], out int pr)) sum += pr;
+                return sum > 0 ? sum : fallback;
+            }
+            catch (Exception ex) { OXLLog.Msg($"[OXL:MARKET] engine price '{engineId}' failed: {ex.Message}"); return fallback; }
+        }
+
+        // Silniki: kompletne i dostępne w tej wersji gry. Cena nowego = suma cen nowych części (EnginePartsLookup), tak jak gra wycenia silnik
+        // (Helper.GetPrice grupy = suma części x stan, sprzedaż do gry = połowa; 2026-11-28, Market.md). Katalog gry podaje dla wszystkich 5005.
+        // Części: wszystkie z gry (karoseria, wnętrze, felgi, opony, moduły), bez 25% najtańszych, bez całych silników (są wyżej) i bez ceny 0.
         private static void AddEnginesAndParts(List<MarketEntry> list)
         {
             var engineIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var partPrice = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in BlastCoreOS.BlastCoreGameDataAPI.GetParts()) if (p != null && !string.IsNullOrEmpty(p.Id)) partPrice[p.Id] = p.Price;
+            var look = Il2CppCMS.Core.GameInventory.Instance?.EngineDataProvider?.EnginePartsLookup;
             foreach (var e in BlastCoreOS.BlastCoreGameDataAPI.GetEngines())
             {
                 if (e == null || !e.Available || !e.BuyableComplete || e.Price <= 0) continue;
                 if (!engineIds.Add(e.Id)) continue;
-                list.Add(new MarketEntry { Category = MarketCategory.EnginesParts, Kind = OXLItemKind.Engine, Id = e.Id, Name = string.IsNullOrWhiteSpace(e.Name) ? e.Id : e.Name, Price = e.Price, Group = "Engine" });
+                list.Add(new MarketEntry { Category = MarketCategory.EnginesParts, Kind = OXLItemKind.Engine, Id = e.Id, Name = string.IsNullOrWhiteSpace(e.Name) ? e.Id : e.Name, Price = EngineNewPrice(look, partPrice, e.Id, e.Price), Group = "Engine", EngineFamily = string.IsNullOrWhiteSpace(e.Family) ? (e.Name ?? "").Split(' ')[0] : e.Family });
             }
 
             var parts = BlastCoreOS.BlastCoreGameDataAPI.GetParts().Where(p => p != null && p.Price > 0 && !engineIds.Contains(p.Id)).ToList();
-            if (parts.Count == 0) { _expensiveThreshold = 0; return; }
+            if (parts.Count == 0) { _minPartPrice = 0; return; }
             var prices = parts.Select(p => p.Price).OrderBy(x => x).ToList();
-            _expensiveThreshold = prices[Math.Min(prices.Count - 1, (int)(prices.Count * ExpensivePercentile))];
-            foreach (var p in parts.Where(p => p.Price >= _expensiveThreshold))
-                list.Add(new MarketEntry { Category = MarketCategory.EnginesParts, Kind = OXLItemKind.Part, Id = p.Id, Name = string.IsNullOrWhiteSpace(p.Name) ? p.Id : p.Name, Price = p.Price, Group = p.ShopGroup ?? "" });
+            _minPartPrice = prices[Math.Min(prices.Count - 1, (int)(prices.Count * MinPricePercentile))];
+            foreach (var p in parts.Where(p => p.Price >= _minPartPrice))
+                list.Add(new MarketEntry { Category = MarketCategory.EnginesParts, Kind = OXLItemKind.Part, Id = p.Id, Name = string.IsNullOrWhiteSpace(p.Name) ? p.Id : p.Name, Price = p.Price, Group = PartGroup(p), IsTire = string.Equals(p.ShopName, "TireShop", StringComparison.OrdinalIgnoreCase), IsRim = string.Equals(p.ShopName, "RimsShop", StringComparison.OrdinalIgnoreCase) });
+        }
+
+        /// <summary>
+        /// Grupa części do paska filtrów zakładki Parts, z danych sklepu gry (bez listy części w kodzie: nowe auta i części po aktualizacji gry
+        /// trafiają same do istniejącej albo nowej grupy). Karoseria, elektronika i wnętrze to w grze kilka grup, gracz widzi jedną.
+        /// </summary>
+        private static string PartGroup(BlastCoreOS.BlastCoreGamePart p)
+        {
+            string g = p.ShopGroup ?? "", shop = p.ShopName ?? "";
+            if (p.IsBody) return "Body";
+            if (shop.Equals("ElectronicsShop", StringComparison.OrdinalIgnoreCase)) return "Electronics";
+            if (shop.Equals("InteriorShop", StringComparison.OrdinalIgnoreCase)) return "Interior";
+            if (g.Equals("Engine", StringComparison.OrdinalIgnoreCase)) return "Engine parts";
+            // Nieznana grupa: nazwa grupy sklepu ("SteeringWheels" -> "Steering Wheels"), a bez niej nazwa sklepu bez "Shop".
+            string raw = g.Length > 0 && !g.Equals("Noinshop", StringComparison.OrdinalIgnoreCase) ? g : (shop.EndsWith("Shop", StringComparison.OrdinalIgnoreCase) ? shop.Substring(0, shop.Length - 4) : shop);
+            if (raw.Length == 0) return "Other";
+            return System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
         }
 
         // Narzędzia i dekoracje z gry (911 w demie), bez obiektów modów i bez darmowych.

@@ -2,7 +2,7 @@
 namespace CMS2026_OXL
 {
     /// <summary>
-    /// Konfiguracja generatora ogłoszeń — tworzona z wartości draft w OXLPanel
+    /// Konfiguracja generatora ogłoszeń aut (ustawienia na oxl.com/settings, OXLSettings)
     /// i przekazywana do ListingSystem przez ApplyConfig().
     /// </summary>
     public class ListingGenConfig

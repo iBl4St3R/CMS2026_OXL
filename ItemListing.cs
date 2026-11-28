@@ -1,5 +1,5 @@
 // ItemListing.cs
-// Ogłoszenie przedmiotu (zakładki Engines & Parts i Tools & Decor, site.md 2). Osobny model od CarListing: inne dane i inna dostawa (paczka zamiast spawnu).
+// Ogłoszenie przedmiotu (zakładki Parts i Tools & Decor, site.md 2 i 16). Osobny model od CarListing: inne dane i inna dostawa (paczka zamiast spawnu).
 
 namespace CMS2026_OXL
 {

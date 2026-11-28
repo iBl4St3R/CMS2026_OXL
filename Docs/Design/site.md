@@ -136,7 +136,7 @@ Pierwsza wersja E3 (`Docs/screens/ss3.png`, `ss4.png`) wyglądała jak sklep z n
 1. **Pełna gra doda ponad 100 modeli**, więc lista aut ma porządny podział: pasek marek z liczbami (zawija się), w "More filters" model wybranej marki, rocznik od (co 5 lat z danych), maks. przebieg, min. moc, napęd, typ sprzedawcy, stan deklarowany, cena. Sortowanie aut: najnowsze, cena, rocznik, przebieg, moc, koniec aukcji.
 2. **"More filters" = okno na wierzchu strony** (przyciemnione tło), każdy wybór od razu zmienia adres i liczbę wyników ("Show N results"), "Clear filters". Aktywne filtry nad listą jako ciemne pigułki z "X". Stan okna w adresie (`more=1`), jak reszta filtrów.
 3. **Moc i moment z gry**: `PhysicsEngineData.GetHP` / `GetMaxTorque` silnika fabrycznego wersji (`MarketCatalog`), napęd, skrzynia, waga, roczniki z `BlastCoreGameDataAPI`.
-4. **Generator aut bierze wszystkie bezpieczne wersje z gry** (`MarketCatalog`): Bolt Nevada i Lacroix Modique R są w OXL bez zmian w kodzie. Paczki zdjęć (MEDRES/LOWRES) i `car_spec.json` zostają tylko jako wzbogacenie 5 aut z 2026 (ceny, kolory, zdjęcia); auto bez nich: cena z wartości wersji w grze (10–34% `carValue`), kolor fabryczny wersji.
+4. (Uzupełnione przez 19: bez paczek 2026 i `car_spec.json`.) **Generator aut bierze wszystkie bezpieczne wersje z gry** (`MarketCatalog`): Bolt Nevada i Lacroix Modique R są w OXL bez zmian w kodzie. Paczki zdjęć (MEDRES/LOWRES) i `car_spec.json` zostają tylko jako wzbogacenie 5 aut z 2026 (ceny, kolory, zdjęcia); auto bez nich: cena z wartości wersji w grze (10–34% `carValue`), kolor fabryczny wersji.
 5. **Strona auta na nowej stronie** (`oxl.com/car/{id}`): parametry z gry jako pigułki (wersja, rocznik, przebieg, kolor po nazwie, silnik, moc, moment, napęd, skrzynia, waga, stan deklarowany, tablica), opis sprzedawcy, "Buy now" (`OXLPanel.TryBuyCar`, pieniądze po spawnie), "Message seller", sprzedawca, lokalizacja, prawa konsumenta, "See also".
 
 ## 13. Kurier OXL i zdjęcie w mailu (prośba użytkownika 2026-11-25, zmienia 9.5)
@@ -155,3 +155,39 @@ Pierwsza wersja E3 (`Docs/screens/ss3.png`, `ss4.png`) wyglądała jak sklep z n
 6. **Geargle** pokazuje ogłoszenia OXL (`BlastCoreWebAPI.RegisterSearchProvider("oxl")`, zakładka "OXL").
 7. **Grafiki** z `geminiPromptOXL.md`: `oxlLogo.png`, `oxlWordmark.png`, `oxlMailBanner.png` w `Resources/Images`; bez nich stary wygląd.
 8. Moc i moment: `GetHP`/`GetMaxTorque` dawały 0 (G36), zapas z krzywej `GetTorque` i `CalculateHP`.
+
+## 15. Kupno auta w toku (użytkownik 2026-11-28)
+
+1. Dostawa auta trwa do kilku sekund (przy zajętym parkingu ok. 6 s, bo OXL próbuje kolejnych miejsc). W tym czasie strona auta pokazuje okno "Delivering your car... Please wait" bez przycisków, które blokuje drugi klik.
+2. Sukces: lista aut z zielonym komunikatem. Porażka (np. parking pełny): gracz zostaje na stronie auta, okno "You cannot buy this car" z powodem; ogłoszenie wraca, nic nie pobrane.
+3. Zdjęcie w mailu po kupnie: 288 px szerokości (było 360).
+
+## 16. Zakładka Parts: wszystkie części auta (użytkownik 2026-11-28, zmienia 9.3)
+
+1. Zakładka "Engines & Parts" nazywa się **"Parts"**: części do auta szeroko pojęte (karoseria, drzwi, zawieszenie, wydech, hamulce, skrzynie, elektronika z modułem ABS, wnętrze, felgi, opony). **Cały silnik to rzadkość**: ok. 5% ogłoszeń zakładki (było 30%).
+2. Katalog z danych gry (`BlastCoreGameDataAPI.GetParts`), bez listy części w kodzie: nowe auta i części po aktualizacji gry wchodzą same. Pomijane: cena 0 i 25% najtańszych (próg liczony z cen w grze, w demie $70; było: tylko 10% najdroższych).
+3. Grupy w pasku filtrów z danych sklepu gry: Body (`IsBody`), Electronics (`ElectronicsShop`), Interior (`InteriorShop`), Engine parts (grupa `Engine`), reszta z nazwy grupy sklepu (Suspension, Exhaust, Brakes, Gearbox, Rims, Tires). Nieznana grupa z aktualizacji dostaje swoją nazwę, nic się nie wywraca.
+4. Losowanie: najpierw grupa z wagą pierwiastka z liczby części w grupie, potem część z grupy, żeby 155 elementów karoserii nie zasłoniło 3 opon.
+5. Dostawa: każda część jako `Item(id)` kurierem gry (sprawdzone 2026-11-28: maska, drzwi, felga, opona, moduł ABS, tłumik, fotel przyjęte przez `DeliveryManager`).
+6. **Opony i felgi mają rozmiar** (użytkownik 2026-11-28: opona "0/0R0" warta 0, felga 0"): rozmiary z configów aut gry (`[3_wheels]`, `[4_wheels_rear]`: `rimSize`, `wheelWidth`, `tireSize`), wybór stały dla ogłoszenia (ziarno = ID), widoczny na liście i w pigułce "Size", ten sam w paczce (`Item.WheelData`). ET felgi 20–40 (config go nie ma).
+7. **Silnik losowany po rodzinie** (I4 B4FM, I4 AQ4C, V6 322BZ, V8 820MAL, V8 D.vik): demo ma 11 wariantów V6 na 17, bez tego prawie zawsze V6.
+8. **Cały silnik siada na stojaku** (2026-11-28): paczka ma jeden przedmiot, silnik złożony jak silnik wyjęty z auta (ID = gniazdo z `EnginePartsPaths`, `NormalID`, `MountObjectData` ze ścieżką gniazda). **Bez części luzem** (użytkownik 2026-11-28: "nie podoba mi się"). Części montowane tylko przy aucie (skrzynia, rozrusznik, początek wydechu) nie wchodzą w skład silnika, tak jak w grze przy wyjmowaniu z auta; OXL zna je z modeli w scenie (`OXLEngineParts`), jeszcze nieznane idą w silniku i stojak je pomija.
+
+## 17. Ogłoszenia osobno dla każdego zapisu gry (ZADANIE pkt 3, 2026-11-28)
+
+1. `listings.dat` (auta) i `items.dat` (przedmioty, paczki u kuriera OXL, pułapki scammera) leżą w katalogu zapisu gry BlastCoreOS: `Mods/BlastCoreOS/Profiles/Profile{slot}/Session/OXL/` (`BlastCoreProfileStorage.DataRoot`). Zapis gry kopiuje `Session` do `Saved` (cały katalog, z OXL), wyjście bez zapisu porzuca zmiany, jak pulpity i bank BlastCoreOS.
+2. Nowa kariera = brak plików = świeże ogłoszenia (generator od razu do celu z ustawień). Inny zapis = jego ogłoszenia.
+3. Dopóki BlastCoreOS nie poda slotu (pierwsze klatki garażu, menu), OXL nie generuje, nie czyta i nie zapisuje ogłoszeń (`OXLSaveSlot`), żeby nic nie trafiło do poprzedniego zapisu. Po podaniu slotu: wczytanie ogłoszeń aut i przedmiotów tego zapisu, czas gry kotwiczony na nowo.
+4. Wspólne dla wszystkich zapisów: ustawienia (`CMS2026_OXL.cfg`) i wiedza o grze (`engine_parts.txt`). Stare wspólne `Mods/CMS2026_OXL/listings.dat` i `items.dat` nie są już używane (wydanie 2027 = czysta instalacja, `rebuild.md` 6).
+5. Ogłoszenia aut zapisują się od razu po pierwszym wygenerowaniu (gra zatwierdza tylko pliki już na dysku; test 2026-11-28: nowa kariera miała aukcje aut tylko w pamięci). BlastCoreOS potwierdził kontrakt (`modules.md`, "Dane modułów per zapis gry"): pisać od razu po zmianie, nie trzymać otwartych plików.
+9. **Ceny silników** (użytkownik 2026-11-28: "5005 to placeholder"): cena nowego = suma cen nowych części (jak wycenia gra), widełki ogłoszenia: od 55% wartości w prawdziwym stanie (gra odkupuje za 50%, więc bez darmowego zysku) do 95% nowego. Silnik w ok. 12% ogłoszeń części, tańsze częściej (waga (najtańszy / cena)^2 dla rodziny i wariantu: I4 AQ4C ok. 42%, V8 po ok. 10%); scammer przy silnikach z 1/5 swojej wagi; uczciwy sprzedaje zwykle silnik w stanie 35–85%, co 10. prawie nowy (88–98%).
+
+## 18. Stopka (użytkownik 2026-11-28)
+
+Stopka jak w oficjalnym serwisie: linki, "Supported by" z logo banku Redline (plik BlastCoreOS `resources/image/redlineLogo.png`, klik otwiera `redline.bank`; bez pliku napis "Redline Bank") i "(c) OXL Marketplace. All rights reserved.". Bez tekstów w stylu porad o kłamiących sprzedawcach.
+
+## 19. Tylko dane gry, bez plików o autach (użytkownik 2026-11-28, zmienia 12.4)
+
+1. Mod buduje aukcje wyłącznie z danych gry: auto, wersja, rocznik, kolory, cena bazowa (`carValue` wersji), części, klasyfikacja zużycia. **Żadnych `car_spec.json`, list aut w kodzie (`CarDefs`), ręcznych map ID (`ToGameId`) ani metadanych starych paczek 2026.** Nowe auto z aktualizacji gry działa bez zmian w modzie.
+2. Zdjęcia: tylko paczka 2027 (`CarPhotoPack`, `CarPhotos/{carId}/...`); auto bez paczki ma zdjęcie z gry ze znaczkiem STOCK PHOTO. Paczkę zdjęć użytkownik dostarczy później.
+3. Usunięte 2026-11-28: `CarSpecLoader.cs` (z rejestrem kolorów), `CarPhotoLoader.cs` (paczki `CarImages_LOWRES`/`MEDRES`), `PhotoCondition.cs`, `CarDefs`, ścieżka cen z JSON w `ListingSystem.RollPrice`, pole `ImageFolder`, komenda `oxl_memory`.

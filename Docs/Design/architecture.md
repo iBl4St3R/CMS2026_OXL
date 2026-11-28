@@ -7,10 +7,9 @@
 | Plik | KB | Rola |
 |---|---|---|
 | `OXLPlugin.cs` | 6 | `MelonMod`: scena "garage", rejestracja stron i nazwy w banku Redline, komendy konsoli `oxl_*`. Klawisz T i przycisk w menu sklepu usunięte 2026-11-25 (`rebuild.md` 1.1). |
-| `OXLPanel.cs` | **182** | Całe UI: lista ogłoszeń, szczegóły, kupno, galeria, ustawienia. Tylko tryb osadzony w przeglądarce BlastCoreOS (`Build…Into(container, ctx)`); tryb samodzielny usunięty 2026-11-25. Czytaj tylko zakresami. |
+| `OXLCarMarket.cs` | 6 | Rynek aut bez UI (od 2026-11-28 zamiast starego `OXLPanel`): `ListingSystem` z loaderami, `TryBuyCar` (kontrakt "pieniądze po spawnie", okno "Delivering" w `OXLSite`), kolor lakieru `HexColor`, tick i reload ogłoszeń dla zapisu gry. |
 | `OXLSite.cs`, `OXLUi.cs` | 25, 7 | **Nowa strona** `oxl.com` (`site.md`): routing po ścieżce (home, cars, parts, tools, search, item/{id}, settings), stan w adresie, karty ze zdjęciami z gry i znaczkiem STOCK PHOTO, kupno przedmiotów, ustawienia. `OXLUi`: klocki UI (pudełko, tekst, przycisk, sprite contain, pole tekstowe). |
-| `OXLFilterPanel.cs` | 41 | Panel filtrów (dropdowny, opcje z `FilterOptionsBuilder`). |
-| `OXLWebPage.cs` | 3 | Rejestracja stron: nowa strona (`OXLSite`) + stare strony aut `oxl.com/listings` i `oxl.com/listing/{id}` (do przeniesienia). `OXLHomePage.cs` usunięty 2026-11-25. |
+| `OXLWebPage.cs` | 1 | Rejestracja strony `OXLSite` w przeglądarce BlastCoreOS i wspólny `OXLCarMarket`. Stary panel (`oxl.com/listings`, `oxl.com/listing/{id}`, `OXLPanel`, `OXLFilterPanel`, `FilterOptionsBuilder`, grafiki `resources/`) usunięty 2026-11-28. |
 | `ListingSystem.cs` | 86 | Generator i cykl życia ogłoszeń (czas gry, TTL, archetypy, ceny). |
 | `SellerNoteBuilder.cs` | **261** | Generator opisów sprzedawców (osobowość, poziom, główna usterka, kolorowane słowa). Tekst dla gracza. Tylko grep. |
 | `SellerProfile.cs` | 17 | Awatary (115, LRU 8, historia 30) i nicki. |
@@ -20,21 +19,22 @@
 | `OXLDelivery.cs` | 6 | Paczka przez system przesyłek gry (`DeliveryManager`): część, kompletny silnik (wypełniany częściami), narzędzie/dekoracja; po czasie albo od razu (godzina 255), stan ukryty. Komenda testowa `oxl_deliver`. |
 | `OXLMail.cs` | 2 | Nadawca "OXL Marketplace" i mail po kupnie (`BlastCoreMailAPI`). |
 | (w `OXLSite.cs`) | | Dostawcy BlastCoreOS: wyniki Geargle (`RegisterSearchProvider`) i paczki kuriera OXL w kalendarzu (`BlastCoreCalendarAPI.RegisterDeliveryProvider`, `ItemListingSystem.GetPendingParcels`). |
-| `OXLPanel.TryBuyCar` | | Kupno auta z nowej strony `oxl.com/car/{id}` (bez starego UI), kontrakt "pieniądze po spawnie", mail ze zdjęciem. |
 | `ItemListing.cs`, `ItemStoryBuilder.cs` | 1, 4 | Ogłoszenie przedmiotu (silnik, część, narzędzie, dekoracja) i opisy sprzedawców: powód sprzedaży jak w życiu + styl archetypu, po angielsku bez myślników. |
 | `ItemListingSystem.cs` | 12 | Generator i cykl życia ogłoszeń przedmiotów (czas gry, limity, perełki 4%), ceny i stan wg archetypu, zapis `Mods/CMS2026_OXL/items.dat`, kupno: saldo → paczka → pobranie z banku → mail. Komendy `oxl_items`, `oxl_items_generate`, `oxl_buyitem`. |
+| `OXLScamParcels.cs` | 4 | Paczki od scammera z podmienioną zawartością: ID dostawy gry (linie "S" w `items.dat`), postfix Harmony na `DeliveryManager.TakeFromStorage` pokazuje komunikat "You got scammed!" przy otwarciu (`scammer.md` 5.6). |
+| `OXLEngineParts.cs` | 3 | Części silnika montowane tylko przy aucie (`canMountUnmountOnlyOnCarLoader`), uczone z modeli w scenie, plik `Mods/CMS2026_OXL/engine_parts.txt`; `OXLDelivery` ich nie wysyła, silnik jak wyjęty z auta (`site.md` 16.8). |
+| `OXLSaveSlot.cs` | 2 | Katalog ogłoszeń bieżącego zapisu gry (`BlastCoreProfileStorage.DataRoot`/OXL); dopóki slot nieznany, ogłoszenia nie są czytane ani zapisywane (`site.md` 17). |
 | `PartCatalog.cs` | 32 | Klasyfikacja części 5 aut demo 2026. |
 | `ScammerLies.cs` | 6 | Kłamstwa scammera L2/L3 w ogłoszeniu auta (kolor, silnik, wersja, moc 5x) i to, co pokazuje strona (`scammer.md`). |
 | `CarPhotoPack.cs` | 12 | **Paczka zdjęć 2027** (`Resources/CarPhotos`, WebP przez ImageSharp w `UserLibs`): skan, wybór koloru i miejsca przy generowaniu, dekodowanie w tle, cache tekstur (`rebuild.md` 8). |
-| `CarPhotoLoader.cs`, `CarSpecLoader.cs`, `PhotoCondition.cs` | 30, 17, 1.5 | Stare paczki 2026 (MEDRES / LOWRES, kolor, config, przedział kondycji), `car_spec.json`; do usunięcia z `CarDefs` (ZADANIE pkt 4). |
 | `ListingPersistence.cs` | 13 | Zapis ogłoszeń `Mods/CMS2026_OXL/listings.dat`. |
 | `OXLSettings.cs`, `ListingGenConfig.cs` | 13, 2 | Ustawienia (trudność, generacja) w `CMS2026_OXL.cfg`. |
 | `GameTimeProvider.cs` | 6 | Czas gry (`TimeManager` przez refleksję, interpolacja sekund). |
-| `CarListing.cs`, `FilterOptionsBuilder.cs`, `NullableShim.cs` | | Model ogłoszenia, opcje filtrów, szim `NullableAttribute`. |
+| `CarListing.cs`, `NullableShim.cs` | | Model ogłoszenia, szim `NullableAttribute`. |
 
 ## Przepływ
 
-Generator (`ListingSystem`) tworzy ogłoszenia w czasie gry → UI (`OXLPanel`) je pokazuje (z `CarPhotoLoader`, `SellerNoteBuilder`, `SellerProfile`) → kupno: kontrola miejsca na parkingu i salda konta w banku Redline → `GameBridge` spawnuje auto i nakłada zużycie → dopiero po udanym spawnie pobranie z konta (`BlastCoreBankAPI.TryCharge`); przy błędzie dostawy ogłoszenie wraca (z zapisem), pieniądze nie są pobierane.
+Generator (`ListingSystem`) tworzy ogłoszenia w czasie gry → strona (`OXLSite`, rynek aut `OXLCarMarket`) je pokazuje (z `CarPhotoPack`, `SellerNoteBuilder`, `SellerProfile`) → kupno: kontrola miejsca na parkingu i salda konta w banku Redline → `GameBridge` spawnuje auto i nakłada zużycie → dopiero po udanym spawnie pobranie z konta (`BlastCoreBankAPI.TryCharge`); przy błędzie dostawy ogłoszenie wraca (z zapisem), pieniądze nie są pobierane.
 
 ## Zasady (z opisu Nexusa 0.5/0.6)
 

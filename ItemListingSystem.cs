@@ -1,5 +1,5 @@
 // ItemListingSystem.cs
-// Generator, cykl życia, zapis i kupno ogłoszeń przedmiotów (Engines & Parts, Tools & Decor), site.md 9.3–9.6.
+// Generator, cykl życia, zapis i kupno ogłoszeń przedmiotów (Parts, Tools & Decor), site.md 9.3–9.6.
 // Dane z MarketCatalog (gra), czas z GameTimeProvider (sekundy gry), dostawa przez OXLDelivery, płatność przez bank Redline,
 // potwierdzenie mailem. Kontrakt kupna: pieniądze schodzą dopiero, gdy gra przyjęła paczkę.
 
@@ -15,7 +15,10 @@ namespace CMS2026_OXL
     public static class ItemListingSystem
     {
         // Ile ogłoszeń naraz w każdej zakładce i jak często przybywają (godziny gry). Perełki rzadko (site.md 9.4).
-        private const float EngineShareOfEnginesParts = 0.30f;
+        // Cały silnik to rzadkość (użytkownik 2026-11-28), ale ma się pojawiać: ok. co 8. ogłoszenie zakładki Parts (było 5%, wcześniej 30%).
+        private const float EngineShareOfEnginesParts = 0.12f;
+        // Silniki sprzedają głównie zwykli ludzie (użytkownik 2026-11-28): scammer ma przy silnikach 1/5 swojej wagi z ustawień.
+        private const float EngineScammerKeep = 0.20f;
         private const float ToolShareOfToolsDecor = 0.50f;
         private const float GemChance = 0.04f;
         private const double CheckEveryHours = 1.0;
@@ -30,17 +33,25 @@ namespace CMS2026_OXL
 
         public static IReadOnlyList<ItemListing> Active => _listings;
 
-        private static string DataPath => Path.Combine(UnityEngine.Application.dataPath, "..", "Mods", "CMS2026_OXL", "items.dat");
+        // Plik bieżącego zapisu gry (OXLSaveSlot, site.md 17); null, gdy slot jeszcze nieznany.
+        private static string DataPath => OXLSaveSlot.PathOf("items.dat");
 
-        /// <summary>Wołane przy wejściu do garażu: wczytanie zapisu (raz na grę).</summary>
+        /// <summary>Wejście do garażu: ogłoszenia stoją, dopóki OXLSaveSlot nie zna zapisu gry (potem ReloadForSlot).</summary>
         public static void OnGarageLoaded()
         {
             _lastCheck = double.NaN;
-            if (_loaded) return;
-            _loaded = true;
+            _loaded = false;
+            if (_sellers != null) return;
             try { _sellers = new SellerProfile(Path.Combine(UnityEngine.Application.dataPath, "..", "Mods", "CMS2026_OXL", "Resources")); }
             catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL:ITEMS] SellerProfile failed: {ex.Message}"); }
+        }
+
+        /// <summary>Slot zapisu znany (OXLSaveSlot): ogłoszenia, paczki u kuriera i pułapki scammera tego zapisu; brak pliku = nowa kariera, pusto.</summary>
+        public static void ReloadForSlot()
+        {
             Load();
+            _loaded = true;
+            _lastCheck = double.NaN;
         }
 
         /// <summary>Co klatkę w garażu: wygasanie i dokładanie ogłoszeń co godzinę gry. Czeka na prawdziwy czas gry i dane rynku.</summary>
@@ -80,6 +91,25 @@ namespace CMS2026_OXL
                 bool engine = _rng.NextDouble() < EngineShareOfEnginesParts;
                 var sub = pool.Where(e => (e.Kind == OXLItemKind.Engine) == engine).ToList();
                 if (sub.Count > 0) pool = sub;
+                // Silnik: najpierw rodzina z gry (V6 322BZ ma 11 wariantów z 17, bez tego prawie zawsze V6), potem wariant. Tańsze częściej
+                // (użytkownik 2026-11-28: lepsze silniki rzadko): waga = (najtańszy / cena)^2 dla rodziny (po jej najtańszym) i dla wariantu w rodzinie,
+                // np. I4 AQ4C ok. 40%, V8 po ok. 10%, mocniejsze odmiany (stroker, turbo) rzadziej niż podstawowe.
+                if (engine && pool.Count > 0)
+                {
+                    var fams = pool.GroupBy(e => e.EngineFamily ?? "").Select(g => g.ToList()).ToList();
+                    float cheapest = Math.Max(1, pool.Min(e => e.Price));
+                    var fam = PickWeighted(fams, f => Math.Pow(cheapest / Math.Max(1f, f.Min(e => e.Price)), 2));
+                    float famMin = Math.Max(1, fam.Min(e => e.Price));
+                    pool = new List<MarketEntry> { PickWeighted(fam, e => Math.Pow(famMin / Math.Max(1f, e.Price), 2)) };
+                }
+                // Części: najpierw grupa (karoseria, zawieszenie, felgi...), waga = pierwiastek z liczby części w grupie, potem część z grupy.
+                // Bez tego 155 elementów karoserii i 224 części silnika zasłaniałyby 3 opony i moduł ABS (użytkownik 2026-11-28: szeroko pojęte części).
+                if (!engine && pool.Count > 0)
+                {
+                    var groups = pool.GroupBy(e => e.Group ?? "").ToList();
+                    double total = groups.Sum(g => Math.Sqrt(g.Count())), pick = _rng.NextDouble() * total;
+                    foreach (var g in groups) { pick -= Math.Sqrt(g.Count()); if (pick <= 0) { pool = g.ToList(); break; } }
+                }
             }
             else
             {
@@ -139,6 +169,7 @@ namespace CMS2026_OXL
         {
             // Te same wagi archetypów co auta (ustawienia OXL, "Seller mix"), żeby gracz sterował liczbą scammerów wszędzie.
             var w = OXLSettings.SavedGenConfig.ArchWeights;
+            if (kind == OXLItemKind.Engine) { w = (int[])w.Clone(); w[3] = (int)Math.Round(w[3] * EngineScammerKeep); }
             int total = Math.Max(1, w.Sum()), r = _rng.Next(total);
             for (int i = 0; i < 4; i++) { r -= w[i]; if (r < 0) return (SellerArchetype)i; }
             return SellerArchetype.Honest;
@@ -172,6 +203,8 @@ namespace CMS2026_OXL
             {
                 switch (l.Archetype)
                 {
+                    // Silnik: zwykle mocno używany, rzadko prawie nowy (użytkownik 2026-11-28).
+                    case SellerArchetype.Honest when l.Kind == OXLItemKind.Engine: l.ActualCondition = _rng.NextDouble() < 0.10 ? R(0.88f, 0.98f) : R(0.35f, 0.85f); l.ApparentCondition = Clamp(l.ActualCondition + R(-0.03f, 0.03f)); factor = 0.30f + 0.50f * l.ActualCondition; break;
                     case SellerArchetype.Honest: l.ActualCondition = R(0.45f, 0.95f); l.ApparentCondition = Clamp(l.ActualCondition + R(-0.03f, 0.03f)); factor = 0.30f + 0.50f * l.ActualCondition; break;
                     case SellerArchetype.Wrecker: l.ActualCondition = R(0.12f, 0.50f); l.ApparentCondition = Clamp(l.ActualCondition + R(0.05f, 0.18f)); factor = 0.18f + 0.40f * l.ApparentCondition; break;
                     case SellerArchetype.Dealer: l.ActualCondition = R(0.30f, 0.70f); l.ApparentCondition = R(0.80f, 0.95f); factor = 0.55f + 0.40f * l.ApparentCondition; break;
@@ -180,7 +213,18 @@ namespace CMS2026_OXL
             }
             // Używane nigdy nie jest droższe niż nowe w sklepie gry (G21: banner $19 przy nowym $17): najwyżej 95% ceny nowego.
             int price = (int)Math.Min(l.NewPrice * factor * OXLSettings.PriceMultiplier, l.NewPrice * 0.95f);
+            // Silnik: nie taniej niż 55% wartości w prawdziwym stanie (gra wycenia silnik na sumę części x stan i odkupuje za połowę);
+            // inaczej gracz kupowałby na OXL i od razu sprzedawał grze z zyskiem. Scammer nie (i tak przysyła co innego).
+            if (l.Kind == OXLItemKind.Engine && l.Archetype != SellerArchetype.Scammer) price = (int)Math.Min(Math.Max(price, l.NewPrice * l.ActualCondition * 0.55f), l.NewPrice * 0.95f);
             l.Price = Math.Max(1, price < 100 ? price : price / 5 * 5);
+        }
+
+        // Losowanie z wagami (wagi > 0); ostatni element jako zapas na błąd zaokrąglenia.
+        private static T PickWeighted<T>(List<T> items, Func<T, double> weight)
+        {
+            double total = items.Sum(weight), r = _rng.NextDouble() * total;
+            foreach (var it in items) { r -= weight(it); if (r <= 0) return it; }
+            return items[items.Count - 1];
         }
 
         private static float Clamp(float v) => Math.Max(0.02f, Math.Min(1f, v));
@@ -203,24 +247,28 @@ namespace CMS2026_OXL
 
             // Scammer przysyła zamiast kupionej rzeczy najtańszy przedmiot gry (scammer.md 5). Gracz dowiaduje się dopiero, gdy paczka przyjdzie.
             var (sendKind, sendId, sendCond) = (l.Kind, l.EntryId, l.ActualCondition);
+            string scamGot = "";   // niepuste = podmiana; nazwa tego, co naprawdę jest w paczce (komunikat przy otwarciu, G73)
             if (l.Archetype == SellerArchetype.Scammer)
             {
                 var junk = MarketCatalog.Cheapest();
-                if (junk != null) { (sendKind, sendId, sendCond) = (junk.Kind, junk.Id, 1f); OXLLog.Msg($"[OXL:SCAM] item {l.Id} '{l.EntryId}' swapped for cheapest '{junk.Id}' (${junk.Price})"); }
+                if (junk != null) { (sendKind, sendId, sendCond) = (junk.Kind, junk.Id, 1f); scamGot = string.IsNullOrEmpty(junk.Name) ? junk.Id : junk.Name; OXLLog.Msg($"[OXL:SCAM] item {l.Id} '{l.EntryId}' swapped for cheapest '{junk.Id}' (${junk.Price})"); }
                 else OXLPlugin.Log.Warning($"[OXL:SCAM] No cheapest item in catalog, scammer {l.Id} sends the real item.");
             }
 
             string eta;
             if (OXLSettings.InstantDelivery)
             {
-                var r = OXLDelivery.Send(sendKind, sendId, sendCond, true);
+                var r = OXLDelivery.Send(sendKind, sendId, sendCond, true, 0, l.Id);
                 if (!r.Ok) { message = "The courier could not take the parcel. Nothing was charged, try again later."; OXLPlugin.Log.Warning($"[OXL:ITEMS] Buy {l.Id} '{l.EntryId}' delivery failed: {r.Error}"); return false; }
+                if (scamGot.Length > 0) OXLScamParcels.Add(r.DeliveryId, l.Name, scamGot, l.SellerNick);
                 eta = OXLDelivery.EtaText(r);
             }
             else
             {
                 if (UnityEngine.Object.FindObjectOfType<Il2CppCMS.Managers.DeliveryManager>() == null) { message = "The courier is not available here. Nothing was charged, try again in your garage."; return false; }
                 var p = ScheduleParcel(l, sendKind, sendId, sendCond);
+                p.ScamGot = scamGot;
+                p.Seller = l.SellerNick ?? "";
                 eta = ParcelEta(p);
             }
 
@@ -247,6 +295,7 @@ namespace CMS2026_OXL
             public float Condition;
             public double DueAt;        // sekundy gry: dzień i godzina dostawy
             public double NextTry;      // po nieudanym nadaniu: następna próba (co godzinę gry)
+            public string ScamGot = "", Seller = "";   // podmiana od scammera: co jest w paczce naprawdę (pusta = uczciwa paczka) i kto sprzedał
         }
 
         private static readonly List<Parcel> _parcels = new List<Parcel>();
@@ -301,8 +350,8 @@ namespace CMS2026_OXL
                 double dayStart = Math.Floor(p.DueAt / 86400.0) * 86400.0;
                 if (now < dayStart || now < p.NextTry) continue;
                 byte hour = now < p.DueAt ? (byte)((p.DueAt % 86400.0) / 3600.0) : (byte)0;
-                var r = OXLDelivery.Send(p.Kind, p.EntryId, p.Condition, false, hour);
-                if (r.Ok) { _parcels.Remove(p); changed = true; OXLLog.Msg($"[OXL:COURIER] '{p.EntryId}' handed to the game courier for {r.Hour}:00"); }
+                var r = OXLDelivery.Send(p.Kind, p.EntryId, p.Condition, false, hour, p.Id);
+                if (r.Ok) { _parcels.Remove(p); changed = true; if (p.ScamGot.Length > 0) OXLScamParcels.Add(r.DeliveryId, p.Name, p.ScamGot, p.Seller); OXLLog.Msg($"[OXL:COURIER] '{p.EntryId}' handed to the game courier for {r.Hour}:00"); }
                 else { p.NextTry = now + 3600.0; changed = true; OXLPlugin.Log.Warning($"[OXL:COURIER] '{p.EntryId}' dispatch failed, retry in 1 game hour: {r.Error}"); }
             }
             if (changed) Save();
@@ -320,6 +369,21 @@ namespace CMS2026_OXL
 
         public static void Clear() { _listings.Clear(); Save(); }
 
+        /// <summary>
+        /// Komenda oxl_end_all: kończy ogłoszenia przedmiotów (cat null = obie zakładki). Następne sprawdzenie (w kolejnej klatce) dokłada
+        /// świeże do celu z ustawień, więc gracz od razu widzi nowe ogłoszenia. Paczki już kupione zostają.
+        /// </summary>
+        public static int EndListings(MarketCategory? cat)
+        {
+            int n = _listings.RemoveAll(l => cat == null || l.Category == cat);
+            _lastCheck = double.NaN;
+            Save();
+            return n;
+        }
+
+        /// <summary>Zapis items.dat z zewnątrz (OXLScamParcels po otwarciu paczki).</summary>
+        public static void SaveNow() => Save();
+
         public static ItemListing Find(string id) => _listings.FirstOrDefault(l => string.Equals(l.Id, id, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>Awatar sprzedawcy (cache SellerProfile, jak przy autach); null, gdy brak pliku.</summary>
@@ -329,13 +393,16 @@ namespace CMS2026_OXL
         // Nowy format w wydaniu 2027 (czysta instalacja, rebuild.md 6). Nieznane przedmioty (po aktualizacji gry) wypadają przy wczytaniu.
         private static void Save()
         {
+            if (DataPath == null) return;   // slot zapisu jeszcze nieznany: nie pisać do cudzego zapisu
             try
             {
                 var sb = new StringBuilder("# OXL item listings v1\n");
                 foreach (var l in _listings)
                     sb.Append(string.Join("\t", new[] { l.Id, l.EntryId, ((int)l.Category).ToString(CultureInfo.InvariantCulture), ((int)l.Kind).ToString(CultureInfo.InvariantCulture), Esc(l.Name), l.NewPrice.ToString(CultureInfo.InvariantCulture), l.Price.ToString(CultureInfo.InvariantCulture), l.ApparentCondition.ToString("R", CultureInfo.InvariantCulture), l.ActualCondition.ToString("R", CultureInfo.InvariantCulture), ((int)l.Archetype).ToString(CultureInfo.InvariantCulture), l.IsGem ? "1" : "0", Esc(l.SellerNick), Esc(l.AvatarPath), l.SellerRating.ToString(CultureInfo.InvariantCulture), Esc(l.Story), Esc(l.Location), l.PostedAt.ToString("R", CultureInfo.InvariantCulture), l.ExpiresAt.ToString("R", CultureInfo.InvariantCulture), Esc(l.Title), l.Level.ToString(CultureInfo.InvariantCulture) })).Append('\n');
                 // Paczki u kuriera OXL: linie "P", żeby kupione, a jeszcze nie nadane rzeczy przetrwały wyjście z gry.
-                foreach (var p in _parcels) sb.Append(string.Join("\t", new[] { "P", ((int)p.Kind).ToString(CultureInfo.InvariantCulture), p.EntryId, Esc(p.Name), p.Condition.ToString("R", CultureInfo.InvariantCulture), p.DueAt.ToString("R", CultureInfo.InvariantCulture), p.NextTry.ToString("R", CultureInfo.InvariantCulture), p.Id })).Append('\n');
+                foreach (var p in _parcels) sb.Append(string.Join("\t", new[] { "P", ((int)p.Kind).ToString(CultureInfo.InvariantCulture), p.EntryId, Esc(p.Name), p.Condition.ToString("R", CultureInfo.InvariantCulture), p.DueAt.ToString("R", CultureInfo.InvariantCulture), p.NextTry.ToString("R", CultureInfo.InvariantCulture), p.Id, Esc(p.ScamGot), Esc(p.Seller) })).Append('\n');
+                // Paczki od scammera już u kuriera gry: linie "S" (komunikat przy otwarciu, G73).
+                OXLScamParcels.AppendLines(sb, Esc);
                 File.WriteAllText(DataPath, sb.ToString());
             }
             catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL:ITEMS] Save failed: {ex.Message}"); }
@@ -345,6 +412,7 @@ namespace CMS2026_OXL
         {
             _listings.Clear();
             _parcels.Clear();
+            OXLScamParcels.Clear();
             try
             {
                 if (!File.Exists(DataPath)) return;
@@ -352,11 +420,12 @@ namespace CMS2026_OXL
                 foreach (var line in File.ReadAllLines(DataPath))
                 {
                     if (line.Length == 0 || line[0] == '#') continue;
+                    if (OXLScamParcels.TryLoadLine(line, Unesc)) continue;
                     if (line.StartsWith("P\t"))
                     {
                         // Paczka u kuriera OXL (kupiona, jeszcze nie nadana przez grę)
                         var pf = line.Split('\t');
-                        try { if (pf.Length >= 7) _parcels.Add(new Parcel { Kind = (OXLItemKind)int.Parse(pf[1], CultureInfo.InvariantCulture), EntryId = pf[2], Name = Unesc(pf[3]), Condition = float.Parse(pf[4], CultureInfo.InvariantCulture), DueAt = double.Parse(pf[5], CultureInfo.InvariantCulture), NextTry = double.Parse(pf[6], CultureInfo.InvariantCulture), Id = pf.Length > 7 ? pf[7] : pf[2] + "_" + pf[5] }); }
+                        try { if (pf.Length >= 7) _parcels.Add(new Parcel { Kind = (OXLItemKind)int.Parse(pf[1], CultureInfo.InvariantCulture), EntryId = pf[2], Name = Unesc(pf[3]), Condition = float.Parse(pf[4], CultureInfo.InvariantCulture), DueAt = double.Parse(pf[5], CultureInfo.InvariantCulture), NextTry = double.Parse(pf[6], CultureInfo.InvariantCulture), Id = pf.Length > 7 ? pf[7] : pf[2] + "_" + pf[5], ScamGot = pf.Length > 8 ? Unesc(pf[8]) : "", Seller = pf.Length > 9 ? Unesc(pf[9]) : "" }); }
                         catch { skipped++; }
                         continue;
                     }

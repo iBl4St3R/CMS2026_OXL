@@ -89,28 +89,35 @@ namespace CMS2026_OXL
 
         private static IEnumerator DoSpawn(string gameCarId, CarListing listing, Action<SpawnResult> onDone)
         {
-            var free = Il2CppCMS.Garage.CarLoaderPlaces.Get().GetPlaceForLoadCar();
-            if (free == null) { onDone?.Invoke(SpawnResult.NoFreeSlot); yield break; }
+            // Miejsce z gry (GetPlaceForLoadCar) potrafi być "wolne", ale nie przyjmować auta (2026-11-28: po zapełnieniu parkingu skryptem
+            // dwa puste CarLoadery z IsCarLoaded()=true i done=true ignorowały LoadCar). Dlatego czekamy na CarID, nie na done (done jest
+            // już true przed wczytaniem), a gdy miejsce auta nie przyjmie, próbujemy kolejnego pustego. Żadne nie przyjęło = parking pełny.
+            var first = Il2CppCMS.Garage.CarLoaderPlaces.Get().GetPlaceForLoadCar();
+            if (first == null) { onDone?.Invoke(SpawnResult.NoFreeSlot); yield break; }
+            var candidates = new List<Il2CppCMS.Core.Car.CarLoader> { first };
+            foreach (var cl in GetLoaders()) if (cl != null && cl.Pointer != first.Pointer && string.IsNullOrWhiteSpace(cl.CarID) && cl.gameObject.GetComponent<Il2Cpp.CarDebug>() != null) candidates.Add(cl);
 
-            try { free.GetIl2CppType().GetMethod("UnloadCar")?.Invoke(free, null); }
-            catch { }
-
-            yield return new WaitForSeconds(0.2f);
-            yield return new WaitForFixedUpdate();
-
-            var debugComp = free.gameObject.GetComponent<Il2Cpp.CarDebug>();
-            if (debugComp == null) { onDone?.Invoke(SpawnResult.NoCarDebug); yield break; }
-
-            OXLPlugin.Log.Msg($"CONFIG DO RESPA: {listing.CarConfig}");
-            //zawsze respi 0 -> dziwne...
-            debugComp.LoadCar(gameCarId, listing.CarConfig);
-
-            float timeout = 10f;
-            while (!free.done && timeout > 0f)
+            Il2CppCMS.Core.Car.CarLoader free = null;
+            bool sawDebug = false;
+            foreach (var place in candidates)
             {
-                timeout -= 0.1f;
-                yield return new WaitForSeconds(0.1f);
+                var debugComp = place.gameObject.GetComponent<Il2Cpp.CarDebug>();
+                if (debugComp == null) continue;
+                sawDebug = true;
+                OXLLog.Msg($"[OXL:BUY] LoadCar {gameCarId} cfg={listing.CarConfig} on {place.gameObject.name} (loaded={place.IsCarLoaded()} done={place.done})");
+                try { debugComp.LoadCar(gameCarId, listing.CarConfig); }
+                catch (Exception ex) { OXLPlugin.Log.Warning($"[OXL:BUY] LoadCar on {place.gameObject.name} failed: {ex.Message}"); continue; }
+
+                // Wczytanie trwa 0,1–0,4 s (Player.log). 3 s bez CarID = to miejsce auta nie przyjmie.
+                float wait = 3f;
+                while (string.IsNullOrWhiteSpace(place.CarID) && wait > 0f) { wait -= 0.1f; yield return new WaitForSeconds(0.1f); }
+                if (string.IsNullOrWhiteSpace(place.CarID)) { OXLPlugin.Log.Warning($"[OXL:BUY] {place.gameObject.name} did not take the car, trying the next free place."); continue; }
+                float timeout = 10f;
+                while (!place.done && timeout > 0f) { timeout -= 0.1f; yield return new WaitForSeconds(0.1f); }
+                free = place;
+                break;
             }
+            if (free == null) { onDone?.Invoke(sawDebug ? SpawnResult.NoFreeSlot : SpawnResult.NoCarDebug); yield break; }
 
             yield return new WaitForFixedUpdate();
 
@@ -145,7 +152,7 @@ namespace CMS2026_OXL
                 var allowedColors = cl.AllowedColors;
                 if (allowedColors == null || allowedColors.Count == 0) return;
 
-                Color targetColor = OXLPanel.HexColor(listing);
+                Color targetColor = OXLCarMarket.HexColor(listing);
                 int bestIdx = 0;
                 float bestDist = float.MaxValue;
                 for (int ci = 0; ci < allowedColors.Count; ci++)
@@ -224,7 +231,7 @@ namespace CMS2026_OXL
                 var allowedColors = cl.AllowedColors;
                 if (allowedColors != null && allowedColors.Count > 0)
                 {
-                    Color targetColor = OXLPanel.HexColor(listing);   // was: OXLPanel.HexColor(listing.Color)
+                    Color targetColor = OXLCarMarket.HexColor(listing);
                     int bestIdx = 0;
                     float bestDist = float.MaxValue;
                     for (int ci = 0; ci < allowedColors.Count; ci++)
@@ -1244,14 +1251,10 @@ namespace CMS2026_OXL
                     x => x.TryCast<Il2CppCMS.Core.Car.CarLoader>()));
         }
 
+        // InternalId ogłoszenia = "{id auta w grze}_{4 cyfry}", np. "car_boltnevada_4821" (tylko dane gry, bez mapy aut 2026; 2026-11-28).
         internal static string ToGameId(string internalId)
         {
-            if (internalId.StartsWith("car_dnb_censor")) return "car_dnbcensor";
-            if (internalId.StartsWith("car_katagiri_tamago")) return "car_katagiritamagobp";
-            if (internalId.StartsWith("car_luxor_streamliner")) return "car_luxorstreamlinermk3";
-            if (internalId.StartsWith("car_mayen_m5")) return "car_mayenm5";
-            if (internalId.StartsWith("car_salem_aries")) return "car_salemariesmk3";
-            // Auta z danych gry (2026-11-25): InternalId = "{id auta w grze}_{losowe}", np. "car_boltnevada_4821".
+            if (string.IsNullOrEmpty(internalId)) return "";
             int us = internalId.LastIndexOf('_');
             if (us > 0 && internalId.Length - us - 1 == 4 && int.TryParse(internalId.Substring(us + 1), out _)) return internalId.Substring(0, us);
             return internalId;

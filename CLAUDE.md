@@ -11,9 +11,8 @@ Mod do gry **Car Mechanic Simulator 2027** (Demo; Unity 6000.3, **IL2CPP**, Melo
 
 | Ścieżka | Co tam jest |
 |---|---|
-| `*.cs` (root) | Kod moda, płasko, 20 plików (~950 KB, w tym `SellerNoteBuilder.cs` 261 KB i `OXLPanel.cs` 182 KB). Mapa i przepływ: `Docs/Design/architecture.md`. |
+| `*.cs` (root) | Kod moda, płasko, 28 plików (~730 KB, w tym `SellerNoteBuilder.cs` 261 KB i `ListingSystem.cs` 86 KB). Mapa i przepływ: `Docs/Design/architecture.md`. |
 | `archetypes.md` | Techniczny opis systemu archetypów (v0.3.0). Źródło prawdy dla logiki cen, uczciwości i zużycia. |
-| `resources/` | Grafiki kategorii strony głównej. Nie zmieniaj bez prośby. |
 | `Scripts/` | `_build_check.sh` (kompilacja bez gry), `_check.sh` (sprawdzenie skryptu REPL), skrypty REPL `probe_*.cs` / `try_*.cs`. **Wyłączone z kompilacji w csproj.** |
 | `Docs/Research/Port2027.md` | **Co się zmieniło w API gry 2027** (42 błędy, zamienniki, nowe auta, stan BlastCoreOS). Zacznij od tego. |
 | `Docs/PlayerInputFix.md` | Zgłoszenie od agenta BlastCoreOS (2026-11-22): postać idzie dalej po otwarciu konsoli F7. Dotyczy kodu **Simple Console** (`DevConsoleComponent`), nie OXL; OXL miał ten sam wzorzec w `SetPlayerInput`, usunięty 2026-11-25 z trybem samodzielnym. |
@@ -22,14 +21,14 @@ Mod do gry **Car Mechanic Simulator 2027** (Demo; Unity 6000.3, **IL2CPP**, Melo
 | `Docs/Design/` | Jak działa mod i dlaczego (`architecture.md`). **`rebuild.md`: decyzje i etapy przebudowy na 2027 (aktualny plan).** |
 | `Docs/BACKLOG.md` | Otwarte zadania, znaleziska, ryzyka. Zrobione idą do `Docs/History/backlog-done.md`. |
 | `Docs/playtestGoals.md` | Goale do sprawdzenia w grze (`G<n>`). Zasady na górze pliku. |
-| `Docs/Release.md` | Checklista publikacji, historia wydań, lista tymczasowych rzeczy w kodzie. |
+| `Docs/Release.md` | Checklista publikacji, historia wydań, lista tymczasowych rzeczy w kodzie. Do wydania: `README.md`, `CHANGELOG.md` (root), `Docs/NexusOpis.md` (BBCode), zrzuty `Docs/zdjeciaPodRelease/`. |
 | `Docs/ZADANIE.md` | Bieżące zadanie (komenda `/zadanie`). |
 | `Docs/ForOtherRepos/` | Dokumenty napisane tutaj dla innych repo użytkownika (agent nie ma tam prawa zapisu): do przeniesienia ręcznie. |
 | `Docs/History/` | Archiwum (dziennik odkryć `log.md`, zrobione zadania). Tylko grepem. |
 
 **Nie czytaj i nie zmieniaj:** `bin/`, `obj/`, `.vs/`, `.git/`, `*.sln`, `logo.png`, `archetypes.png`. `CMS2026_OXL.csproj` tylko, gdy zadanie tego wymaga.
 
-**Duże pliki czytaj wyłącznie grepem i zakresami:** `SellerNoteBuilder.cs`, `OXLPanel.cs`, `ListingSystem.cs`, `GameBridge.cs`, `OXLFilterPanel.cs`.
+**Duże pliki czytaj wyłącznie grepem i zakresami:** `SellerNoteBuilder.cs`, `ListingSystem.cs`, `OXLSite.cs`, `GameBridge.cs`.
 
 ### Wiedza wspólna (tylko odczyt, w innych repo użytkownika)
 
@@ -81,7 +80,7 @@ Zakazy edycji poza repo są też w `.claude/settings.json` (deny `Edit` dla Blas
 - **Zmiany pokazywane w rozmowie:** zmieniona metoda w całości; kilka linii + 2 linie kontekstu; nowe składowe z 2 poprzedzającymi liniami; >2 miejsca w pliku = cały plik; nowe pliki w całości. Przy pracy agentowej edytuj pliki i wypisz zmiany.
 - **Pełne ścieżki plików** w każdej odpowiedzi.
 - **Komentarze po polsku**, mówią "dlaczego" i "co gracz widzi".
-- **Logi:** `Log.Msg/Warning` z prefiksem `[OXL]` albo `[OXL:TAG]` (istniejące: `LGSYS`, `PERSIST`, `TIME`, `WRECKER`; `CarPhotoLoader` ma `[PhotoLoader]`), po angielsku, z konkretnymi wartościami. Mod ma przełącznik `oxl_logs on|off`, **domyślnie ciche**: ważne komunikaty błędów (kupno, zapis) muszą iść zawsze.
+- **Logi:** `Log.Msg/Warning` z prefiksem `[OXL]` albo `[OXL:TAG]` (istniejące m.in.: `LGSYS`, `PERSIST`, `GEN`, `PRICE`, `ITEMS`, `DELIVERY`, `SCAM`, `SAVE`, `ENGINE`, `PHOTO`), po angielsku, z konkretnymi wartościami. Mod ma przełącznik `oxl_logs on|off`, **domyślnie ciche**: ważne komunikaty błędów (kupno, zapis) muszą iść zawsze.
 - **Bez myślników** (`—`, `–`, ` - ` jako myślnik) w nowych tekstach dla gracza (opisy sprzedawców, UI, README, Nexus); istniejących tekstów nie przepisuj masowo bez prośby. Nie dotyczy komentarzy ani `Docs/`.
 - **Nie zostawiaj martwego kodu.** Usuwając coś, usuń też wpisy w dokumentach albo wpisz to do `BACKLOG.md`.
 
@@ -93,6 +92,9 @@ Szczegóły i pułapki: `C:\Users\usmat\source\repos\GlideRail\Docs\Research\Rep
 - **Prosząc o uruchomienie, zawsze podawaj pełną komendę w osobnej linii kodu:** `runfile C:\Users\usmat\source\repos\CMS2026_OXL\Scripts\<nazwa>.cs`. Nigdy sama nazwa pliku (względna ścieżka szuka w folderze konsoli w grze). Komenda to `runfile`, nie `run`.
 - Wynik `Print` trafia do `MelonLoader/Latest.log` (prefiks `[CMS2027_Simple__Console]`): czytasz log grepem, nie prosisz o przepisywanie.
 - Skrypt, który zmienia stan auta albo pieniądze: napisz w poleceniu "zapisz grę przed".
+
+### Test w grze (Agent Bridge, Simple Console 1.4.0+, od 2026-11-28)
+Instrukcja: `C:\Users\usmat\source\repos\CMS2026-Simple-Console\Docs\AgentBridge_ForAgents.md`. Gdy `bash C:/Users/usmat/source/repos/CMS2026-Simple-Console/Scripts/game.sh status` daje `inGame:true`, testuj sam: `game.sh cmd "oxl_status"`, `game.sh eval C:/Users/usmat/source/repos/CMS2026_OXL/Scripts/<nazwa>.cs` (po `_check.sh`). Wynik w odpowiedzi JSON; logi `[OXL…]` dalej w `Latest.log` (najpierw `game.sh cmd "oxl_logs on"`). Nie odpowiada = poproś o uruchomienie gry przez Steam i `agent_bridge on` + `agent_bridge confirm`. Użytkownik jest potrzebny do oceny wyglądu i restartu gry po buildzie. Przed pierwszym testem zmieniającym stan gry zapytaj i poproś o zapis.
 - Każdy nowy skrypt badawczy = goal z `OUA:` w `Docs/playtestGoals.md`.
 
 ## Przebieg pracy
@@ -109,4 +111,4 @@ Szczegóły i pułapki: `C:\Users\usmat\source\repos\GlideRail\Docs\Research\Rep
 
 ## Stan projektu
 
-Wersja w kodzie **0.6.0** (2026, alpha), `MelonGame` jeszcze 2026. **Zależności gotowe na 2027 i wydane:** Konsola, Framework (>= 0.4.0), **BlastCoreOS 0.2.0** (Nexus, 2026-11-23; API dla modułów rozszerzone: przeglądarka z podstronami i `Refresh`, bank `BlastCoreBankAPI`, poczta `BlastCoreMailAPI`). **Teraz (2026-11-25): gruntowna przebudowa OXL jako dedykowanej strony na API BlastCoreOS** (plan w `Docs/ZADANIE.md`): ogłoszenia z paczek zdjęć w folderze gry (kolory, miejsca, stany; sesja fotografa `totalMaker.cs`, zdjęcia w WebP), nowy wygląd panelu, ustawienia poza OXL, dolny wiersz panelu nie mieści się na ekranie. **Stan 2026-11-25 (koniec dnia):** OXL działa w 2027 jako strona `oxl.com` w przeglądarce BlastCoreOS (wygląd serwisu ogłoszeń, `site.md` 11–14): auta ze wszystkich bezpiecznych wersji gry (silnik, felgi, opony z dema), silniki, drogie części, narzędzia i dekoracje, filtry, kurier OXL (jutro/pojutrze) przez system przesyłek gry, bank Redline, maile, Geargle, kalendarz. Wiele goali czeka na test. **Plan na następny dzień: `Docs/ZADANIE.md`.** Archiwum dnia: `Docs/History/zadanie-2026-11-25.md`. Demo 2027 ma 2 nowe auta bez danych OXL. Szczegóły: `Docs/Research/Port2027.md`.
+Wersja w kodzie **0.7.0** (do wydania, CMS 2027), `MelonGame` 2027. Stan 2026-11-28: OXL to tylko strona `oxl.com` w przeglądarce BlastCoreOS (stary panel `OXLPanel` usunięty, rynek aut w `OXLCarMarket`). **Wszystko z danych gry** (`site.md` 19): auta, wersje, ceny, kolory, części, klasyfikacja zużycia; bez `car_spec.json`, list aut i starych paczek 2026. Zakładka Parts ze wszystkimi częściami (silniki na stojak w całości, opony i felgi z rozmiarem, ceny silników z części), scammer z komunikatem przy paczce, kurier OXL z kalendarzem, bank Redline, poczta, Geargle, "Check on wiki" (AutoFreaks), ogłoszenia per zapis gry (`OXLSaveSlot`, katalog zapisu BlastCoreOS). Testy agent robi sam przez Agent Bridge. **Wymaga BlastCoreOS 0.3.0** (API danych gry, kalendarza, katalogu zapisu; jeszcze niewydany, wydać razem). Paczka zdjęć osobno: CarPhotos BASE v2. Do wydania: `Docs/Release.md` (checklista, `Docs/NexusOpis.md`, `README.md`).

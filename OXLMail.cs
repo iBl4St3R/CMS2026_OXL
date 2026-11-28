@@ -54,7 +54,7 @@ namespace CMS2026_OXL
                     $"[b]Delivery:[/b] {deliveryText}\n\n" +
                     (deliveryText.Contains("parking lot") ? "" : "Your parcel will wait in the delivery area of your garage.\n") +
                     "Remember: on OXL you buy used goods as described by the seller. Check the condition before you use anything." +
-                    // Zdjęcie na samym dole (użytkownik 2026-11-25), mniejsze (OXLUi.ExportSprite, 360 px).
+                    // Zdjęcie na samym dole (użytkownik 2026-11-25), mniejsze (OXLUi.ExportSprite, 288 px).
                     (string.IsNullOrEmpty(imageFile) ? "" : $"\n\n[img={imageFile}]");
                 BlastCoreOS.BlastCoreMailAPI.Send(SenderId, $"Order confirmed: {itemName}", body, false, "oxl-buy-" + listingId, "");
             }

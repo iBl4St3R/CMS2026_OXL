@@ -9,9 +9,6 @@ namespace CMS2026_OXL
 {
     public class ListingSystem
     {
-        private readonly CarPhotoLoader _photoLoader;
-        private readonly CarSpecLoader _specLoader;
-
         // ── Konfiguracja — domyślna, nadpisywana przez ApplyConfig() ─────────────
         private ListingGenConfig _config = new ListingGenConfig();
 
@@ -33,28 +30,19 @@ namespace CMS2026_OXL
         private const float GenCheckInterval = ListingGenConfig.SecondsPerGameHour;
 
 		// ── Konstruktor ──────────────────────────────────
-		public ListingSystem(CarPhotoLoader photoLoader, CarSpecLoader specLoader, SellerProfile sellerProfile)
+		public ListingSystem(SellerProfile sellerProfile)
 		{
-			_photoLoader = photoLoader;
-			_specLoader = specLoader;
 			_sellerProfile = sellerProfile;
 		}
 
 
+		// Auto do wyceny: z wersji w danych gry (MarketCatalog), bez listy aut w kodzie.
 		private class CarDef
         {
-            public string Make, Model, ImageFolder, InternalId;
+            public string Make, Model, InternalId;
             public int MinYear, MaxYear, MinPrice, MaxPrice;
         }
 
-        private static readonly CarDef[] CarDefs =
-        {
-            new CarDef { Make = "DNB",      Model = "Censor",         ImageFolder = "DNB Censor",          InternalId = "car_dnb_censor",          MinYear = 1991, MaxYear = 1992, MinPrice = 8000,  MaxPrice = 28000 },
-            new CarDef { Make = "Katagiri", Model = "Tamago BP",       ImageFolder = "Katagiri Tamago BP",  InternalId = "car_katagiri_tamago",      MinYear = 2000, MaxYear = 2005, MinPrice = 3500,  MaxPrice = 12000 },
-            new CarDef { Make = "Luxor",    Model = "Streamliner Mk3", ImageFolder = "Luxor Streamliner Mk3", InternalId = "car_luxor_streamliner",  MinYear = 1992, MaxYear = 1996, MinPrice = 4000,  MaxPrice = 14000 },
-            new CarDef { Make = "Mayen",    Model = "M5",              ImageFolder = "Mayen M5",            InternalId = "car_mayen_m5",             MinYear = 2008, MaxYear = 2015, MinPrice = 8000,  MaxPrice = 18000 },
-            new CarDef { Make = "Salem",    Model = "Aries MK3",       ImageFolder = "Salem Aries MK3",     InternalId = "car_salem_aries",          MinYear = 2003, MaxYear = 2008, MinPrice = 4500,  MaxPrice = 15000 },
-        };
 
         // ══════════════════════════════════════════════════════════════════════
         //  ACTIVE LISTINGS
@@ -149,6 +137,8 @@ namespace CMS2026_OXL
                 int seedCount = _config.MaxListings;
                 while (ActiveListings.Count < seedCount && AddGenerated()) { }
                 _initialSeeded = true;
+                // Zapis od razu: gra zatwierdza tylko pliki już na dysku (site.md 17); bez tego nowa kariera po zapisie gry miała inne auta.
+                Save();
                 _lastGenCheckTime = _gameTime;
                 return;
             }
@@ -193,6 +183,24 @@ namespace CMS2026_OXL
         public void Save() => ListingPersistence.Save(ActiveListings, _gameTime, _gameTimeOrigin);
         private List<(CarListing listing, double remaining)> _pendingRestore = null;
 
+
+        /// <summary>
+        /// Slot zapisu znany (OXLSaveSlot, site.md 17): ogłoszenia aut tego zapisu od zera. Czas gry kotwiczony na nowo (inny zapis = inny czas),
+        /// brak pliku = nowa kariera, generator od razu dokłada do celu z ustawień.
+        /// </summary>
+        public void ReloadForSlot()
+        {
+            ActiveListings = new List<CarListing>();
+            _gameTimeOrigin = double.NaN;
+            _originFromRealTM = false;
+            _tmWaitTimer = 0f;
+            _gameTime = 0f;
+            _lastGenCheckTime = 0f;
+            _initialSeeded = false;
+            _justRestored = false;
+            _pendingRestore = null;
+            LoadSaved();
+        }
 
         public void LoadSaved()
         {
@@ -258,28 +266,22 @@ namespace CMS2026_OXL
             var rng = new Random();
 
             // ── Auto i wersja: wszystkie bezpieczne wersje z danych gry (MarketCatalog, site.md 9.3), także auta, których mod nie zna ──
-            // Gracz zobaczy każde auto gry (w demie 7, w pełnej grze ponad 100) bez zmian w kodzie. 5 aut z 2026 ma dodatkowo
-            // paczkę zdjęć i car_spec.json (dawne CarDefs): wtedy ceny i kolory z nich, inaczej z danych wersji.
+            // Gracz zobaczy każde auto gry (w demie 7, w pełnej grze ponad 100) bez zmian w kodzie. Wszystko z danych gry
+            // (użytkownik 2026-11-28: bez car_spec.json i listy aut w kodzie); zdjęcia tylko z paczki 2027 (CarPhotoPack), bez niej zdjęcie z gry.
             if (!MarketCatalog.EnsureBuilt()) { OXLPlugin.Log.Warning("[OXL:GEN] Game data not ready; listing skipped."); return null; }
             var versions = MarketCatalog.In(MarketCategory.Cars).ToList();
             if (versions.Count == 0) { OXLPlugin.Log.Warning("[OXL:GEN] No spawnable car version; listing skipped."); return null; }
             var entry = versions[rng.Next(versions.Count)];
             int carConfig = entry.Version;
-            var known = CarDefs.FirstOrDefault(d => GameBridge.ToGameId(d.InternalId) == entry.CarId);
             int value = Math.Max(1000, entry.Price);
-            var def = known ?? new CarDef { Make = entry.Make, Model = entry.Model, ImageFolder = "", InternalId = entry.CarId, MinYear = entry.YearMin, MaxYear = Math.Max(entry.YearMin, entry.YearMax), MinPrice = value / 10, MaxPrice = value * 34 / 100 };
+            // Widełki ceny auta z wartości wersji w grze (carValue): używane 10–34% wartości nowego, potem archetyp i stan (RollPrice).
+            var def = new CarDef { Make = entry.Make, Model = entry.Model, InternalId = entry.CarId, MinYear = entry.YearMin, MaxYear = Math.Max(entry.YearMin, entry.YearMax), MinPrice = value / 10, MaxPrice = value * 34 / 100 };
             int year = rng.Next(def.MinYear, def.MaxYear + 1);
 
-            // ── Kolor: z paczki zdjęć, gdy jest dla tej wersji; inaczej losowy kolor fabryczny wersji ("#RRGGBB") ──
+            // ── Kolor: losowy kolor fabryczny wersji ("#RRGGBB"); paczka zdjęć niżej może go zmienić na kolor ze zdjęć ──
             string color = "white";
             int colorIndex = 0;
-            string[] packColors = (_photoLoader != null && known != null) ? _photoLoader.GetAvailableColors(def.ImageFolder, carConfig) : new string[0];
-            if (packColors.Length > 0)
-            {
-                color = packColors[rng.Next(packColors.Length)];
-                colorIndex = _photoLoader.GetColorIndex(def.ImageFolder, color, carConfig);
-            }
-            else if (entry.Colors != null && entry.Colors.Length > 0)
+            if (entry.Colors != null && entry.Colors.Length > 0)
                 color = entry.Colors[rng.Next(entry.Colors.Length)];
 
             var archetype = RollArchetype(rng);
@@ -300,24 +302,14 @@ namespace CMS2026_OXL
             float bodyCondition = RollBodyCondition(archetype, level, actual, rng);
 
             // ── Cena ───────────────────────────────────────────────────────────
-            // Pobierz dane cenowe ze spec dla tego auta
-            var spec = _specLoader?.Get(def.InternalId, carConfig);
-            var archetypePrices = spec?.ArchetypePrices;
-            string specSource = (archetypePrices != null && archetypePrices.Count > 0)
-                ? $"JSON ({archetypePrices.Count} keys)"
-                : "FALLBACK (no spec data)";
-
-            int price = RollPrice(def, archetype, level, apparent, actual, year, faults, rng, archetypePrices);
-            int fairValue = CalcFairValue(actual, archetypePrices);
-            if (fairValue <= 0)
-                fairValue = Mathf.Max(300, Mathf.RoundToInt(
-                    Mathf.Lerp(def.MinPrice, def.MaxPrice, actual) * YearFactor(year)
-                    * OXLSettings.PriceMultiplier / 50f) * 50);
+            int price = RollPrice(def, archetype, level, apparent, actual, year, faults, rng);
+            int fairValue = Mathf.Max(300, Mathf.RoundToInt(
+                Mathf.Lerp(def.MinPrice, def.MaxPrice, actual) * YearFactor(year)
+                * OXLSettings.PriceMultiplier / 50f) * 50);
 
             OXLLog.Msg($"[OXL:PRICE] ── PRICE CALC ──────────────────────────────");
-            OXLLog.Msg($"[OXL:PRICE] Car:       {def.Make} {def.Model} {year}");
-            OXLLog.Msg($"[OXL:PRICE] SpecSrc:   {specSource}");
-            OXLLog.Msg($"[OXL:PRICE] Archetype: {archetype} L{level}  key={ArchetypeKey(archetype, level)}");
+            OXLLog.Msg($"[OXL:PRICE] Car:       {def.Make} {def.Model} {year} (game value ${value:N0})");
+            OXLLog.Msg($"[OXL:PRICE] Archetype: {archetype} L{level}");
             OXLLog.Msg($"[OXL:PRICE] Apparent:  {apparent:P0}  Actual: {actual:P0}");
             OXLLog.Msg($"[OXL:PRICE] Price:     ${price:N0}   FairValue: ${fairValue:N0}");
             OXLLog.Msg($"[OXL:PRICE] ─────────────────────────────────────────────");
@@ -343,7 +335,6 @@ namespace CMS2026_OXL
                 Registration = GenReg(rng),
                 Make = def.Make,
                 Model = def.Model,
-                ImageFolder = def.ImageFolder,
                 Year = year,
                 Price = price,
                 FairValue = fairValue,
@@ -366,11 +357,9 @@ namespace CMS2026_OXL
             };
 
 
-            // Photo files wybrane raz, z uwzględnieniem konfigu
-            // Zdjęcia z paczki tylko dla aut z paczką; bez niej strona pokazuje zdjęcie z gry ze znaczkiem STOCK PHOTO (site.md 10).
-            try { listing.PhotoFiles = string.IsNullOrEmpty(def.ImageFolder) ? new List<string>() : (_photoLoader?.SelectPhotoFiles(listing) ?? new List<string>()); }
-            catch (Exception ex) { OXLLog.Msg($"[OXL:GEN] photos for {def.Make} {def.Model}: {ex.Message}"); listing.PhotoFiles = new List<string>(); }
-            // Paczka zdjęć 2027 ma pierwszeństwo: kolor z paczki i zdjęcia jednego miejsca w stanie karoserii auta (CarPhotoPack, zasada 5).
+            // Paczka zdjęć 2027: kolor z paczki i zdjęcia jednego miejsca w stanie karoserii auta (CarPhotoPack, zasada 5).
+            // Bez paczki dla tego auta strona pokazuje zdjęcie z gry ze znaczkiem STOCK PHOTO (site.md 10).
+            listing.PhotoFiles = new List<string>();
             CarPhotoPack.TryAssign(listing, entry.CarId, rng);
             // Kłamstwa scammera L2/L3 (scammer.md 3) po ustaleniu koloru, przed opisem, który z nich korzysta.
             ScammerLies.Roll(listing, entry, rng);
@@ -388,54 +377,6 @@ namespace CMS2026_OXL
 
 
             return listing;
-        }
-
-        public static Dictionary<string, (string carId, string[] colors)> GetColorRegistry(CarSpecLoader specLoader)
-        {
-            var result = new Dictionary<string, (string, string[])>();
-            CarColorRegistry.Clear();                                         // NEW
-
-            foreach (var def in CarDefs)
-            {
-                var spec = specLoader?.Get(def.InternalId, 0);
-
-                if (spec != null && !string.IsNullOrEmpty(spec.CarId)
-                    && spec.ColorNames != null && spec.ColorNames.Length > 0)
-                {
-                    var validNames = spec.ColorNames.Where(n => !string.IsNullOrEmpty(n)).ToArray();
-                    if (validNames.Length > 0)
-                    {
-                        result[def.ImageFolder] = (def.InternalId, validNames);
-                        OXLPlugin.Log.Msg(
-                            $"[OXL:REGISTRY] '{def.InternalId}': {validNames.Length} colors from spec");
-
-                        // NEW — register hexes
-                        if (spec.ColorHexes != null)
-                        {
-                            int n = Math.Min(spec.ColorNames.Length, spec.ColorHexes.Length);
-                            int reg = 0;
-                            for (int i = 0; i < n; i++)
-                            {
-                                if (!string.IsNullOrEmpty(spec.ColorNames[i])
-                                 && !string.IsNullOrEmpty(spec.ColorHexes[i]))
-                                {
-                                    CarColorRegistry.Register(def.ImageFolder,
-                                        spec.ColorNames[i], spec.ColorHexes[i]);
-                                    reg++;
-                                }
-                            }
-                            OXLPlugin.Log.Msg(
-                                $"[OXL:REGISTRY] '{def.ImageFolder}': {reg} hex values registered" +
-                                $" (total in registry: {CarColorRegistry.Count})");
-                        }
-                        continue;
-                    }
-                }
-
-                OXLPlugin.Log.Msg(
-                    $"[OXL:REGISTRY] No colors from spec for '{def.InternalId}' — car will use folder fallback");
-            }
-            return result;
         }
 
         // ═════════════════════════════════════════════════════════════════════════
@@ -580,224 +521,9 @@ namespace CMS2026_OXL
         }
 
         // ══════════════════════════════════════════════════════════════════════════
-        //  PRICE — oparta na danych z car_spec_*.json
-        //  archetypePrices: null = fallback do starego systemu
+        //  PRICE: widełki z wartości wersji auta w grze (carValue), archetyp, stan, rocznik i usterki
         // ══════════════════════════════════════════════════════════════════════════
-
-        private static readonly Dictionary<string, float> ArchetypeRefActual = new()
-{
-    // Szacowane "typowe" actual condition dla każdego archetypu+poziomu
-    // (odpowiada chassis/body w JSON: Honest L1 = chassis 50, body 45)
-    { "wreckerL1", 0.04f },
-    { "wreckerL2", 0.10f },
-    { "wreckerL3", 0.25f },
-    { "honestL1",    0.38f },
-    { "honestL2",    0.60f },
-    { "honestL3",    0.88f },
-    // Dealer i Wrecker nie skalują — ich cena zależy od narracji, nie od actual
-};
-
-        private static string ArchetypeKey(SellerArchetype arch, int level) =>
-            (arch, level) switch
-            {
-                (SellerArchetype.Wrecker, 1) => "wreckerL1",
-                (SellerArchetype.Wrecker, 2) => "wreckerL2",
-                (SellerArchetype.Wrecker, 3) => "wreckerL3",
-                (SellerArchetype.Dealer, 1) => "dealerL1",
-                (SellerArchetype.Dealer, 2) => "dealerL2",
-                (SellerArchetype.Dealer, 3) => "dealerL3",
-                (SellerArchetype.Honest, 1) => "honestL1",
-                (SellerArchetype.Honest, 2) => "honestL2",
-                (SellerArchetype.Honest, 3) => "honestL3",
-                (SellerArchetype.Scammer, 1) => "scammerL1",
-                (SellerArchetype.Scammer, 2) => "scammerL2",
-                (SellerArchetype.Scammer, 3) => "scammerL3",
-                _ => "honestL2",
-            };
-
-        private static int RollPrice(CarDef def, SellerArchetype arch, int level,float apparent, float actual, int year, FaultFlags faults,Random rng,Dictionary<string, ArchetypePrice> archetypePrices)
-        {
-            string key = ArchetypeKey(arch, level);
-
-            ArchetypePrice ap = null;
-            archetypePrices?.TryGetValue(key, out ap);
-
-            if (ap == null || ap.Price <= 0)
-            {
-                OXLLog.Msg($"[OXL:PRICE]   → FALLBACK (archetypePrices null={archetypePrices == null}, key={key})");
-                return RollPriceFallback(def, arch, level, apparent, actual, year, faults, rng);
-            }
-
-            OXLLog.Msg($"[OXL:PRICE]   → JSON path: key={key} ap.Price={ap.Price} chassis={ap.Chassis} body={ap.Body}");
-
-            float price;
-
-            // ── HONEST: CalcFairValue × poziomowy mnożnik ─────────────────────────────
-            if (arch == SellerArchetype.Honest)
-            {
-                int fair = CalcFairValue(actual, archetypePrices);
-                if (fair <= 0) fair = ap.Price;
-
-                float levelMult = level switch
-                {
-                    1 => (float)(0.75 + rng.NextDouble() * 0.15),  // 0.75–0.90×
-                    2 => (float)(0.90 + rng.NextDouble() * 0.15),  // 0.90–1.05×
-                    _ => (float)(1.00 + rng.NextDouble() * 0.15),  // 1.00–1.15×
-                };
-
-                price = fair * levelMult;
-
-                // Twardy ceiling: Honest nigdy nie sprzedaje powyżej 75% max Honest L3.
-                // Gwarantuje że gracz zawsze ma ~25% budżetu na części + marżę zysku.
-                // Stosowany PRZED szumem i diffMult żeby ceiling był bezwzględny.
-                archetypePrices.TryGetValue("honestL3", out var h3cap);
-                if (h3cap != null && h3cap.Price > 0)
-                {
-                    float ceiling = h3cap.Price * 0.75f;
-                    if (price > ceiling)
-                    {
-                        OXLLog.Msg($"[OXL:PRICE]   Honest ceiling hit: {price:F0} → {ceiling:F0}  (75% of h3={h3cap.Price})");
-                        price = ceiling;
-                    }
-                }
-
-                OXLLog.Msg($"[OXL:PRICE]   Honest: fair={fair} levelMult={levelMult:F3} → {price:F0}");
-
-                // Rabat za znane usterki — Honest ujawnia je w opisie
-                if (faults != FaultFlags.None)
-                {
-                    int faultCount = CountBits((int)faults);
-                    float discPerFault = level switch { 1 => 0.11f, 2 => 0.08f, _ => 0.06f };
-                    float discount = Mathf.Clamp(1f - faultCount * discPerFault, 0.52f, 0.93f);
-                    float priceBeforeFaults = price;
-                    price *= discount;
-                    OXLLog.Msg($"[OXL:PRICE]   faultDisc: faults={faults} count={faultCount} disc={discount:F3}  {priceBeforeFaults:F0} → {price:F0}");
-                }
-            }
-            // ── Wrecker: zawsze tanio — właściciel chce się pozbyć ─────────────────
-            else if (arch == SellerArchetype.Wrecker)
-            {
-                int fair = CalcFairValue(actual, archetypePrices);
-                if (fair <= 0) fair = ap.Price;
-
-                float wreckerDisc = level switch
-                {
-                    1 => (float)(0.20 + rng.NextDouble() * 0.15),
-                    2 => (float)(0.40 + rng.NextDouble() * 0.20),
-                    _ => (float)(0.50 + rng.NextDouble() * 0.20),
-                };
-
-                price = fair * wreckerDisc;
-
-                OXLLog.Msg($"[OXL:PRICE]   Wrecker L{level}: fair={fair} disc={wreckerDisc:F3} → {price:F0}");
-
-                // ── absFloor (Podejście B) ─────────────────────────────────────────────
-                // Problem: CalcFairValue przy actual=2-10% zwraca wartość ~130-630,
-                // ale gra odkupuje auto bazując na Parts Value (~9-22k), nie na actual.
-                // Wrecker L1/L2 spawnuje z częściami 20-55% → Parts Value >> JSON wreckerL1.price.
-                // Floor oparty na honestL1 gwarantuje że OXL nie sprzedaje poniżej wartości odkupu.
-                //
-                //   L1 = 0.50 × honestL1  →  Katagiri: 6020,  Salem: 10491,  DNB: 17293
-                //   L2 = 0.60 × honestL1  →  Katagiri: 7224,  Salem: 12590,  DNB: 20751
-                //   L3 = 0.70 × honestL1  →  Katagiri: 8428,  Salem: 14688,  DNB: 24210
-                if (archetypePrices.TryGetValue("honestL1", out var h1floor) && h1floor != null && h1floor.Price > 0)
-                {
-                    float absFloorMult = level switch { 1 => 0.50f, 2 => 0.60f, _ => 0.70f };
-                    float absFloor = h1floor.Price * absFloorMult;
-                    if (price < absFloor)
-                    {
-                        OXLLog.Msg($"[OXL:PRICE]   Wrecker absFloor hit L{level}: {price:F0} → {absFloor:F0}" +
-                                   $"  ({absFloorMult:P0} × h1={h1floor.Price})");
-                        price = absFloor;
-                    }
-                    else
-                    {
-                        OXLLog.Msg($"[OXL:PRICE]   Wrecker absFloor OK: {price:F0} >= {absFloor:F0}");
-                    }
-                }
-            }
-            // ── DEALER: wycena od apparent — sprzedaje wygląd, nie mechanikę ─────────
-            else if (arch == SellerArchetype.Dealer)
-            {
-                // fairApparent = ile gracz zapłaciłby u Honest za auto W TAKIM STANIE WIZUALNYM.
-                // Dealer naprawia karoserię do apparent, więc ta cena jest "uzasadniona" wizualnie.
-                // Pułapka polega na tym że actual (mechanika) jest dużo niższe.
-                int fairApparent = CalcFairValue(apparent, archetypePrices);
-                if (fairApparent <= 0) fairApparent = ap.Price;
-
-                // L1 Backyard  : lekko poniżej rynku apparent — "uczciwa cena", nic podejrzanego
-                // L2 Pro       : rynkowa, bardzo przekonująca
-                // L3 Criminal  : odrobinę taniej niż fair apparent — "okazja" = przynęta
-                float markup = level switch
-                {
-                    1 => (float)(0.85 + rng.NextDouble() * 0.15), // 0.85–1.00×
-                    2 => (float)(0.90 + rng.NextDouble() * 0.15), // 0.90–1.05×
-                    _ => (float)(0.72 + rng.NextDouble() * 0.13), // 0.72–0.85× — "trochę taniej od Honest"
-                };
-
-                price = fairApparent * markup;
-                OXLLog.Msg($"[OXL:PRICE]   Dealer L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
-            }
-            // ── SCAMMER: wycena od apparent — kłamstwo, różne style na każdym poziomie
-            else
-            {
-				// SCAMMER też wycenia od apparent (kłamie na poziomie zdjęć/opisu).
-				// Różnica vs Dealer: mniej profesjonalne ukrycie, inne sygnały w cenie.
-				int fairApparent = CalcFairValue(apparent, archetypePrices);
-                if (fairApparent <= 0) fairApparent = ap.Price;
-
-                // L1 Amateur      : drożej niż powinno być za ten wygląd → czerwona flaga
-                // L2 Intermediate : rynkowa, podszywa się pod Dealera lub Honest
-                // L3 Expert       : minimalnie taniej niż Honest → "okazja" nie do odróżnienia
-                float markup = level switch
-                {
-                    1 => (float)(1.10 + rng.NextDouble() * 0.30), // 1.10–1.40× — przepłata, sygnał
-                    2 => (float)(0.88 + rng.NextDouble() * 0.22), // 0.88–1.10× — rynkowa, brak sygnału
-                    _ => (float)(0.75 + rng.NextDouble() * 0.15), // 0.75–0.90× — "lekko taniej od Honest"
-                };
-
-                price = fairApparent * markup;
-                OXLLog.Msg($"[OXL:PRICE]   SCAMMER L{level}: fairApparent={fairApparent} markup={markup:F3} → {price:F0}");
-
-            }
-
-            // ── Szum ±6% — wszystkie archetypy ───────────────────────────────────────
-            float noiseVal = 1f + (float)(rng.NextDouble() * 0.12 - 0.06);
-            float priceBeforeNoise = price;
-            price *= noiseVal;
-            OXLLog.Msg($"[OXL:PRICE]   noise: {noiseVal:F3}  {priceBeforeNoise:F0} → {price:F0}");
-
-            // ── Mnożnik trudności — stosowany do WSZYSTKICH archetypów (spójność) ─────
-            // Normal=1.00 (baseline), Easy=0.85 (tańsze), Hard=1.20 (droższe)
-            float diffMult = OXLSettings.PriceMultiplier;
-            float priceBeforeDiff = price;
-            price *= diffMult;
-            OXLLog.Msg($"[OXL:PRICE]   diffMult: {diffMult:F2} ({OXLSettings.CurrentDifficulty})  {priceBeforeDiff:F0} → {price:F0}");
-
-            // ── Zaokrąglenie i floor ──────────────────────────────────────────────────
-            int rounded = Mathf.RoundToInt(price / 50f) * 50;
-            int floorPrice = Mathf.Max(300, Mathf.RoundToInt(ap.Price * 0.10f / 50f) * 50);
-            int final = Mathf.Max(rounded, floorPrice);
-
-            // ── Log oczekiwanej marży — czy aukcja jest opłacalna? ────────────────────
-            // Przybliżone: max sprzedaży gry ≈ honestL3.Price × 1.20 (km=0, pełna naprawa)
-            // Koszt naprawy ≈ 38% różnicy między actual a max (empiryczna estymacja)
-            if (archetypePrices.TryGetValue("honestL3", out var h3log) && h3log != null)
-            {
-                int approxMaxSell = Mathf.RoundToInt(h3log.Price * 1.20f);
-                int approxRepair = Mathf.RoundToInt(approxMaxSell * (1f - Mathf.Clamp(actual, 0f, 1f)) * 0.38f);
-                int approxMargin = approxMaxSell - final - approxRepair;
-                string verdict = approxMargin > 0 ? "OK" : "LOSS";
-                OXLLog.Msg($"[OXL:PRICE]   margin≈{approxMargin} [{verdict}]" +
-                           $"  (sell~{approxMaxSell} − buy {final} − repair~{approxRepair})");
-            }
-
-            OXLLog.Msg($"[OXL:PRICE]   final: rounded={rounded} floor={floorPrice} → {final}");
-            return final;
-        }
-
-        // Fallback: stary system dla aut bez pliku spec (zabezpieczenie)
-        private static int RollPriceFallback(
+        private static int RollPrice(
             CarDef def, SellerArchetype arch, int level,
             float apparent, float actual, int year, FaultFlags faults, Random rng)
         {
@@ -839,38 +565,6 @@ namespace CMS2026_OXL
             }
 
             return Mathf.Max(price, 300);
-        }
-
-        // Uczciwa wartość rynkowa — interpolacja między honest cenami z JSON
-        private static int CalcFairValue(float actual,
-    Dictionary<string, ArchetypePrice> prices)
-        {
-            if (prices == null || prices.Count == 0) return 0;
-
-            bool h1ok = prices.TryGetValue("honestL1", out var h1);
-            bool h2ok = prices.TryGetValue("honestL2", out var h2);
-            bool h3ok = prices.TryGetValue("honestL3", out var h3);
-
-            if (!h1ok || !h2ok || !h3ok) return 0;
-
-            float val;
-            if (actual < 0.38f)
-            {
-                float t = actual / 0.38f;
-                val = Mathf.Lerp(h1.Price * 0.25f, h1.Price, t);
-            }
-            else if (actual < 0.70f)
-            {
-                float t = (actual - 0.38f) / 0.32f;
-                val = Mathf.Lerp(h1.Price, h2.Price, t);
-            }
-            else
-            {
-                float t = (actual - 0.70f) / 0.30f;
-                val = Mathf.Lerp(h2.Price, h3.Price, Mathf.Clamp01(t));
-            }
-
-            return Mathf.Max(300, Mathf.RoundToInt(val / 50f) * 50);
         }
 
         // ~1.2% deprecjacji rocznie — max 50% wartości bazowej (nawet 40-letnie auto ma swój floor)
@@ -1142,20 +836,6 @@ namespace CMS2026_OXL
             };
 
             return otherPool[rng.Next(otherPool.Length)];
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  PURCHASE
-        // ══════════════════════════════════════════════════════════════════════
-
-        public bool TryPurchase(CarListing listing, Action<string> spawnCar, Action<int> deductMoney)
-        {
-            if (!ActiveListings.Contains(listing)) return false;
-            spawnCar(listing.InternalId);
-            deductMoney(listing.Price);
-            ActiveListings.Remove(listing);
-            OXLPlugin.Log.Msg($"[OXL] Purchased: {listing.Make} {listing.Model} | Arch={listing.Archetype} L{listing.ArchetypeLevel} | Apparent={listing.ApparentCondition:P0} Actual={listing.ActualCondition:P0} | Faults={listing.Faults}");
-            return true;
         }
 
         // ══════════════════════════════════════════════════════════════════════

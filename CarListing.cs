@@ -36,7 +36,7 @@ namespace CMS2026_OXL
 
         /// <summary>
         /// Config index for the car model (0 = default, 1+ = variant engine/body).
-        /// Used for both spawning (GameBridge) and photo lookup (CarPhotoLoader).
+        /// Used for spawning (GameBridge) and the photo pack folder (CarPhotoPack).
         /// </summary>
         public int CarConfig { get; set; } = 0;
 
@@ -45,7 +45,6 @@ namespace CMS2026_OXL
         public string SellerNote { get; set; } = "";
         public float ExpiresAt { get; set; }
         public string InternalId { get; set; } = "";
-        public string ImageFolder { get; set; } = "";
         public string Registration { get; set; } = "";
         public int Mileage { get; set; }
         public string Location { get; set; } = "";

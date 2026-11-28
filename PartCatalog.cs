@@ -136,7 +136,45 @@ namespace CMS2026_OXL
                 if (_table.TryGetValue(s, out cat)) return cat;
             }
 
+            // Silniki spoza tabeli 2026 (pkt 4, 2026-11-28: V8 D.vik "v8_d62_*" w Bolcie Nevadzie, 72 części wpadały do Structural):
+            // bez prefiksu silnika (1 do 3 pierwszych członów, np. "w_v8_d62_") porównujemy z tabelą i z nazwami bazowymi jej kluczy ("v8_350_lancuch" -> "lancuch").
+            var segs = norm.Split('_');
+            for (int k = 1; k <= 3 && k < segs.Length; k++)
+            {
+                string rest = string.Join("_", segs, k, segs.Length - k);
+                for (string r = rest; r.Length >= 4; r = r.Contains("_") ? r.Substring(0, r.LastIndexOf('_')) : "")
+                {
+                    if (_table.TryGetValue(r, out cat)) return cat;
+                    if (ByBase.TryGetValue(r, out cat)) return cat;
+                }
+            }
+
             return WearCat.Structural;
+        }
+
+        // Nazwy bazowe kluczy tabeli bez prefiksu silnika ("v6_231_pompa_wody" -> "pompa_wody", "231_pompa_wody"); niejednoznaczne (różne kategorie) pomijane.
+        private static Dictionary<string, WearCat> _byBase;
+        private static Dictionary<string, WearCat> ByBase
+        {
+            get
+            {
+                if (_byBase != null) return _byBase;
+                var map = new Dictionary<string, WearCat>();
+                var ambiguous = new HashSet<string>();
+                foreach (var kv in _table)
+                {
+                    var parts = kv.Key.Split('_');
+                    for (int k = 1; k <= 3 && k < parts.Length; k++)
+                    {
+                        string rest = string.Join("_", parts, k, parts.Length - k);
+                        if (rest.Length < 4 || ambiguous.Contains(rest)) continue;
+                        if (map.TryGetValue(rest, out var prev) && prev != kv.Value) { map.Remove(rest); ambiguous.Add(rest); }
+                        else map[rest] = kv.Value;
+                    }
+                }
+                _byBase = map;
+                return _byBase;
+            }
         }
 
         // ── Normalization pipeline ─────────────────────────────────────────────
@@ -396,6 +434,17 @@ namespace CMS2026_OXL
             { "fusemedium",                 WearCat.Fuse },         // fuseMedium_1/2/3
             { "fusebox",                    WearCat.Fuse },         // fuseBox_1/2 + _top/_bottom via progressive
             { "cewka",                      WearCat.IgnitionCoil }, // cewka_1 (Mayen coil-on-plug)
+            // Nazwy ogólne z aut 2027 (Bolt Nevada, V8 D.vik; pkt 4, 2026-11-28, Scripts/probe_wearclass.cs)
+            { "cewkazaplonowa",             WearCat.IgnitionCoil }, // cewkaZaplonowa_1
+            { "rozdzielaczzaplonu",         WearCat.Distributor },  // rozdzielaczZaplonu_1
+            { "palecrozdzielacza",          WearCat.Distributor },  // palecRozdzielacza_1
+            { "kopulkarozdzielacza",        WearCat.Distributor },  // r6_kopulkaRozdzielacza
+            { "wentylator",                 WearCat.CoolingFan },   // wentylator_3
+            { "kolektor_wodny",             WearCat.CoolantSystem },// v8_d62_kolektor_wodny
+            { "gaznik",                     WearCat.Throttle },     // v8_gaznik_4 (gaźnik zamiast przepustnicy)
+            { "supercharger",               WearCat.Turbo },        // v6_231_supercharger
+            { "intercooler",                WearCat.Turbo },        // intercooler_big_1
+            { "sprezarka_klimatyzacji",     WearCat.Hardware },     // v8_350_sprezarka_klimatyzacji (osprzęt jak alternator)
             { "v6_231_rozdzielaczzaplonu",  WearCat.Distributor },  // v6_231_rozdzielaczZaplonu
             { "v8_350_rozdzielaczzaplonu",  WearCat.Distributor },
             { "r4_modul_zaplonowy",         WearCat.Distributor },  // r4_modul_zaplonowy_sohc → strip _sohc

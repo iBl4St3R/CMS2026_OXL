@@ -1,108 +1,51 @@
-<div align="center" style="color: red; font-weight: bold; font-size: 1.2em; margin-bottom: 20px;">
-  ⚠️⚠️⚠️ WORK IN PROGRESS ⚠️⚠️⚠️
-</div>
+# OXL (Online eX-Owner Lies) for Car Mechanic Simulator 2027
 
-<p align="center">
-  <img src="logo.png" width="400" alt="OXL">
-</p>
-# OXL — Online eX-Owner Lies 🚗💸
+A used market inside the game. OXL is a website in the BlastCoreOS browser (`oxl.com`) where private sellers offer used cars, engines, car parts, tools and decorations. Every seller has a personality: some are honest, some sell wrecks, some are dealers who polish what they sell, and a few are scammers. Read the descriptions, check the photos, compare with the wiki and decide who to trust.
 
+Version **0.7.0**, for Car Mechanic Simulator 2027 (demo and full game).
 
-**OXL** is an in-game car auction website mod for **Car Mechanic Simulator 2026**.
-Browse listings, spot a deal, buy a wreck — then fix it up and sell it for profit.
+## What you get
 
+* **Cars** from the game itself: every car version that is safe to spawn in your game build, with year, mileage, power, drive and price based on the car value in the game. A new car added by a game update shows up on OXL without a mod update.
+* **Parts tab**: engines (rare, cheaper engines more often), body parts, suspension, exhaust, brakes, gearboxes, electronics, interior, rims and tires with real sizes. Complete engines arrive as one piece and sit on the engine stand like an engine pulled out of a car.
+* **Tools and decorations** for your workshop.
+* **Sellers who lie in their descriptions.** Honest sellers tell you what is wrong, dealers hide it, wreckers sell scrap, scammers take your money and send you something else. When you open a scam parcel, you find out.
+* **Check on wiki** on every car and part listing opens the AutoFreaks page in a new browser window.
+* **Payments through the Redline Bank** of BlastCoreOS. A car is paid only after it appears in your parking lot; if the delivery fails, the listing comes back and nothing is charged.
+* **OXL courier**: parts arrive tomorrow or the day after (or instantly, see Settings), the parcel is visible in the BlastCoreOS calendar.
+* **Listings per game save**: every career has its own market. Leaving without saving also undoes OXL purchases.
+* **Settings** on `oxl.com/settings`: delivery, units, prices, number of listings and the mix of sellers.
 
+## Requirements
 
+* MelonLoader 0.7.2
+* CMS2026 UITK Framework 0.4.0 or newer (required)
+* BlastCoreOS 0.3.0 or newer (required: browser, Redline Bank, mail, calendar, game data)
+* CMS2026 Simple Console (optional, for `oxl_*` commands)
 
+The "CMS2026" in the names is not a mistake: the game was announced as 2026 and renamed to 2027.
 
-## ✨ Features
+## Installation
 
-- **Live Listings** — 50 to 200 active auctions at any time, refreshed dynamically as
-  in-game time passes. Miss the window and the deal is gone.
-- **Filters** — narrow down by make and year
-- **Seller Descriptions** — every listing comes with a suspiciously optimistic write-up
-  from the previous owner
-- **One-click Purchase** — car spawns in your parking lot, cash is deducted instantly
+1. Install the requirements.
+2. Copy `CMS2026_OXL.dll` to `Mods/`, `SixLabors.ImageSharp.dll` to `UserLibs/` and the folder `CMS2026_OXL` to `Mods/`.
+3. Optional: download **CarPhotos BASE** and unpack it into `Mods/CMS2026_OXL/Resources/CarPhotos/`. Without it every car shows the game photo with a STOCK PHOTO badge.
+4. Start the game, load a save, sit at a BlastCoreOS computer and open `oxl.com`.
 
----
+**Coming from 0.6.0 (CMS 2026): clean install.** Delete the old `Mods/CMS2026_OXL` folder first. Old listings, the old photo packs (MEDRES, LOWRES) and `car_spec.json` files are not used anymore.
 
-## 📥 Installation
+## Console commands (Simple Console)
 
-**Required:**
-- [MelonLoader v0.7.2+](https://github.com/LavaGang/MelonLoader)
-- [_CMS2026_UITK_Framework](https://github.com/iBl4St3R/_CMS2026_UITK_Framework/releases)
+* `oxl_status`, `oxl_items [parts|tools]`, `oxl_market`, `oxl_parcels`: show what is going on.
+* `oxl_end_all [cars|parts|tools]`: end listings now, new ones come right away.
+* `oxl_logs on|off`: detailed log for bug reports (off by default).
+* `oxl_difficulty easy|normal|hard`: price level.
+* Development and cheats, marked in the command list: `[DEV] oxl_generate`, `[DEV] oxl_items_generate`, `oxl_buyitem`, `oxl_check_now`, `[CHEAT] oxl_deliver` (free parcel), `[CHEAT] oxl_reveal` (real condition of all cars).
 
-**Optional:**
-- [CMS 2026 Simple Console](https://github.com/iBl4St3R/CMS2026-Simple-Console/releases) — enables the `oxl_open` command
+## Reporting a bug
 
-**Steps:**
-1. Drop `_CMS2026_UITK_Framework.dll` into your `Mods/` folder
-2. Drop `OXL.dll` and its folder into your `Mods/` 
-3. Launch the game
+Type `oxl_logs on` in the F7 console, repeat the problem and send `MelonLoader/Latest.log`.
 
----
+## License
 
-## 🚀 Usage
-
-| Action | How |
-|---|---|
-| Open / close panel | **HOME** |
-| Filter listings | Dropdowns at the top of the panel |
-| Buy a car | *Buy* button on any listing |
-| Console command | `oxl_open` *(requires Simple Console)* |
-
----
-
-## 🗺️ Roadmap
-
-### ✅ Done
-- [x] Browse and search listings
-- [x] Purchase a car — spawns on parking lot, deducts cash
-- [x] Dynamic auctions with time limits
-
-### 🔧 In Progress / Planned — Core
-- [] Randomised seller descriptions
-- [ ] Delivery delay system — cars arrive after a set time, not instantly
-- [ ] Randomised vehicle damage — cars spawn with realistic wear and faults
-- [ ] Full listing detail page — registration, color, real specs (currently placeholder)
-- [ ] Seller personalities and backstories
-- [ ] Scam listings — learn to spot fraud from descriptions and seller profiles
-
-### 🔧 Planned — Content
-- [ ] Used parts listings
-- [ ] Workshop tools and decoration items listings
-- [ ] Expanded vehicle photo library — more cars, more authentic listings
-
-### 🔧 Planned — Seller Interaction
-- [ ] Chat window with seller — avatars, dialogue UI
-- [ ] Dialogue options — probe the seller, negotiate price
-- [ ] Price negotiation system
-
-### 🔧 Planned — Player Side
-- [ ] List your own cars, parts, and tools for sale through OXL
-- [ ] Seller profile for the player
-
-### ⚙️ Planned — Settings
-- [ ] Options panel — customise listing generation, economy, delivery times
-
-### 🔮 Future
-- [ ] *Part of something bigger — details coming later*
-
----
-
-## ⚠️ Known Limitations
-
-- Panel renders below the native Canvas during scene transitions (Unity architecture)
-- Demo car limit is capped at 10 — purchase is blocked when the lot is full
-
----
-
-## 📄 License
-
-© iBlaster — Custom License
-Free to play with. Not free to copy, rebrand, or redistribute.
-See [LICENSE](https://github.com/iBl4St3R/CMS2026_OXL?tab=License-1-ov-file) for full details.
-
----
-
-*Built on [CMS2026 UITK Framework](https://github.com/iBl4St3R/_CMS2026_UITK_Framework) — the community UI library for CMS 2026 mods.*
+Own license: you may use the mod, you may not copy, repackage or rebrand it.

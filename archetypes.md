@@ -282,7 +282,7 @@ actual < 0.38 → lerp(honestL1 × 0.25, honestL1, t)
 actual < 0.70 → lerp(honestL1, honestL2, t)
 actual ≥ 0.70 → lerp(honestL2, honestL3, t)
 
-Dane cenowe z `car_spec_*.json` → `archetypePrices`.
+Ceny aut od 2026-11-28 tylko z danych gry: widełki z wartości wersji auta (`carValue`, 10–34% nowego), potem archetyp, stan, rocznik i usterki (`ListingSystem.RollPrice`). `car_spec_*.json` usunięty (`site.md` 19).
 Fallback do `RollPriceFallback()` jeśli brak pliku JSON.
 
 ---
@@ -348,4 +348,3 @@ Od 2026-11-26 (paczka 2027, `CarPhotoPack.ConditionFolder`) folder wynika z `Bod
 | `CarListing.cs` | model danych listingu |
 | `PhotoCondition.cs` | mapowanie archetype → folder zdjęć |
 | `OXLSettings.cs` | Difficulty + PriceMultiplier |
-| `CarSpecLoader.cs` | ładowanie car_spec_*.json (ceny, dane techniczne) |

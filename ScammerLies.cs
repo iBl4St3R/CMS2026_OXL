@@ -65,7 +65,7 @@ namespace CMS2026_OXL
             return pool.Count > 0 ? pool[rng.Next(pool.Count)] : null;
         }
 
-        private static string RealColorName(CarListing l) => OXLSite.ColorName(OXLPanel.HexColor(l));
+        private static string RealColorName(CarListing l) => OXLSite.ColorName(OXLCarMarket.HexColor(l));
 
         // ── Co pokazuje strona i opis ────────────────────────────────────────────
         public static string ShownColor(CarListing l) => !string.IsNullOrEmpty(l?.FakeColor) ? l.FakeColor : RealColorName(l);

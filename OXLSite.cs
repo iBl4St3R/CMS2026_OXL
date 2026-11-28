@@ -2,7 +2,7 @@
 // Strona OXL w przeglądarce BlastCoreOS, wygląd serwisu z ogłoszeniami rzeczy używanych (site.md 11, wzór: zrzuty OLX ss5–ss8).
 // Jedna rejestracja "oxl.com" z HandlesSubpaths, routing po ctx.Path (home, cars, parts, tools, search, item/{id}, settings).
 // Strona jest bezstanowa: grupa, sortowanie, cena i numer strony siedzą w adresie (wstecz/dalej działają, kilka komputerów nie miesza stanu).
-// Stare strony aut (oxl.com/listings, oxl.com/listing/{id}) zostają chwilowo z OXLPanel: dokładny adres wygrywa z HandlesSubpaths.
+// Wszystkie strony OXL (stary panel oxl.com/listings i oxl.com/listing/{id} usunięty 2026-11-28).
 
 using System;
 using System.Collections.Generic;
@@ -48,8 +48,25 @@ namespace CMS2026_OXL
         // Które zdjęcie z paczki gracz ogląda w galerii ogłoszenia (InternalId -> indeks); przeżywa odświeżenie strony strzałką.
         private static readonly Dictionary<string, int> _photoIdx = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
+        // Auto w trakcie dostawy (kupno trwa do kilku sekund, przy zajętym parkingu ok. 6 s): ogłoszenie jest wtedy zdjęte z listy, więc strona auta
+        // bierze je stąd, a okno "Delivering" blokuje drugi klik (użytkownik 2026-11-28: strona nie reagowała, drugi klik dawał "no listing").
+        private static readonly Dictionary<UIPanel, CarListing> _delivering = new Dictionary<UIPanel, CarListing>();
+        private static readonly Dictionary<UIPanel, float> _deliveringSince = new Dictionary<UIPanel, float>();   // bezpiecznik: wynik nie przyszedł w 30 s (np. zmiana sceny) = okno znika
+
         private static void DrawModal(UIPanel panel, BlastCoreWebPageContext ctx, object root, float W, float pageH)
         {
+            if (_delivering.ContainsKey(panel) && _deliveringSince.TryGetValue(panel, out float since) && Time.realtimeSinceStartup - since > 30f) { _delivering.Remove(panel); _deliveringSince.Remove(panel); }
+            if (_delivering.ContainsKey(panel))
+            {
+                // Bez przycisków: zamyka je dopiero wynik dostawy (sukces albo okno z powodem odmowy). Klik w tło nic nie robi.
+                var dimB = OXLUi.Box(root, 0f, 0f, W, pageH, new Color(0f, 0f, 0f, 0.5f));
+                OXLUi.Clickable(panel, ctx, dimB, new Color(0f, 0f, 0f, 0.5f), new Color(0f, 0f, 0f, 0.5f), () => { });
+                float bw = Math.Min(600f, W - 40f), bx = (W - bw) / 2f;
+                var bbox = OXLUi.Box(root, bx, HeaderH + 80f, bw, 150f, White, 6f);
+                OXLUi.Text(panel, bbox, "Delivering your car...", 32f, 26f, bw - 64f, 36f, Dark, 22, true);
+                OXLUi.Text(panel, bbox, "Please wait. The seller is bringing the car to your parking lot.", 32f, 76f, bw - 64f, 48f, Dark, 16, false, TextAnchor.UpperLeft, true);
+                return;
+            }
             if (!_modal.TryGetValue(panel, out var m)) return;
             _modal.Remove(panel);
             var dim = OXLUi.Box(root, 0f, 0f, W, pageH, new Color(0f, 0f, 0f, 0.5f));
@@ -146,7 +163,7 @@ namespace CMS2026_OXL
             switch (first)
             {
                 case "cars": ctx.SetTitle?.Invoke("OXL - Cars"); y = ListPage(panel, ctx, root, cx, cw, y, "cars"); break;
-                case "parts": ctx.SetTitle?.Invoke("OXL - Engines & Parts"); y = ListPage(panel, ctx, root, cx, cw, y, "parts"); break;
+                case "parts": ctx.SetTitle?.Invoke("OXL - Parts"); y = ListPage(panel, ctx, root, cx, cw, y, "parts"); break;
                 case "tools": ctx.SetTitle?.Invoke("OXL - Tools & Decor"); y = ListPage(panel, ctx, root, cx, cw, y, "tools"); break;
                 case "search": ctx.SetTitle?.Invoke("OXL - Search"); y = ListPage(panel, ctx, root, cx, cw, y, "search"); break;
                 case "item": ctx.SetTitle?.Invoke("OXL - Listing"); y = ItemPage(panel, ctx, root, cx, cw, y, path.Length > 5 ? path.Substring(5) : ""); break;
@@ -175,7 +192,7 @@ namespace CMS2026_OXL
             x -= 150f; OXLUi.Button(panel, ctx, root, "Settings", x, 12f, 150f, 40f, White, OXLUi.Hex("#E6ECEC"), Dark, 15, () => ctx.Navigate($"{Host}/settings"), 4f);
             long bal = GameBridge.GetBankAvailable();
             x -= 220f; OXLUi.Text(panel, root, bal < 0 ? "Your Redline: ---" : $"Your Redline: ${bal:N0}", x, 12f, 204f, 40f, White, 14, true, TextAnchor.MiddleRight);
-            foreach (var (key, label) in new[] { ("tools", "Tools & Decor"), ("parts", "Engines & Parts"), ("cars", "Cars") })
+            foreach (var (key, label) in new[] { ("tools", "Tools & Decor"), ("parts", "Parts"), ("cars", "Cars") })
             {
                 float w = 30f + label.Length * 8f;
                 x -= w + 8f;
@@ -195,11 +212,33 @@ namespace CMS2026_OXL
             OXLUi.Button(panel, ctx, root, "Search", cx + cw - bw, y, bw, 48f, Dark, DarkHover, White, 16, search, 2f);
         }
 
+        // ── "Check on wiki": strona AutoFreaks (wiki BlastCoreOS) w nowym oknie przeglądarki, jak przycisk w GarageOS (użytkownik 2026-11-28) ──
+        private const string WikiHost = "autofreaks.org";
+
+        /// <summary>Adres wiki dla przedmiotu: silnik (/engine), część (/part); narzędzia i dekoracje null (wiki ich nie opisuje).</summary>
+        private static string WikiUrl(MarketEntry e)
+        {
+            if (e == null || string.IsNullOrEmpty(e.Id)) return null;
+            if (e.Kind == OXLItemKind.Engine) return BlastCoreWebAPI.BuildUrl(WikiHost + "/engine", "id", e.Id);
+            if (e.Kind == OXLItemKind.Part) return BlastCoreWebAPI.BuildUrl(WikiHost + "/part", "id", e.Id);
+            return null;
+        }
+
+        private static void WikiButton(UIPanel panel, BlastCoreWebPageContext ctx, object box, string url, float x, float y, float w)
+        {
+            var ptr = OXLUi.Button(panel, ctx, box, "Check on wiki", x, y, w, 50f, White, RowHover, Dark, 17, () =>
+            {
+                // Nowe okno na komputerze gracza; przy limicie okien BlastCoreOS odmawia, wtedy czerwony komunikat zamiast cichej porażki.
+                if (!BlastCoreWebAPI.OpenInBrowser(url)) { _flash[panel] = ("Could not open a new browser window. Close another app and try again.", false); ctx.Refresh?.Invoke(); }
+            }, 4f);
+            var st = UIRuntime.GetStyle(UIRuntime.WrapVE(ptr)); S.BorderWidth(st, 2f); S.BorderColor(st, Dark);
+        }
+
         private static float Footer(UIPanel panel, BlastCoreWebPageContext ctx, object root, float W, float cx, float cw, float y)
         {
             OXLUi.Box(root, 0f, y, W, 1f, Line);
             y += 24f;
-            var cols = new[] { new[] { ("Home", Host), ("Settings", $"{Host}/settings") }, new[] { ("Cars", $"{Host}/cars"), ("Engines & Parts", $"{Host}/parts"), ("Tools & Decor", $"{Host}/tools") } };
+            var cols = new[] { new[] { ("Home", Host), ("Settings", $"{Host}/settings") }, new[] { ("Cars", $"{Host}/cars"), ("Parts", $"{Host}/parts"), ("Tools & Decor", $"{Host}/tools") } };
             for (int c = 0; c < cols.Length; c++)
                 for (int i = 0; i < cols[c].Length; i++)
                 {
@@ -208,8 +247,16 @@ namespace CMS2026_OXL
                     OXLUi.Text(panel, link, label, 0f, 0f, 260f, 28f, Dark, 15, true);
                     OXLUi.Clickable(panel, ctx, link, Clear, new Color(0, 0, 0, 0.04f), () => ctx.Navigate(url));
                 }
-            OXLUi.Text(panel, root, "OXL - Online eX-Owner Lies. Sellers lie in descriptions, not in photos.", cx + 680f, y, cw - 680f, 28f, Muted, 13);
-            OXLUi.Text(panel, root, "Payments by Redline Bank. Parcels by your usual courier.", cx + 680f, y + 30f, cw - 680f, 28f, Muted, 13);
+            // Stopka jak w oficjalnym serwisie (użytkownik 2026-11-28: bez "porad" o kłamiących sprzedawcach): prawa i partner płatności.
+            // Logo Redline z plików BlastCoreOS (bank to twarda zależność); bez pliku zostaje sam napis. Klik otwiera bank.
+            float fx = cx + 680f;
+            OXLUi.Text(panel, root, "Supported by", fx, y, 120f, 28f, Muted, 13);
+            var logo = OXLUi.BlastCoreImage("redlineLogo.png");
+            var bank = OXLUi.Box(root, fx + 108f, y - 4f, 112f, 36f, Clear, 3f);
+            if (logo != null) OXLUi.Texture(bank, logo, 0f, 0f, 112f, 36f, 3f);
+            else OXLUi.Text(panel, bank, "Redline Bank", 0f, 0f, 112f, 36f, Dark, 14, true);
+            OXLUi.Clickable(panel, ctx, bank, Clear, new Color(0, 0, 0, 0.06f), () => ctx.Navigate("redline.bank"));
+            OXLUi.Text(panel, root, "(c) OXL Marketplace. All rights reserved.", fx, y + 40f, cw - 680f, 28f, Muted, 13);
             return y + 110f;
         }
 
@@ -285,7 +332,7 @@ namespace CMS2026_OXL
                 return new Row
                 {
                     Category = l.Category, Title = string.IsNullOrEmpty(l.Title) ? l.Name : l.Title, Location = l.Location, When = Posted(l.PostedAt),
-                    Params = l.HasCondition ? $"{l.Name}  |  Condition: {ItemStoryBuilder.ConditionWord(l.ApparentCondition)}" : l.Name,
+                    Params = (l.HasCondition ? $"{l.Name}  |  Condition: {ItemStoryBuilder.ConditionWord(l.ApparentCondition)}" : l.Name) + (MarketCatalog.WheelText(e, l.Id) is string ws && ws.Length > 0 ? $"  |  {ws}" : ""),
                     Price = l.Price, Hours = (l.ExpiresAt - now) / 3600.0, Order = l.PostedAt, Sprite = e != null ? MarketCatalog.GetThumbnail(e) : null,
                     Url = $"{Host}/item/{l.Id}", Group = group, Featured = l.Archetype == SellerArchetype.Dealer && OXLUi.StableHash(l.Id) % 2 == 0,
                     Stated = l.HasCondition ? l.ApparentCondition : -1f,
@@ -293,7 +340,8 @@ namespace CMS2026_OXL
             }).ToList();
         }
 
-        private static string GroupOf(ItemListing l, MarketEntry e) => l.Kind == OXLItemKind.Engine ? "Engines" : l.Kind == OXLItemKind.Part ? "Parts" : (e != null && e.IsTool ? "Tools" : "Decorations");
+        // Części: grupa z katalogu (Body, Suspension, Rims...), pasek filtrów zakładki Parts (site.md 16).
+        private static string GroupOf(ItemListing l, MarketEntry e) => l.Kind == OXLItemKind.Engine ? "Engines" : l.Kind == OXLItemKind.Part ? (e != null && !string.IsNullOrEmpty(e.Group) ? e.Group : "Parts") : (e != null && e.IsTool ? "Tools" : "Decorations");
 
         // Wiersz listy jak na OLX: zdjęcie, tytuł sprzedawcy, miasto i data, parametry, cena po prawej.
         private static void DrawRow(UIPanel panel, BlastCoreWebPageContext ctx, object root, Row r, float x, float y, float w)
@@ -360,7 +408,7 @@ namespace CMS2026_OXL
             var cats = new[]
             {
                 ("cars", "Cars", cars.Count, cars.FirstOrDefault(r => r.Sprite != null)?.Sprite),
-                ("parts", "Engines & Parts", items.Count(r => r.Category == MarketCategory.EnginesParts), items.FirstOrDefault(r => r.Group == "Engines" && r.Sprite != null)?.Sprite ?? items.FirstOrDefault(r => r.Category == MarketCategory.EnginesParts && r.Sprite != null)?.Sprite),
+                ("parts", "Parts", items.Count(r => r.Category == MarketCategory.EnginesParts), items.FirstOrDefault(r => r.Category == MarketCategory.EnginesParts && r.Sprite != null)?.Sprite),
                 ("tools", "Tools & Decor", items.Count(r => r.Category == MarketCategory.ToolsDecor), items.FirstOrDefault(r => r.Group == "Tools" && r.Sprite != null)?.Sprite ?? items.FirstOrDefault(r => r.Category == MarketCategory.ToolsDecor && r.Sprite != null)?.Sprite),
             };
             float cellW = 220f, totalW = cats.Length * cellW, sx = cx + (cw - totalW) / 2f;
@@ -444,12 +492,12 @@ namespace CMS2026_OXL
                 return build(p);
             };
 
-            string catName = kind == "cars" ? "Cars" : kind == "parts" ? "Engines & Parts" : kind == "tools" ? "Tools & Decor" : "Search";
+            string catName = kind == "cars" ? "Cars" : kind == "parts" ? "Parts" : kind == "tools" ? "Tools & Decor" : "Search";
             string crumb = "Home  /  " + catName + (f["group"].Length > 0 ? "  /  " + f["group"] : "") + (f["model"].Length > 0 ? "  /  " + f["model"] : "");
             OXLUi.Text(panel, root, crumb, cx, y, cw, 24f, Muted, 13);
             y += 34f;
 
-            // Pasek grup z liczbami (marki aut, Engines / Parts, Tools / Decorations), jak marki na OLX; przy wielu markach wiersze się zawijają.
+            // Pasek grup z liczbami (marki aut, grupy części z katalogu, Tools / Decorations), jak marki na OLX; przy wielu markach wiersze się zawijają.
             float gx = cx;
             foreach (var g in all.GroupBy(r => r.Group).OrderByDescending(g => g.Count()).ThenBy(g => g.Key))
             {
@@ -655,7 +703,7 @@ namespace CMS2026_OXL
             MarketCatalog.TryGet(l.EntryId, out var entry);
             string group = GroupOf(l, entry);
             string catKey = l.Category == MarketCategory.ToolsDecor ? "tools" : "parts";
-            string catName = l.Category == MarketCategory.ToolsDecor ? "Tools & Decor" : "Engines & Parts";
+            string catName = l.Category == MarketCategory.ToolsDecor ? "Tools & Decor" : "Parts";
             string back = $"{Host}/{catKey}";
             string title = string.IsNullOrEmpty(l.Title) ? l.Name : l.Title;
             int seed = OXLUi.StableHash(l.Id + l.SellerNick);
@@ -688,6 +736,8 @@ namespace CMS2026_OXL
             float ly = y + ih + 40f + Gap;
 
             var chips = new List<string> { "Private", $"Category: {group}", $"Item: {l.Name}" };
+            string size = MarketCatalog.WheelText(entry, l.Id);   // opona albo felga: ten sam rozmiar przyjdzie w paczce
+            if (size.Length > 0) chips.Add($"Size: {size}");
             if (l.HasCondition) chips.Add($"Condition: {ItemStoryBuilder.ConditionWord(l.ApparentCondition)} ({(int)Math.Round(l.ApparentCondition * 100f)}%)");
             chips.Add($"New in shop: ${l.NewPrice:N0}");
             int lines = OXLUi.Lines(l.Story, lw - 56f, 16);
@@ -712,7 +762,8 @@ namespace CMS2026_OXL
             // Prawa kolumna: tytuł, cena, kupno, sprzedawca, lokalizacja, prawa konsumenta
             float ry = y;
             int tlines = OXLUi.Lines(title, rw - 48f, 22);
-            float bh = 30f + 26f + tlines * 30f + 56f + 60f + 60f + 50f;
+            string wiki = WikiUrl(entry);
+            float bh = 30f + 26f + tlines * 30f + 56f + 60f + 60f + 50f + (wiki != null ? 60f : 0f);
             var buyBox = OXLUi.Box(root, rx, ry, rw, bh, White, 4f);
             float by = 24f;
             OXLUi.Text(panel, buyBox, $"Posted {Posted(l.PostedAt)}", 24f, by, rw - 48f, 22f, Muted, 13); by += 30f;
@@ -733,6 +784,7 @@ namespace CMS2026_OXL
             }, 4f);
             var ms = UIRuntime.GetStyle(UIRuntime.WrapVE(msgPtr)); S.BorderWidth(ms, 2f); S.BorderColor(ms, Dark);
             by += 60f;
+            if (wiki != null) { WikiButton(panel, ctx, buyBox, wiki, 24f, by, rw - 48f); by += 60f; }
             OXLUi.Text(panel, buyBox, (OXLSettings.InstantDelivery ? "Instant delivery" : "Courier delivery tomorrow or the day after") + ", paid from your Redline account.", 24f, by, rw - 48f, 22f, Muted, 13);
             ry += bh + Gap;
 
@@ -782,11 +834,12 @@ namespace CMS2026_OXL
 
         // ── Ogłoszenie auta (oxl.com/car/{InternalId}), site.md 12 ─────────────────────
         // Parametry z danych gry (wersja, silnik, moc, moment, napęd, skrzynia, waga), opis sprzedawcy z SellerNoteBuilder,
-        // kupno przez OXLPanel.TryBuyCar (pieniądze po udanym spawnie), "Message seller" jak przy przedmiotach.
+        // kupno przez OXLCarMarket.TryBuyCar (pieniądze po udanym spawnie), "Message seller" jak przy przedmiotach.
         private static float CarPage(UIPanel panel, BlastCoreWebPageContext ctx, object root, float cx, float cw, float y, string id)
         {
             var backend = OXLWebPage.Backend;
             var l = backend?.GetActiveListings()?.FirstOrDefault(x => x != null && string.Equals(x.InternalId, id, StringComparison.OrdinalIgnoreCase));
+            if (l == null && _delivering.TryGetValue(panel, out var dl) && string.Equals(dl.InternalId, id, StringComparison.OrdinalIgnoreCase)) l = dl;
             string back = Host + "/cars";
             if (l == null)
             {
@@ -903,7 +956,9 @@ namespace CMS2026_OXL
 
             float ry = y;
             int tlines = OXLUi.Lines(title, rw - 48f, 22);
-            float bh = 30f + 26f + tlines * 30f + 56f + 60f + 60f + 50f;
+            // Wiki AutoFreaks: prawdziwa wersja auta (gracz sprawdzi tam kłamstwa scammera o wersji i mocy).
+            string wiki = BlastCoreWebAPI.BuildUrl(WikiHost + "/car", new Dictionary<string, string> { ["id"] = GameBridge.ToGameId(l.InternalId), ["v"] = l.CarConfig.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+            float bh = 30f + 26f + tlines * 30f + 56f + 60f + 60f + 50f + 60f;
             var buyBox = OXLUi.Box(root, rx, ry, rw, bh, White, 4f);
             float by = 24f;
             OXLUi.Text(panel, buyBox, Ends(hoursLeft), 24f, by, rw - 48f, 22f, hoursLeft < 3 ? BadInk : Muted, 13); by += 30f;
@@ -911,8 +966,18 @@ namespace CMS2026_OXL
             OXLUi.Text(panel, buyBox, "$" + l.Price.ToString("N0"), 24f, by, rw - 48f, 44f, Dark, 30, true); by += 56f;
             OXLUi.Button(panel, ctx, buyBox, "Buy now", 24f, by, rw - 48f, 50f, Dark, DarkHover, White, 17, () =>
             {
-                bool started = backend.TryBuyCar(l, (ok, msg) => { _flash[panel] = (msg, ok); ctx.Navigate(back); }, out string now);
+                if (_delivering.ContainsKey(panel)) return;
+                bool finished = false;   // wynik przed końcem TryBuyCar (spawn bez czekania) = bez okna "Delivering"
+                bool started = backend.TryBuyCar(l, (ok, msg) =>
+                {
+                    finished = true;
+                    _delivering.Remove(panel);
+                    // Sukces: lista z zielonym komunikatem. Porażka: ogłoszenie wróciło, więc zostajemy na stronie auta z oknem powodu.
+                    if (ok) { _flash[panel] = (msg, true); ctx.Navigate(back); }
+                    else { _modal[panel] = ("You cannot buy this car", msg, false); ctx.Refresh?.Invoke(); }
+                }, out string now);
                 if (!started) { _modal[panel] = ("You cannot buy this car", now, now.Contains("Redline")); ctx.Refresh?.Invoke(); }
+                else if (!finished) { _delivering[panel] = l; _deliveringSince[panel] = Time.realtimeSinceStartup; ctx.Refresh?.Invoke(); }
             }, 4f);
             by += 60f;
             var msgPtr = OXLUi.Button(panel, ctx, buyBox, "Message seller", 24f, by, rw - 48f, 50f, White, RowHover, Dark, 17, () =>
@@ -923,6 +988,7 @@ namespace CMS2026_OXL
             }, 4f);
             var ms = UIRuntime.GetStyle(UIRuntime.WrapVE(msgPtr)); S.BorderWidth(ms, 2f); S.BorderColor(ms, Dark);
             by += 60f;
+            WikiButton(panel, ctx, buyBox, wiki, 24f, by, rw - 48f); by += 60f;
             OXLUi.Text(panel, buyBox, "Delivered to your parking lot right away, paid from your Redline account.", 24f, by, rw - 48f, 40f, Muted, 13, false, TextAnchor.UpperLeft, true);
             ry += bh + Gap;
 
@@ -1005,7 +1071,7 @@ namespace CMS2026_OXL
             y = Steppers(panel, ctx, root, cx, w, y, "Listings on OXL", "The market keeps this many active listings in each category.", new[]
             {
                 ("Cars", (Func<int>)(() => gc.MaxListings), (Action<int>)(v => gc.MaxListings = Math.Max(1, Math.Min(50, v))), 1),
-                ("Engines and parts", () => gc.TargetParts, v => gc.TargetParts = Math.Max(0, Math.Min(40, v)), 1),
+                ("Parts", () => gc.TargetParts, v => gc.TargetParts = Math.Max(0, Math.Min(40, v)), 1),
                 ("Tools and decorations", () => gc.TargetDecor, v => gc.TargetDecor = Math.Max(0, Math.Min(40, v)), 1),
             });
             string[] archNames = { "Honest", "Wrecker", "Dealer", "Scammer" };

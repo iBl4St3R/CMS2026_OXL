@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 
 [assembly: MelonInfo(typeof(CMS2026_OXL.OXLPlugin),
-    "CMS2026_OXL", "0.6.0", "iBlaster")]
+    "CMS2026_OXL", "0.7.0", "iBlaster")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2027 Demo")]
 [assembly: MelonGame("Red Dot Games", "Car Mechanic Simulator 2027")]
 
@@ -14,7 +14,7 @@ namespace CMS2026_OXL
     {
         internal static MelonLogger.Instance Log => Melon<OXLPlugin>.Logger;
 
-        private OXLPanel _panel;
+        private OXLCarMarket _panel;
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
@@ -37,9 +37,17 @@ namespace CMS2026_OXL
             OXLWebPage.EnsureRegistered();
             _panel = OXLWebPage.Backend;
 
+            // Ogłoszenia są osobno dla każdego zapisu gry (site.md 17): stoją, aż BlastCoreOS poda slot (OnUpdate, OXLSaveSlot.TryActivate).
+            OXLSaveSlot.Reset();
             // Ogłoszenia przedmiotów (silniki, części, narzędzia, dekoracje) żyją tylko w garażu (zasada 7).
             ItemListingSystem.OnGarageLoaded();
             _inGarage = true;
+
+            // Komunikat przy otwarciu paczki od scammera (G73); patch raz na sesję, metoda gry żyje przez zmiany scen.
+            OXLScamParcels.Install(HarmonyInstance);
+
+            // Części silnika tylko do montażu przy aucie: nauka z modeli w scenie (silniki aut na parkingu), OXLEngineParts.
+            OXLEngineParts.ScanScene();
 
             TryRegisterConsole();
         }
@@ -49,7 +57,7 @@ namespace CMS2026_OXL
         // Wyjście ze sceny garażu (menu, inna lokacja): ogłoszenia przedmiotów przestają tykać. Inne doładowywane sceny nie wyłączają.
         public override void OnSceneWasUnloaded(int buildIndex, string sceneName)
         {
-            if (sceneName != null && sceneName.ToLower().Contains("garage")) _inGarage = false;
+            if (sceneName != null && sceneName.ToLower().Contains("garage")) { _inGarage = false; OXLSaveSlot.Reset(); }
         }
 
         public override void OnUpdate()
@@ -59,6 +67,12 @@ namespace CMS2026_OXL
             catch (Exception ex) { Log.Warning($"[OXL:PHOTO] Tick failed: {ex.Message}"); }
             if (_inGarage)
             {
+                // Slot zapisu właśnie znany: ogłoszenia aut i przedmiotów tego zapisu (nowa kariera = puste, generator dokłada).
+                if (OXLSaveSlot.TryActivate())
+                {
+                    try { _panel?.ReloadListingsForSlot(); ItemListingSystem.ReloadForSlot(); }
+                    catch (Exception ex) { Log.Warning($"[OXL:SAVE] reload for slot {OXLSaveSlot.Slot} failed: {ex.Message}"); }
+                }
                 try { ItemListingSystem.Tick(); }
                 catch (Exception ex) { Log.Warning($"[OXL:ITEMS] Tick failed: {ex.Message}"); }
             }
@@ -133,14 +147,25 @@ namespace CMS2026_OXL
                 register?.Invoke(null, new object[]
                 {
             "oxl_end_all",
-            "End all active auctions immediately",
-            (Action<string[]>)(_ =>
+            "oxl_end_all [cars|parts|tools] - end all OXL listings now (no argument = every tab); new ones come right away",
+            (Action<string[]>)(args =>
 {
-    if (_panel == null) { Print("OXL panel not initialized."); return; }
-    int count = _panel.GetActiveListings().Count;
-    _panel.GetActiveListings().Clear();
-    _panel.SaveListings();  // ← zapis pustej listy
-    Print($"Ended {count} active auction(s).");
+    // Użytkownik 2026-11-28: kończyło tylko auta, części zostawały te same. Bez argumentu wszystkie zakładki, z argumentem jedna.
+    string what = args.Length > 1 ? args[1].ToLowerInvariant() : "all";
+    if (what != "all" && what != "cars" && what != "parts" && what != "tools") { Print("Usage: oxl_end_all [cars|parts|tools]"); return; }
+    if (what == "all" || what == "cars")
+    {
+        if (_panel == null) { Print("OXL panel not initialized."); return; }
+        int count = _panel.GetActiveListings().Count;
+        _panel.GetActiveListings().Clear();
+        _panel.SaveListings();  // zapis pustej listy
+        Print($"Ended {count} car listing(s).");
+    }
+    if (what != "cars")
+    {
+        int n = ItemListingSystem.EndListings(what == "parts" ? MarketCategory.EnginesParts : what == "tools" ? MarketCategory.ToolsDecor : (MarketCategory?)null);
+        Print($"Ended {n} item listing(s). New ones appear in a moment.");
+    }
 })
                 });
 
@@ -148,63 +173,18 @@ namespace CMS2026_OXL
                 register?.Invoke(null, new object[]
                 {
             "oxl_generate",
-            "oxl_generate <count> — generate N new listings (1–20)",
+            "[DEV] oxl_generate <count> - add up to N car listings now (up to the limit from OXL settings)",
             (Action<string[]>)(args =>
             {
                 if (_panel == null) { Print("OXL panel not initialized."); return; }
                 int n = 1;
                 if (args.Length > 1) int.TryParse(args[1], out n);
                 n = Math.Max(1, Math.Min(50, n));
+                // Liczymy faktycznie dodane: przy limicie z ustawień generator nic nie dokłada (komunikat mówił wcześniej "Generated n").
+                int before = _panel.GetActiveListings()?.Count ?? 0;
                 _panel.GenerateListings(n);
-                Print($"Generated {n} new listing(s). Total: {_panel.GetActiveListings().Count}");
-            })
-                });
-
-                // ── oxl_detail — szczegóły aktualnie otwartego listingu ──────────
-                register?.Invoke(null, new object[]
-                {
-            "oxl_detail",
-            "Show full details of the currently open listing",
-            (Action<string[]>)(_ =>
-            {
-                if (_panel == null) { Print("OXL panel not initialized."); return; }
-                var l = _panel.GetCurrentDetailListing();
-                if (l == null) { Print("No listing currently open. Open a detail view first."); return; }
-
-                Print($"══ LISTING DETAIL ═══════════════════════");
-                Print($"  Car:        {l.Make} {l.Model} {l.Year}");
-                Print($"  Price:      ${l.Price:N0}");
-                Print($"  Plate:      {l.Registration}");
-                Print($"  Color:      {l.Color}");
-                Print($"  Mileage:    {l.Mileage:N0} mi");
-                Print($"  Location:   {l.Location}  (~{l.DeliveryHours}h delivery)");
-                Print($"──────────────────────────────────────────");
-                Print($"  Archetype:  {l.Archetype} L{l.ArchetypeLevel}");
-                Print($"  Rating:     {l.SellerRating}★");
-                Print($"  Apparent:   {l.ApparentCondition:P0}  (what buyer sees)");
-                Print($"  Actual:     {l.ActualCondition:P0}  (real condition)");
-                Print($"  Honesty:    {l.ActualCondition / Math.Max(l.ApparentCondition, 0.01f):P0}");
-                Print($"  Faults:     {l.Faults}");
-                Print($"──────────────────────────────────────────");
-                Print($"  Note:       \"{l.SellerNote}\"");
-                Print($"══════════════════════════════════════════");
-            })
-                });
-
-                // ── oxl_end_current — kończy aktualnie otwarty listing ───────────
-                register?.Invoke(null, new object[]
-                {
-            "oxl_end_current",
-            "End the currently open listing auction",
-            (Action<string[]>)(_ =>
-            {
-                if (_panel == null) { Print("OXL panel not initialized."); return; }
-                var l = _panel.GetCurrentDetailListing();
-                if (l == null) { Print("No listing currently open."); return; }
-                string name = $"{l.Make} {l.Model} {l.Year}";
-                _panel.GetActiveListings().Remove(l);
-                _panel.CloseDetail();
-                Print($"Auction ended: {name}");
+                int after = _panel.GetActiveListings()?.Count ?? 0;
+                Print($"Generated {after - before} new listing(s). Total: {after}" + (after - before < n ? " (limit from OXL settings reached)" : ""));
             })
                 });
 
@@ -212,7 +192,7 @@ namespace CMS2026_OXL
                 register?.Invoke(null, new object[]
                 {
             "oxl_reveal",
-            "Reveal actual condition and hidden faults for all active listings",
+            "[CHEAT] Reveal actual condition and hidden faults of all car listings",
             (Action<string[]>)(_ =>
             {
                 if (_panel == null) { Print("OXL panel not initialized."); return; }
@@ -231,43 +211,6 @@ namespace CMS2026_OXL
                 Print($"══════════════════════════════════════════");
             })
                 });
-
-
-                // ── oxl_memory — pomiar RAM tylko naszego systemu ─────────────────────
-                register?.Invoke(null, new object[]
-                {
-    "oxl_memory",
-    "Show OXL memory usage (textures, listings, cache)",
-    (Action<string[]>)(_ =>
-    {
-        if (_panel == null) { Print("OXL panel not initialized."); return; }
-
-        // ── Tekstury w cache ──────────────────────────────────────────────
-        var cacheInfo = _panel.GetPhotoCacheInfo();
-
-        // ── Listings ──────────────────────────────────────────────────────
-        int listingCount = _panel.GetActiveListings()?.Count ?? 0;
-        int photoFilesTotal = _panel.GetActiveListings()
-            ?.Sum(l => l.PhotoFiles?.Count ?? 0) ?? 0;
-
-        // ── Managed heap — nasz assembly ─────────────────────────────────
-        long managedBytes = GC.GetTotalMemory(false);
-
-        Print($"══ OXL MEMORY ════════════════════════════");
-        Print($"  Texture cache:   {cacheInfo.Count} textures  (~{cacheInfo.EstimatedMB:F1} MB)");
-        Print($"  Thumbnail cache: {cacheInfo.ThumbCount} thumbs    (~{cacheInfo.ThumbMB:F1} MB)");
-        Print($"  LRU entries:     {cacheInfo.LruCount}");
-        Print($"  Fallbacks:       {cacheInfo.FallbackCount} textures");
-        Print($"──────────────────────────────────────────");
-        Print($"  Active listings: {listingCount}");
-        Print($"  PhotoFiles refs: {photoFilesTotal} path strings");
-        Print($"──────────────────────────────────────────");
-        Print($"  Managed heap:    {managedBytes / 1024f / 1024f:F2} MB  (whole process)");
-        Print($"  (heap includes Unity, MelonLoader, all mods)");
-        Print($"══════════════════════════════════════════");
-    })
-                });
-                
 
 
                                 // ── oxl_set_difficulty — zmienia trudność z konsoli ───────────────
@@ -305,7 +248,7 @@ namespace CMS2026_OXL
                     }
                 }) });
 
-                register?.Invoke(null, new object[] { "oxl_items_generate", "oxl_items_generate <count> [parts|tools] - add new item listings now", (Action<string[]>)(args =>
+                register?.Invoke(null, new object[] { "oxl_items_generate", "[DEV] oxl_items_generate <count> [parts|tools] - add new item listings now (above the limit from OXL settings)", (Action<string[]>)(args =>
                 {
                     if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
                     int n = 3; if (args.Length > 1) int.TryParse(args[1], out n);
@@ -335,14 +278,14 @@ namespace CMS2026_OXL
                 {
                     if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
                     var all = MarketCatalog.All;
-                    Print($"Cars (safe versions): {all.Count(e => e.Category == MarketCategory.Cars)}, engines: {all.Count(e => e.Kind == OXLItemKind.Engine)}, parts >= ${MarketCatalog.ExpensiveThreshold}: {all.Count(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part)}, tools: {all.Count(e => e.Category == MarketCategory.ToolsDecor && e.IsTool)}, decorations: {all.Count(e => e.Category == MarketCategory.ToolsDecor && !e.IsTool)}");
+                    Print($"Cars (safe versions): {all.Count(e => e.Category == MarketCategory.Cars)}, engines: {all.Count(e => e.Kind == OXLItemKind.Engine)}, parts >= ${MarketCatalog.MinPartPrice}: {all.Count(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part)} in {all.Where(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part).Select(e => e.Group).Distinct().Count()} groups ({string.Join(", ", all.Where(e => e.Category == MarketCategory.EnginesParts && e.Kind == OXLItemKind.Part).GroupBy(e => e.Group).Select(g => g.Key + " " + g.Count()))}), tools: {all.Count(e => e.Category == MarketCategory.ToolsDecor && e.IsTool)}, decorations: {all.Count(e => e.Category == MarketCategory.ToolsDecor && !e.IsTool)}");
                     if (args.Length < 2) return;
                     MarketCategory cat = args[1].StartsWith("car", StringComparison.OrdinalIgnoreCase) ? MarketCategory.Cars : args[1].StartsWith("tool", StringComparison.OrdinalIgnoreCase) ? MarketCategory.ToolsDecor : MarketCategory.EnginesParts;
                     foreach (var e in MarketCatalog.In(cat).Take(40)) Print($"  {e.Id} | {e.Name} | ${e.Price:N0} | {e.Group} | photo={(MarketCatalog.GetThumbnail(e) != null ? "yes" : "no")}{(e.Category == MarketCategory.Cars ? $" | {e.Make} / {e.Model} / {e.VersionName} | {e.YearMin}-{e.YearMax} | {e.Drive} | {e.EngineName} | {e.Hp} HP @{e.HpRpm} | {e.TorqueNm} Nm @{e.TorqueRpm} | {e.Weight} kg | {e.Gears} gears" : "")}");
                 }) });
 
                 // ── oxl_deliver — test dostawy bez zakupu (bez pobrania z banku): paczka i mail jak po kupnie ──
-                register?.Invoke(null, new object[] { "oxl_deliver", "oxl_deliver <id> [condition 1-100] [now] - TEST: send an OXL parcel with this part, engine, tool or decoration (free)", (Action<string[]>)(args =>
+                register?.Invoke(null, new object[] { "oxl_deliver", "[CHEAT] oxl_deliver <id> [condition 1-100] [now] - send yourself an OXL parcel with this part, engine, tool or decoration for free (testing)", (Action<string[]>)(args =>
                 {
                     if (args.Length < 2) { Print("Usage: oxl_deliver <id> [condition 1-100] [now]"); return; }
                     if (!MarketCatalog.EnsureBuilt()) { Print("Game data not ready yet."); return; }
@@ -420,7 +363,6 @@ namespace CMS2026_OXL
             _log.Msg(msg);
         }
 
-        public static void Warn(string msg) => _log.Warning(msg);
         public static void Error(string msg) => _log.Error(msg);
         public static void Always(string msg) => _log.Msg(msg);
     }

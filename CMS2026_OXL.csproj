@@ -38,6 +38,11 @@
       <HintPath>$(Net6Dir)\Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Harmony z MelonLoadera: komunikat scammera przy otwarciu paczki (OXLScamParcels.cs) -->
+    <Reference Include="0Harmony">
+      <HintPath>$(Net6Dir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
 
     <!-- Unity -->
     <Reference Include="Il2Cppmscorlib">
